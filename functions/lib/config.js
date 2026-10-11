@@ -1,5 +1,7 @@
 // Model ids live here and nowhere else.
-export const CLAUDE_MODEL = 'claude-sonnet-5-5';
+// Haiku 5.5 drafts a summary for about half a cent. 'claude-sonnet-5-5' writes richer
+// letters for about ten cents each. Without ANTHROPIC_API_KEY, Llama on Workers AI is used.
+export const CLAUDE_MODEL = 'claude-haiku-5-5';
 export const LLAMA_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 

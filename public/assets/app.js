@@ -152,7 +152,7 @@ export function shell({ nav = '', langSwitch = true, onLang } = {}) {
   const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${esc(text)}</a>`;
   footer.innerHTML = `<div>${ext(REPO_URL, t('footer.openSource'))} · ${ext(`${REPO_URL}/blob/main/LICENSE`, t('footer.license'))}</div>
     <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin'))}</div>
-    <div><a href="/privacy/">${esc(t('footer.privacy'))}</a></div>`;
+    <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>`;
   document.body.append(footer);
   $('#lang', header)?.addEventListener('change', async (e) => {
     setLang(e.target.value);

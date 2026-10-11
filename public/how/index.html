@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbfaf7">
+  <title>How this works</title>
+  <link rel="preload" href="/assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script type="module">
+    import { initI18n, shell, getLang, registerSW, t, config, orgLogo, APP_NAME } from '/assets/app.js';
+    registerSW();
+    await initI18n();
+    shell();
+    document.title = `${t('footer.how')} · ${APP_NAME}`;
+    document.getElementById('logo').innerHTML = orgLogo();
+    for (const el of document.querySelectorAll('[data-name]')) el.textContent = config[el.dataset.name];
+    // TODO: Hawaiian translation of this page, written by a fluent speaker.
+    document.getElementById('haw-note').hidden = getLang() === 'en';
+  </script>
+</head>
+<body>
+  <main>
+    <div id="logo"></div>
+    <div id="haw-note" class="banner info" lang="en" hidden>
+      The ʻŌlelo Hawaiʻi version of this page is still being written by a fluent speaker. Here it is in English for now.
+    </div>
+    <section lang="en">
+      <h1>How this works</h1>
+      <p>Once a year, everyone at <span data-name="hui">the Hui</span> looks back on their own year and on the work of a few coworkers. <span data-name="director">Your director</span> reads it all, writes each person a letter about their year, and sits down with them to talk story. This app is where that happens.</p>
+
+      <h2>For staff</h2>
+      <ol>
+        <li><strong>Open your link.</strong> You get a personal link by text or email. No password and no app to install. It opens straight to your list.</li>
+        <li><strong>See your list.</strong> First your own self reflection, then one card for each coworker you are reviewing. Each card shows how far along you are and about how long the rest will take.</li>
+        <li><strong>Answer one question at a time.</strong> Type, or tap <em>Talk</em> and say it out loud. Your words appear in the box so you can fix anything.</li>
+        <li><strong>No signal? Keep going.</strong> Everything saves on your phone as you type and sends itself when you are back online.</li>
+        <li><strong>Short on time?</strong> Tap <em>I only have 5 minutes</em> to answer just the key questions, then come back for the rest.</li>
+        <li><strong>Mahalo first.</strong> Every coworker review starts with gratitude. You can choose to sign your mahalo so they know it came from you.</li>
+        <li><strong>Read your letter.</strong> After the review closes, you get a letter about your year with what coworkers appreciated and where you can grow. You can write a reflection back.</li>
+      </ol>
+
+      <h2>Your answers stay anonymous</h2>
+      <p>Your answers are saved with the person they are about, never with your name. Admins read them only after the review closes, and they cannot see who wrote what, except a mahalo you chose to sign. Every time an admin reads answers, it is logged. <a href="/privacy/">Read exactly how privacy works.</a></p>
+
+      <h2>A review, start to finish</h2>
+      <ol>
+        <li>The review opens and everyone gets their link.</li>
+        <li>You answer over a few weeks, a little at a time if you like.</li>
+        <li>The review closes and answers lock.</li>
+        <li>Each person gets a letter about their year, drafted with help from AI and edited and approved by a person.</li>
+        <li>You sit down together to talk story and set goals for the year ahead.</li>
+      </ol>
+
+      <h2>For admins</h2>
+      <p>Admins set up each review: the questions, who reviews whom, sending links, watching progress, and writing the letters.</p>
+      <p><strong>Admins do not use a magic link.</strong> Go to the admin page and enter your email. A one time code arrives by email; type it in and you are signed in for the day. Only emails on the admin list can get in.</p>
+      <p><a class="button" href="/admin/">Admin sign in</a></p>
+
+      <p style="margin-top:2rem"><a href="/">Back to home</a></p>
+    </section>
+  </main>
+</body>
+</html>

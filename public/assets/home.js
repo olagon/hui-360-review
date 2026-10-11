@@ -37,7 +37,8 @@ function landing(e) {
     ${e && e.status !== 401 ? `<div class="banner info">${esc(t('landing.offline'))}</div>` : ''}
     <p>${esc(t('landing.body'))}</p>
     <p>${esc(t('landing.howto'))}</p>
-    <p class="muted">${esc(t('landing.newlink'))}</p>`;
+    <p class="muted">${esc(t('landing.newlink'))}</p>
+    <p><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a></p>`;
 }
 
 function card(a) {

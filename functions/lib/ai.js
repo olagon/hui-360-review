@@ -10,17 +10,11 @@ export function completer(env) {
         ? `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.AI_GATEWAY_ID}/anthropic`
         : undefined;
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL });
+    // Server side fallback (if a safety classifier declines) exists for Sonnet and Opus, not Haiku.
+    const fallback = /sonnet|opus/.test(CLAUDE_MODEL) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {};
     return async (system, user) => {
       const msg = await client.beta.messages
-        .stream({
-          model: CLAUDE_MODEL,
-          max_tokens: 16000,
-          system,
-          messages: [{ role: 'user', content: user }],
-          // Server side fallback if a safety classifier declines the request.
-          betas: ['server-side-fallback-2026-07-01'],
-          fallbacks: 'default',
-        })
+        .stream({ model: CLAUDE_MODEL, max_tokens: 16000, system, messages: [{ role: 'user', content: user }], ...fallback })
         .finalMessage();
       if (msg.stop_reason === 'refusal') throw new HttpError(502, 'The model declined to write this draft. Try again or write it by hand.');
       return msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
@@ -33,7 +27,7 @@ export function completer(env) {
         { role: 'user', content: user },
       ],
       max_tokens: 3000,
-    });
+    }, env.AI_GATEWAY_ID ? { gateway: { id: env.AI_GATEWAY_ID } } : undefined);
     return out.response;
   };
 }

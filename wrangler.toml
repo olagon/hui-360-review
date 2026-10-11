@@ -6,10 +6,10 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # Filled in during setup. See README, "Set up Cloudflare Access" and "AI Gateway".
-ACCESS_TEAM_DOMAIN = ""   # like https://yourteam.cloudflareaccess.com
-ACCESS_AUD = ""           # the Application Audience (AUD) tag
-CF_ACCOUNT_ID = ""
-AI_GATEWAY_ID = ""
+ACCESS_TEAM_DOMAIN = "https://wispy-hall-957e.cloudflareaccess.com"
+ACCESS_AUD = "cf838f0723c46c9ff8b5d7c98bc66c30ffa17b500d6c2379f1750d9f9e98d8f4"
+CF_ACCOUNT_ID = "9d4206418d10ed67812b7e4ff70d098b"
+AI_GATEWAY_ID = "hui360"
 
 [[d1_databases]]
 binding = "DB"
@@ -24,7 +24,7 @@ bucket_name = "hui360-media"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "00000000000000000000000000000000"
+id = "1e336d64281e4746bd57506e77324b76"
 
 [ai]
 binding = "AI"
