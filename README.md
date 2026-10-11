@@ -166,7 +166,7 @@ Workers AI always runs remotely, even in local dev, so voice and Llama drafts ne
 
 ## Built with
 
-Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph.
+Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph. Inter is licensed under the SIL Open Font License (`public/assets/fonts/OFL.txt`).
 
 ## Contributing
 
