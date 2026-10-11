@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbfaf7">
+  <title>Privacy and trust</title>
+  <link rel="preload" href="/assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script type="module">
+    import { initI18n, shell, getLang, registerSW, t, config } from '/assets/app.js';
+    registerSW();
+    await initI18n();
+    shell();
+    document.title = t('footer.privacy');
+    for (const el of document.querySelectorAll('[data-name]')) el.textContent = config[el.dataset.name];
+    // TODO: Hawaiian translation of this page, written by a fluent speaker. Until then the
+    // Hawaiian setting shows the English text with a note, so nothing wrong ships silently.
+    document.getElementById('haw-note').hidden = getLang() === 'en';
+  </script>
+</head>
+<body>
+  <main>
+    <div id="haw-note" class="banner info" lang="en" hidden>
+      The ʻŌlelo Hawaiʻi version of this page is still being written by a fluent speaker. Here it is in English for now.
+    </div>
+    <section lang="en">
+      <h1>Privacy and trust</h1>
+      <p>Plain words about what this app keeps, who can see it, and how your answers stay anonymous.</p>
+
+      <h2>What is stored</h2>
+      <ul>
+        <li>Your name, email or phone, team, and language choice, so <span data-name="director">your director</span> can send you your link.</li>
+        <li>Your answers to review questions, typed or spoken.</li>
+        <li>Voice recordings, if you use the mic, so a person can fix a transcript the computer got wrong.</li>
+        <li>The summary written about your year, and your reflection on it.</li>
+        <li>A log of every time an admin reads raw answers or exports data.</li>
+      </ul>
+      <p>While you write, your answers are also saved on your own phone so nothing is lost when the signal drops. They stay there until they reach the server.</p>
+
+      <h2>Who can see what</h2>
+      <ul>
+        <li>You can see and change your own answers while a review is open, and your summary once it is shared with you.</li>
+        <li>Admins (<span data-name="director">your director</span>, and anyone helping set up the app) can read every answer, but not who wrote it. The one exception is a mahalo you choose to sign.</li>
+        <li>Raw answers open to admins only after the review closes. Every time an admin opens them, it is logged.</li>
+        <li>Coworkers never see your answers. A line may be quoted in their summary. Details that could point to you, like a date or a place, get blurred, for example "[the workday in May]".</li>
+        <li>An AI model helps draft summaries. It only sees the words, the question, the values of <span data-name="hui">the Hui</span>, and the name of the person being reviewed. It never sees who wrote anything.</li>
+      </ul>
+
+      <h2>How anonymity works</h2>
+      <p>Your answer is saved with the person it is about, never with your name. To know that you finished, the app keeps a one way code, a hash, made from your assignment and a secret key that is not stored in the database. Without that key, nobody looking at the database can work back from an answer to you.</p>
+      <p>Some honest limits:</p>
+      <ul>
+        <li>If you are the only coworker reviewing someone, admins will know the peer answers about them came from you.</li>
+        <li>What you write can point to you, like a story only you were part of. Summaries blur details like that, and admins read with care.</li>
+      </ul>
+
+      <h2>Voice recordings</h2>
+      <p>Recordings are kept so a person can fix a transcript, and are deleted automatically 90 days after they are recorded.</p>
+
+      <h2>The data belongs to <span data-name="hui">the Hui</span></h2>
+      <p>Everything here belongs to your organization. Admins can export all of it at any time, or delete everything from a review cycle. Nothing is sold or shared with anyone else.</p>
+
+      <h2>Where it lives</h2>
+      <p>Everything lives on Cloudflare's network. The database (Cloudflare D1) and file storage (Cloudflare R2) were created with the Western North America location hint (wnam), the closest region to Hawaiʻi. Voice is turned into text by Cloudflare Workers AI. Summary drafts are written by Claude, made by Anthropic, reached through Cloudflare AI Gateway, and only the anonymous text described above is sent.</p>
+      <p class="small muted">This app is open source, so anyone can read exactly how it handles your words.</p>
+    </section>
+  </main>
+</body>
+</html>

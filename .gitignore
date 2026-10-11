@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+test-results/
+playwright-report/
+.claude/
+
+# Org specific data stays local, never in the public repo.
+scripts/seed-huimau.sql

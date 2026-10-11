@@ -1,0 +1,18 @@
+{
+  "name": "hui-360-review",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler d1 migrations apply hui360_db --local && wrangler pages dev --port 8790",
+    "test": "node --test test/*.test.js",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "wrangler": "^4.148.0"
+  }
+}

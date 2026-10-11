@@ -1,0 +1,542 @@
+import { HttpError, json, body, audit } from './http.js';
+import { autoFill } from './assign.js';
+import { linkFor, createLink } from './auth.js';
+import { completer } from './ai.js';
+import { draftSummary, stripIdentity, section } from './summarize.js';
+import systemPrompt from './prompts/summary-system.txt';
+import userPrompt from './prompts/summary-user.txt';
+import fixPrompt from './prompts/summary-fix.txt';
+
+// Seed questions, used when a cycle has no earlier cycle to copy from.
+// prompt_haw is left empty on purpose: a fluent speaker should write those.
+const DEFAULT_QUESTIONS = [
+  // [audience, kind, required, five minute, prompt, linked value name]
+  ['self', 'story', 1, 1, 'What are you most proud of from this year?'],
+  ['self', 'story', 0, 0, "Tell me about a time this year you felt most connected to the ʻāina or to {hui}'s purpose."],
+  ['self', 'story', 0, 0, 'What gifts did you bring this year, and how did they show in your work with {hui} and our community?', 'Gifts'],
+  ['self', 'story', 0, 0, 'What was hardest this year, and what did you learn from it?'],
+  ['self', 'story', 1, 1, 'Where do you want to grow next year?'],
+  ['self', 'short', 0, 0, 'What does {hui} need to do better to support you?'],
+  ['peer', 'mahalo', 1, 1, 'What are you grateful for about this person this year?'],
+  ['peer', 'story', 1, 1, 'Tell me about a time this person showed up for the team or the ʻāina in a way that stuck with you.'],
+  ['peer', 'story', 0, 0, 'Describe the gift(s) you appreciate in this person and how they show in their work with {hui} and our community.', 'Gifts'],
+  ['peer', 'story', 0, 0, 'What is something this person does that you wish more of us did?'],
+  ['peer', 'story', 0, 0, 'Where do you think this person could grow, and how could {hui} help?'],
+  ['peer', 'short', 0, 0, 'Is there anything else {director} should know?'],
+  ['upward', 'story', 0, 0, 'What does this leader do that helps you do your best work?'],
+  ['upward', 'story', 0, 0, 'What is one thing you wish they did differently?'],
+  ['upward', 'short', 0, 0, 'Is there something you need from leadership that you are not getting?'],
+];
+
+const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang'];
+const VALUE_FIELDS = ['name_haw', 'name_en', 'olelo_noeau', 'olelo_noeau_meaning', 'description', 'ord'];
+const QUESTION_FIELDS = ['prompt_en', 'prompt_haw', 'kind', 'required', 'five_min', 'value_id', 'audience'];
+const CYCLE_FIELDS = ['name', 'opens_at', 'closes_at', 'values_set_id'];
+
+const all = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).all().then((r) => r.results);
+const one = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).first();
+
+function pick(src, fields) {
+  const out = {};
+  for (const f of fields) if (src[f] !== undefined) out[f] = src[f] === '' ? null : typeof src[f] === 'boolean' ? Number(src[f]) : src[f];
+  return out;
+}
+
+async function update(env, table, id, data) {
+  const keys = Object.keys(data);
+  if (!keys.length) return;
+  await env.DB.prepare(`UPDATE "${table}" SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).bind(...Object.values(data), Number(id)).run();
+}
+
+async function insert(env, table, data) {
+  const keys = Object.keys(data);
+  const r = await env.DB.prepare(`INSERT INTO "${table}" (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`).bind(...Object.values(data)).run();
+  return r.meta.last_row_id;
+}
+
+async function getCycle(env, id) {
+  const c = await one(env, 'SELECT * FROM cycles WHERE id = ?', Number(id));
+  if (!c) throw new HttpError(404, 'Cycle not found');
+  return c;
+}
+
+const settings = async (env) => Object.fromEntries((await all(env, 'SELECT key, value FROM settings')).map((r) => [r.key, r.value]));
+
+const shuffle = (xs) => xs.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map((p) => p[1]);
+
+// ---------- who ----------
+
+export const whoami = ({ admin }) => json({ email: admin });
+
+// ---------- staff ----------
+
+export const listStaff = async ({ env }) => json({ staff: await all(env, 'SELECT * FROM staff ORDER BY active DESC, name') });
+
+export async function createStaff({ env, request }) {
+  const data = pick(await body(request), STAFF_FIELDS);
+  if (!data.name) throw new HttpError(400, 'Name is required');
+  return json({ id: await insert(env, 'staff', data) });
+}
+
+export async function updateStaff({ env, request, params }) {
+  await update(env, 'staff', params.id, pick(await body(request), STAFF_FIELDS));
+  return json({ ok: true });
+}
+
+// ---------- settings ----------
+
+export const getSettings = async ({ env }) => json(await settings(env));
+
+export async function putSettings({ env, request }) {
+  const data = await body(request);
+  await env.DB.batch(
+    Object.entries(data).map(([k, v]) =>
+      env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind(k, String(v)),
+    ),
+  );
+  return json({ ok: true });
+}
+
+// ---------- values ----------
+
+export async function listValues({ env }) {
+  const sets = await all(env, 'SELECT * FROM value_sets ORDER BY id');
+  const values = await all(env, 'SELECT * FROM "values" ORDER BY ord, id');
+  return json({ sets: sets.map((s) => ({ ...s, values: values.filter((v) => v.values_set_id === s.id) })) });
+}
+
+export async function createValueSet({ env, request }) {
+  const { name, copy_from } = await body(request);
+  const id = await insert(env, 'value_sets', { name: name || 'New values' });
+  if (copy_from) {
+    await env.DB.prepare(
+      `INSERT INTO "values" (values_set_id, name_haw, name_en, olelo_noeau, olelo_noeau_meaning, description, ord)
+       SELECT ?, name_haw, name_en, olelo_noeau, olelo_noeau_meaning, description, ord FROM "values" WHERE values_set_id = ?`,
+    ).bind(id, Number(copy_from)).run();
+  }
+  return json({ id });
+}
+
+export async function updateValueSet({ env, request, params }) {
+  await update(env, 'value_sets', params.id, pick(await body(request), ['name']));
+  return json({ ok: true });
+}
+
+export async function createValue({ env, request }) {
+  const b = await body(request);
+  return json({ id: await insert(env, 'values', { values_set_id: Number(b.values_set_id), name_haw: b.name_haw || 'New value', ...pick(b, VALUE_FIELDS) }) });
+}
+
+export async function updateValue({ env, request, params }) {
+  await update(env, 'values', params.id, pick(await body(request), VALUE_FIELDS));
+  return json({ ok: true });
+}
+
+export async function deleteValue({ env, params }) {
+  await env.DB.prepare('DELETE FROM "values" WHERE id = ?').bind(Number(params.id)).run();
+  return json({ ok: true });
+}
+
+// ---------- cycles ----------
+
+export async function listCycles({ env }) {
+  return json({
+    cycles: await all(
+      env,
+      `SELECT c.*, (SELECT COUNT(*) FROM assignments a WHERE a.cycle_id = c.id) AS assignments,
+              (SELECT COUNT(*) FROM assignments a WHERE a.cycle_id = c.id AND a.status = 'done') AS done
+       FROM cycles c ORDER BY c.id DESC`,
+    ),
+  });
+}
+
+async function copyQuestions(env, cycleId) {
+  const prev = await one(env, 'SELECT id FROM cycles WHERE id < ? AND EXISTS (SELECT 1 FROM questions WHERE cycle_id = cycles.id) ORDER BY id DESC LIMIT 1', cycleId);
+  if (prev) {
+    await env.DB.prepare(
+      `INSERT INTO questions (cycle_id, audience, ord, prompt_en, prompt_haw, kind, required, five_min, value_id)
+       SELECT ?, audience, ord, prompt_en, prompt_haw, kind, required, five_min, value_id FROM questions WHERE cycle_id = ?`,
+    ).bind(cycleId, prev.id).run();
+    await relinkValues(env, cycleId);
+  } else {
+    const set = await one(env, 'SELECT values_set_id FROM cycles WHERE id = ?', cycleId);
+    const names = await settings(env);
+    const fill = (q) => q.replaceAll('{hui}', names.hui_name || 'the Hui').replaceAll('{director}', names.director_name || 'your director');
+    const values = await all(env, 'SELECT id, name_haw FROM "values" WHERE values_set_id = ?', set?.values_set_id ?? 0);
+    await env.DB.batch(
+      DEFAULT_QUESTIONS.map(([audience, kind, required, five, prompt, value], i) =>
+        env.DB.prepare('INSERT INTO questions (cycle_id, audience, ord, prompt_en, kind, required, five_min, value_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(cycleId, audience, i, fill(prompt), kind, required, five, values.find((v) => v.name_haw === value)?.id ?? null),
+      ),
+    );
+  }
+  return prev?.id ?? null;
+}
+
+// Point each question's value at the value with the same name in the cycle's current set.
+const relinkValues = (env, cycleId) =>
+  env.DB.prepare(
+    `UPDATE questions SET value_id = (
+       SELECT nv.id FROM "values" ov JOIN "values" nv ON nv.name_haw = ov.name_haw
+       WHERE ov.id = questions.value_id AND nv.values_set_id = (SELECT values_set_id FROM cycles WHERE id = ?))
+     WHERE cycle_id = ? AND value_id IS NOT NULL`,
+  ).bind(cycleId, cycleId).run();
+
+export async function createCycle({ env, request }) {
+  const data = pick(await body(request), CYCLE_FIELDS);
+  if (!data.name) throw new HttpError(400, 'Name is required');
+  data.values_set_id ??= (await one(env, 'SELECT id FROM value_sets ORDER BY id DESC LIMIT 1'))?.id ?? null;
+  const id = await insert(env, 'cycles', data);
+  await copyQuestions(env, id);
+  return json({ id });
+}
+
+export async function getCycle_({ env, params }) {
+  const cycle = await getCycle(env, params.id);
+  const [questions, staff, assignments, summaries, counts] = await Promise.all([
+    all(env, 'SELECT * FROM questions WHERE cycle_id = ? ORDER BY audience, ord, id', cycle.id),
+    all(env, 'SELECT id, name, preferred_name, email, phone, role, team, active FROM staff WHERE active = 1 ORDER BY name'),
+    all(env, 'SELECT id, reviewer_id, reviewee_id, kind, status FROM assignments WHERE cycle_id = ?', cycle.id),
+    all(env, 'SELECT id, reviewee_id, status, shared_at FROM summaries WHERE cycle_id = ?', cycle.id),
+    all(env, 'SELECT reviewee_id, COUNT(*) AS n FROM responses WHERE cycle_id = ? GROUP BY reviewee_id', cycle.id),
+  ]);
+  return json({ cycle, questions, staff, assignments, summaries, responses: Object.fromEntries(counts.map((c) => [c.reviewee_id, c.n])) });
+}
+
+export async function updateCycle({ env, request, params }) {
+  const data = pick(await body(request), CYCLE_FIELDS);
+  await update(env, 'cycles', params.id, data);
+  if (data.values_set_id !== undefined) await relinkValues(env, Number(params.id));
+  return json({ ok: true });
+}
+
+export async function setStatus({ env, request, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const { status } = await body(request);
+  if (!['draft', 'open', 'closed', 'published'].includes(status)) throw new HttpError(400, 'Unknown status');
+  if (status === 'open') {
+    const other = await one(env, "SELECT name FROM cycles WHERE status = 'open' AND id != ?", cycle.id);
+    if (other) throw new HttpError(409, `Close "${other.name}" first. Only one cycle can be open at a time.`);
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) SELECT ?, id, id, 'self' FROM staff WHERE active = 1",
+    ).bind(cycle.id).run();
+  }
+  await env.DB.prepare(`UPDATE cycles SET status = ?${status === 'published' ? ", published_at = datetime('now')" : ''} WHERE id = ?`).bind(status, cycle.id).run();
+  await audit(env, admin, `cycle_${status}`, `cycle:${cycle.id}`);
+  return json({ ok: true });
+}
+
+export async function deleteCycle({ env, request, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const { confirm } = await body(request);
+  if ((confirm || '').trim() !== cycle.name.trim()) throw new HttpError(400, 'Type the cycle name exactly to confirm');
+  const id = cycle.id;
+  await env.DB.batch(
+    [
+      'DELETE FROM response_link WHERE response_id IN (SELECT id FROM responses WHERE cycle_id = ?)',
+      'DELETE FROM responses WHERE cycle_id = ?',
+      'DELETE FROM employee_reflection WHERE summary_id IN (SELECT id FROM summaries WHERE cycle_id = ?)',
+      'DELETE FROM summaries WHERE cycle_id = ?',
+      'DELETE FROM assignments WHERE cycle_id = ?',
+      'DELETE FROM community_voices WHERE cycle_id = ?',
+      'UPDATE goals SET cycle_id = NULL WHERE cycle_id = ?',
+      'DELETE FROM questions WHERE cycle_id = ?',
+      'DELETE FROM cycles WHERE id = ?',
+    ].map((sql) => env.DB.prepare(sql).bind(id)),
+  );
+  await deletePrefix(env, `audio/${id}/`);
+  let cursor;
+  do {
+    const page = await env.KV.list({ prefix: `mlx:${id}:`, cursor });
+    for (const k of page.keys) {
+      const token = await env.KV.get(k.name);
+      if (token) await env.KV.delete(`ml:${token}`);
+      await env.KV.delete(k.name);
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  await audit(env, admin, 'delete_cycle', `cycle:${id} ${cycle.name}`);
+  return json({ ok: true });
+}
+
+async function deletePrefix(env, prefix) {
+  let cursor;
+  do {
+    const page = await env.MEDIA.list({ prefix, cursor });
+    if (page.objects.length) await env.MEDIA.delete(page.objects.map((o) => o.key));
+    cursor = page.truncated ? page.cursor : null;
+  } while (cursor);
+}
+
+// ---------- questions ----------
+
+export async function createQuestion({ env, request, params }) {
+  const b = pick(await body(request), QUESTION_FIELDS);
+  const max = await one(env, 'SELECT COALESCE(MAX(ord), 0) AS m FROM questions WHERE cycle_id = ?', Number(params.id));
+  const id = await insert(env, 'questions', { cycle_id: Number(params.id), ord: max.m + 1, audience: 'peer', prompt_en: 'New question', ...b });
+  return json({ id });
+}
+
+export async function updateQuestion({ env, request, params }) {
+  await update(env, 'questions', params.id, pick(await body(request), QUESTION_FIELDS));
+  return json({ ok: true });
+}
+
+export async function deleteQuestion({ env, params }) {
+  const used = await one(env, 'SELECT COUNT(*) AS n FROM responses WHERE question_id = ?', Number(params.id));
+  if (used.n) throw new HttpError(409, 'People have already answered this question, so it cannot be deleted');
+  await env.DB.prepare('DELETE FROM questions WHERE id = ?').bind(Number(params.id)).run();
+  return json({ ok: true });
+}
+
+export async function orderQuestions({ env, request, params }) {
+  const { ids } = await body(request);
+  await env.DB.batch(ids.map((qid, i) => env.DB.prepare('UPDATE questions SET ord = ? WHERE id = ? AND cycle_id = ?').bind(i, Number(qid), Number(params.id))));
+  return json({ ok: true });
+}
+
+export async function reuseQuestions({ env, params }) {
+  const cycle = await getCycle(env, params.id);
+  const used = await one(env, 'SELECT COUNT(*) AS n FROM responses WHERE cycle_id = ?', cycle.id);
+  if (used.n) throw new HttpError(409, 'This cycle already has answers, so its questions cannot be replaced');
+  await env.DB.prepare('DELETE FROM questions WHERE cycle_id = ?').bind(cycle.id).run();
+  return json({ from: await copyQuestions(env, cycle.id) });
+}
+
+// ---------- assignments ----------
+
+export async function toggleAssignment({ env, request, params }) {
+  const cycleId = Number(params.id);
+  const { reviewer_id, reviewee_id, on, kind = 'peer' } = await body(request);
+  if (reviewer_id === reviewee_id) throw new HttpError(400, 'Self reflections are added automatically');
+  if (on) {
+    await env.DB.prepare('INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) VALUES (?, ?, ?, ?)')
+      .bind(cycleId, Number(reviewer_id), Number(reviewee_id), kind).run();
+  } else {
+    const a = await one(env, 'SELECT * FROM assignments WHERE cycle_id = ? AND reviewer_id = ? AND reviewee_id = ? AND kind = ?', cycleId, Number(reviewer_id), Number(reviewee_id), kind);
+    if (a && a.status !== 'not_started') throw new HttpError(409, 'This reviewer has already started, so the assignment stays');
+    if (a) await env.DB.prepare('DELETE FROM assignments WHERE id = ?').bind(a.id).run();
+  }
+  return json({ ok: true });
+}
+
+export async function autofill({ env, request, params }) {
+  const cycleId = Number(params.id);
+  const { target = 2 } = await body(request);
+  const staffIds = (await all(env, 'SELECT id FROM staff WHERE active = 1')).map((s) => s.id);
+  const existing = (await all(env, "SELECT reviewer_id, reviewee_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", cycleId)).map((a) => ({
+    reviewer: a.reviewer_id,
+    reviewee: a.reviewee_id,
+  }));
+  const worksWith = Object.fromEntries((await all(env, 'SELECT staff_id, works_with FROM kuleana')).map((k) => [k.staff_id, JSON.parse(k.works_with || '[]')]));
+  const prev = await one(env, "SELECT id FROM cycles WHERE id < ? AND status != 'draft' ORDER BY id DESC LIMIT 1", cycleId);
+  const lastPairs = new Set(
+    prev ? (await all(env, "SELECT reviewer_id, reviewee_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", prev.id)).map((a) => `${a.reviewer_id}:${a.reviewee_id}`) : [],
+  );
+  const added = autoFill({ staffIds, existing, worksWith, lastPairs, target: Math.min(3, Math.max(1, Number(target))) });
+  if (added.length) {
+    await env.DB.batch(
+      added.map((p) => env.DB.prepare("INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) VALUES (?, ?, ?, 'peer')").bind(cycleId, p.reviewer, p.reviewee)),
+    );
+  }
+  return json({ added: added.length });
+}
+
+// ---------- links ----------
+
+export async function links({ env, params, url }) {
+  const cycle = await getCycle(env, params.id);
+  const people = await all(
+    env,
+    'SELECT DISTINCT s.id, s.name, s.preferred_name, s.phone, s.email FROM staff s JOIN assignments a ON a.reviewer_id = s.id WHERE a.cycle_id = ? ORDER BY s.name',
+    cycle.id,
+  );
+  for (const p of people) p.link = await linkFor(env, url.origin, p.id, cycle.id);
+  return json({ people });
+}
+
+export async function newLink({ env, params, url, admin }) {
+  const link = await createLink(env, url.origin, Number(params.staff), Number(params.id));
+  await audit(env, admin, 'new_link', `cycle:${params.id} staff:${params.staff}`);
+  return json({ link });
+}
+
+// ---------- after close: raw, draft, share ----------
+
+export async function raw({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  if (!['closed', 'published'].includes(cycle.status)) throw new HttpError(409, 'Raw responses open after the cycle closes');
+  const rows = await all(
+    env,
+    `SELECT r.id, r.question_id, q.prompt_en, q.audience, q.ord, q.kind AS question_kind, r.body, r.audio_key, r.transcript, r.language, r.signed_name
+     FROM responses r JOIN questions q ON q.id = r.question_id
+     WHERE r.cycle_id = ? AND r.reviewee_id = ? ORDER BY q.audience = 'self' DESC, q.audience, q.ord`,
+    cycle.id,
+    Number(params.staff),
+  );
+  await audit(env, admin, 'read_raw', `cycle:${cycle.id} staff:${params.staff}`);
+  const groups = [];
+  for (const r of rows) {
+    let g = groups.find((x) => x.question_id === r.question_id);
+    if (!g) groups.push((g = { question_id: r.question_id, prompt: r.prompt_en, audience: r.audience, kind: r.question_kind, responses: [] }));
+    g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name });
+  }
+  // Shuffle within each question so position never lines up across questions.
+  for (const g of groups) g.responses = shuffle(g.responses);
+  return json({ groups });
+}
+
+export async function getSummary({ env, params }) {
+  const s = await one(
+    env,
+    `SELECT s.*, r.body AS reflection, r.created_at AS reflection_at FROM summaries s LEFT JOIN employee_reflection r ON r.summary_id = s.id
+     WHERE s.cycle_id = ? AND s.reviewee_id = ?`,
+    Number(params.id),
+    Number(params.staff),
+  );
+  const person = await one(env, 'SELECT id, name, preferred_name, lang FROM staff WHERE id = ?', Number(params.staff));
+  return json({ summary: s, person });
+}
+
+export async function draft({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(params.staff));
+  if (!person) throw new HttpError(404, 'Not found');
+  const rows = await all(
+    env,
+    `SELECT q.prompt_en AS prompt, r.kind AS audience, r.body, r.signed_name, l.assignment_hash AS reviewer_key
+     FROM responses r JOIN questions q ON q.id = r.question_id LEFT JOIN response_link l ON l.response_id = r.id
+     WHERE r.cycle_id = ? AND r.reviewee_id = ? ORDER BY q.audience, q.ord`,
+    cycle.id,
+    person.id,
+  );
+  if (!rows.length) throw new HttpError(409, 'There are no responses about this person yet');
+  const { responses, signers } = stripIdentity(rows);
+  const values = await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0);
+  const last = await one(
+    env,
+    "SELECT cycle_id, shared_body FROM summaries WHERE reviewee_id = ? AND cycle_id != ? AND status = 'shared' ORDER BY shared_at DESC LIMIT 1",
+    person.id,
+    cycle.id,
+  );
+  const goals = last ? await all(env, 'SELECT body, status FROM goals WHERE staff_id = ? AND cycle_id = ?', person.id, last.cycle_id) : [];
+  const lastYear = [
+    last && section(last.shared_body, 'Themes') && `Themes:\n${section(last.shared_body, 'Themes')}`,
+    goals.length && `Goals:\n${goals.map((g) => `- ${g.body} (${g.status})`).join('\n')}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  const names = await settings(env);
+
+  const { markdown, notes } = await draftSummary({
+    input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear },
+    templates: { system: systemPrompt, user: userPrompt, fix: fixPrompt },
+    complete: completer(env),
+  });
+  await env.DB.prepare(
+    `INSERT INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, ?)
+     ON CONFLICT (cycle_id, reviewee_id) DO UPDATE SET draft = excluded.draft, edited = NULL`,
+  ).bind(cycle.id, person.id, markdown).run();
+  await audit(env, admin, 'draft_summary', `cycle:${cycle.id} staff:${person.id}`);
+  return json({ draft: markdown, notes });
+}
+
+export async function blankSummary({ env, params }) {
+  await env.DB.prepare("INSERT OR IGNORE INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, '')").bind(Number(params.id), Number(params.staff)).run();
+  return json({ ok: true });
+}
+
+export async function saveSummary({ env, request, params }) {
+  const b = pick(await body(request), ['edited', 'status']);
+  if (b.status && !['draft', 'ready'].includes(b.status)) throw new HttpError(400, 'Use share to share');
+  await update(env, 'summaries', params.id, b);
+  return json({ ok: true });
+}
+
+export async function share({ env, request, params, admin }) {
+  const { shared_body } = await body(request);
+  if (!shared_body?.trim()) throw new HttpError(400, 'Nothing to share');
+  await env.DB.prepare("UPDATE summaries SET shared_body = ?, status = 'shared', shared_at = datetime('now') WHERE id = ?").bind(shared_body, Number(params.id)).run();
+  await audit(env, admin, 'share_summary', `summary:${params.id}`);
+  return json({ ok: true });
+}
+
+// ---------- files, export, audit ----------
+
+export async function file({ env, url, admin }) {
+  const key = url.searchParams.get('key') || '';
+  if (!/^(audio|exports)\//.test(key)) throw new HttpError(400, 'Bad key');
+  const obj = await env.MEDIA.get(key);
+  if (!obj) throw new HttpError(404, 'Not found');
+  if (key.startsWith('exports/')) await audit(env, admin, 'download_export', key);
+  return new Response(obj.body, {
+    headers: {
+      'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
+      'cache-control': 'private, no-store',
+      ...(key.startsWith('exports/') ? { 'content-disposition': `attachment; filename="${key.split('/').pop()}"` } : {}),
+    },
+  });
+}
+
+const EXPORT_TABLES = [
+  'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
+  'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
+];
+
+const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
+
+export function exportMarkdown(data) {
+  const files = {};
+  const staff = new Map(data.staff.map((s) => [s.id, s]));
+  const qs = new Map(data.questions.map((q) => [q.id, q]));
+  files['values.md'] = data.value_sets
+    .map((set) => `# ${set.name}\n\n` + data.values.filter((v) => v.values_set_id === set.id)
+      .map((v) => `## ${v.name_haw}${v.name_en ? ` (${v.name_en})` : ''}\n\n${v.olelo_noeau ? `"${v.olelo_noeau}" ${v.olelo_noeau_meaning || ''}\n\n` : ''}${v.description || ''}\n`).join('\n'))
+    .join('\n');
+  for (const c of data.cycles) {
+    const ids = [...new Set(data.responses.filter((r) => r.cycle_id === c.id).map((r) => r.reviewee_id).concat(data.summaries.filter((s) => s.cycle_id === c.id).map((s) => s.reviewee_id)))];
+    for (const id of ids) {
+      const person = staff.get(id);
+      const sum = data.summaries.find((s) => s.cycle_id === c.id && s.reviewee_id === id);
+      const refl = sum && data.employee_reflection.find((r) => r.summary_id === sum.id);
+      const byQ = new Map();
+      for (const r of data.responses.filter((r) => r.cycle_id === c.id && r.reviewee_id === id)) {
+        if (!byQ.has(r.question_id)) byQ.set(r.question_id, []);
+        byQ.get(r.question_id).push(r);
+      }
+      let md = `# ${person?.name ?? id}, ${c.name}\n\n`;
+      if (sum) md += `## Summary (${sum.status})\n\n${sum.edited ?? sum.draft ?? ''}\n\n`;
+      if (sum?.shared_body) md += `## Shared on ${sum.shared_at}\n\n${sum.shared_body}\n\n`;
+      if (refl) md += `## Their reflection\n\n${refl.body}\n\n`;
+      md += '## Responses\n\n';
+      for (const [qid, rs] of byQ) {
+        md += `### ${qs.get(qid)?.prompt_en ?? 'Question'} (${qs.get(qid)?.audience ?? ''})\n\n`;
+        md += rs.map((r) => `- ${(r.body || '').replace(/\n+/g, ' ')}${r.signed_name ? ` (signed: ${r.signed_name})` : ''}`).join('\n') + '\n\n';
+      }
+      files[`${slug(c.name)}/${slug(person?.name ?? id)}.md`] = md;
+    }
+  }
+  return files;
+}
+
+export async function exportAll({ env, admin }) {
+  const data = {};
+  for (const t of EXPORT_TABLES) data[t] = await all(env, `SELECT * FROM "${t}"`);
+  const prefix = `exports/${new Date().toISOString().replace(/[:.]/g, '-')}/`;
+  const files = {
+    'hui360.json': JSON.stringify({ exported_at: new Date().toISOString(), note: 'response_link is left out on purpose so exports never carry the reviewer hash.', tables: data }, null, 2),
+    ...exportMarkdown(data),
+  };
+  for (const [name, content] of Object.entries(files)) {
+    await env.MEDIA.put(prefix + name, content, { httpMetadata: { contentType: name.endsWith('.json') ? 'application/json' : 'text/markdown; charset=utf-8' } });
+  }
+  await audit(env, admin, 'export', prefix);
+  return json({ prefix, files: Object.keys(files).map((n) => prefix + n) });
+}
+
+export async function listExports({ env }) {
+  const page = await env.MEDIA.list({ prefix: 'exports/', limit: 1000 });
+  return json({ files: page.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })) });
+}
+
+export const listAudit = async ({ env }) => json({ audit: await all(env, 'SELECT * FROM audit ORDER BY id DESC LIMIT 300') });

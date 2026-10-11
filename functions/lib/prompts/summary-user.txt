@@ -1,0 +1,17 @@
+Person being reviewed: {{name}}
+Review cycle: {{cycle}}
+{{language_note}}
+
+<values>
+{{values}}
+</values>
+
+<responses>
+{{responses}}
+</responses>
+
+<last_year>
+{{last_year}}
+</last_year>
+
+Write the draft letter for {{name}}.

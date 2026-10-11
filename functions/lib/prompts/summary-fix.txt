@@ -1,0 +1,12 @@
+{{original}}
+
+Here is a previous draft:
+
+<previous_draft>
+{{draft}}
+</previous_draft>
+
+It had these problems:
+{{problems}}
+
+Write the letter again, fixing these problems and keeping everything else that worked. Copy every quote word for word from the responses above.

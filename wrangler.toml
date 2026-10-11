@@ -1,0 +1,30 @@
+# Cloudflare Pages project. Bindings here apply to local dev and to deploys.
+name = "hui-360"
+pages_build_output_dir = "public"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Filled in during setup. See README, "Set up Cloudflare Access" and "AI Gateway".
+ACCESS_TEAM_DOMAIN = ""   # like https://yourteam.cloudflareaccess.com
+ACCESS_AUD = ""           # the Application Audience (AUD) tag
+CF_ACCOUNT_ID = ""
+AI_GATEWAY_ID = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hui360_db"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# R2 bucket names cannot contain underscores.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "hui360-media"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "00000000000000000000000000000000"
+
+[ai]
+binding = "AI"

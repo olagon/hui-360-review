@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+SESSION_SECRET=dev-session-secret-change-me
+HASH_PEPPER=dev-hash-pepper-change-me
+# Local only: skips Cloudflare Access on localhost so you can use /admin.
+DEV_ADMIN_EMAIL=you@example.com
+# Optional. Without it, summaries use Llama on Workers AI.
+# ANTHROPIC_API_KEY=
