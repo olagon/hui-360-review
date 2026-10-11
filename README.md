@@ -174,4 +174,4 @@ Issues and pull requests are welcome, especially Hawaiian translations, accessib
 
 ## License
 
-[MIT](LICENSE). Courtesy [Olin Lagon](https://www.linkedin.com/in/olinlagon) & Purple Maiʻa.
+[MIT](LICENSE). Courtesy [Olin Lagon](https://www.linkedin.com/in/olinlagon).

@@ -22,7 +22,7 @@ The app is called Hui 360, a generic name chosen by Olin (it replaced the workin
 - Offline first for the staff side. Service worker plus IndexedDB queue. Nothing a staff member types or records is ever lost because of a dropped signal.
 - Never use em dashes or en dashes anywhere in the UI, copy, code comments, or docs. Hyphens are fine.
 - Use the ʻokina (ʻ) and kahakō (ā ē ī ō ū) correctly in all Hawaiian words. Never substitute a straight apostrophe for the ʻokina. Load a font that renders them well.
-- Footer on every page reads "Open source · MIT license" and "Courtesy Olin & Purple Maiʻa", with "Open source" linking to the GitHub repo, "MIT license" to its LICENSE file, and "Olin" to https://www.linkedin.com/in/olinlagon.
+- Footer on every page reads "Open source · MIT license" and "Courtesy Olin", with "Open source" linking to the GitHub repo, "MIT license" to its LICENSE file, and "Olin" to https://www.linkedin.com/in/olinlagon.
 - Open source. MIT license. Write the README so another Hawaiian nonprofit could deploy its own copy in an afternoon.
 - Everything the Hui enters is theirs. One click full export to JSON and to a folder of Markdown files in R2. No lock in.
 
