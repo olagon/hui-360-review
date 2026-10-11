@@ -14,7 +14,7 @@ AI_GATEWAY_ID = ""
 [[d1_databases]]
 binding = "DB"
 database_name = "hui360_db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "a96f92db-2d62-413e-b005-5eb150ba4fda"
 migrations_dir = "migrations"
 
 # R2 bucket names cannot contain underscores.
