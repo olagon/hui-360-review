@@ -1,11 +1,11 @@
 // Caches the staff app shell and the current cycle's questions so the review
 // works with no signal. Admin pages are never cached on the device.
-const VERSION = 'hui360-v3';
+const VERSION = 'hui360-v4';
 const SHELL = [
   '/', '/review/', '/me/', '/privacy/',
   '/assets/style.css', '/assets/app.js', '/assets/idb.js', '/assets/home.js', '/assets/review.js', '/assets/me.js',
   '/assets/i18n/en.json', '/assets/i18n/haw.json',
-  '/assets/fonts/inter-latin.woff2', '/assets/fonts/inter-latin-ext.woff2',
+  '/favicon.svg', '/assets/fonts/inter-latin.woff2', '/assets/fonts/inter-latin-ext.woff2',
 ];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));

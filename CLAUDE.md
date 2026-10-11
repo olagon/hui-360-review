@@ -281,6 +281,7 @@ Service worker caches the app shell and the current cycle's questions. IndexedDB
 - One typeface that renders ʻokina and kahakō cleanly. Test the glyphs on iOS Safari and Android Chrome before settling.
 - No icons that look like corporate HR. No stars, no thumbs up. Mahalo uses a simple kalo leaf or wave mark you draw as inline SVG.
 - Light theme only, minimal and professional with a light Hawaiian touch. No dark mode (Olin's call).
+- The app mark is the niho ring (`public/favicon.svg`, also the favicon and home screen icon), chosen by Olin. An organization's own logo can be uploaded in admin and shows on the home pages.
 
 ## Phases
 

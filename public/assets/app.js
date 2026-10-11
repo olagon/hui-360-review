@@ -130,16 +130,15 @@ export async function copy(text) {
 // The organization's own logo (set in admin, Data, Settings), if it has one.
 export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config.logo}" alt="${esc(config.hui)}">` : '');
 
-// Kalo leaf mark, drawn by hand. No stars, no thumbs.
-export const kalo = (size = 22) =>
-  `<svg class="mark" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c4.6 0 8.5 3.3 8.5 8.1 0 4.1-3.3 7.6-8.5 9.9C6.8 18.7 3.5 15.2 3.5 11.1 3.5 6.3 7.4 3 12 3z" fill="var(--kalo)" opacity=".9"/><path d="M12 6.5v8.5M12 15l-3.5-3M12 12.5l3.5-3M12 15v6" stroke="var(--bg)" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>`;
+// The niho ring: kapa's niho pattern turned into a circle that points in to one person.
+export const mark = (size = 22) => `<img class="mark" src="/favicon.svg" width="${size}" height="${size}" alt="">`;
 
 // Header with the language switch, and the footer every page carries.
 export function shell({ nav = '', langSwitch = true, onLang } = {}) {
   const lang = getLang();
   const header = document.createElement('header');
   header.className = 'top';
-  header.innerHTML = `<a class="brand" href="/">${kalo()} <span>${esc(APP_NAME)}</span></a>
+  header.innerHTML = `<a class="brand" href="/">${mark()} <span>${esc(APP_NAME)}</span></a>
     <nav>${nav}${
       langSwitch
         ? `<select id="lang" aria-label="${esc(t('lang.label'))}" style="width:auto;min-height:36px;padding:.25rem .5rem;font-size:.95rem">

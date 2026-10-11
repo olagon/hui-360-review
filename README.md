@@ -1,8 +1,12 @@
+<img src="public/favicon.svg" width="72" height="72" alt="Hui 360 niho ring logo">
+
 # Hui 360
 
 **An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets an AI drafted letter for each person, written from exact quotes and measured against the organization's own values.
 
 Open source under the [MIT license](LICENSE). Free to use, copy, and change. Runs entirely on Cloudflare, and for a team of 20 it costs a few dollars a year (see [What it costs](#what-it-costs)).
+
+The mark is a niho ring: the niho (triangle) pattern from kapa, turned into a circle that points inward to one person, the way a 360 review gathers many voices around one.
 
 Built with Hawaiian organizations in mind: the interface works in English, ʻŌlelo Hawaiʻi, or both, renders the ʻokina and kahakō properly, and keeps Hawaiian quotes in Hawaiian. It works just as well for any team that wants reviews to feel like reflection instead of paperwork.
 
