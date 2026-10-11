@@ -51,15 +51,16 @@ Estimates from Cloudflare's and Anthropic's published prices as of October 2026,
 | Cloudflare Pages, Functions, D1, R2, KV | The app, its database, recordings, and links | **$0** on the free plan (far under 100,000 requests a day, 5 GB of database, 10 GB of files) |
 | Cloudflare Access | Admin sign in with Google or a one time code | **$0** for up to 50 users |
 | Workers AI, Whisper | Voice to text, about 200 minutes a cycle | **$0**, inside the free 10,000 daily neurons (about 200 minutes a day). Beyond that, $0.0005 a minute |
-| Claude Sonnet 5.5 (recommended) | Drafting each person's letter | **About $0.05 to $0.20 a person**, so $1 to $4 a cycle |
-| or Llama 3.3 70B on Workers AI | Drafting, if you skip Anthropic | **Under $0.01 a person**, often free |
+| Llama 3.3 70B on Workers AI (no key needed) | Drafting each person's letter | **About $0.005 a person**, usually inside the free daily allowance, so **$0** |
+| or Claude Haiku 5.5 (the default when you add an Anthropic key) | Drafting, with better writing | **About $0.002 to $0.005 a person**, under $0.25 a cycle |
+| or Claude Sonnet 5.5 (one line in `functions/lib/config.js`) | Drafting, richest letters | **About $0.05 to $0.10 a person**, $1 to $2 a cycle |
 | Domain | Your web address | **$0** with your own domain or the free `pages.dev` address, about $10 a year otherwise |
 
-**Typical total: $1 to $5 a year**, nearly all of it Claude. Use Llama and it can be $0.
+**Typical total: $0 to $1 a year.** Without an Anthropic key everything still works, drafts included, on Cloudflare's free allowance. Prefer to write every letter by hand? Use "Start a blank draft" and skip AI entirely.
 
 When you might pay more:
 - **Cloudflare Workers Paid, $5 a month**, if you outgrow the free daily limits (a large organization, lots of voice on the same day) or long recordings hit the free plan's 10 ms CPU limit.
-- **More people.** At 100 staff, plan on roughly $5 to $20 a cycle for Claude. Hosting usually stays free.
+- **More people.** At 100 staff, plan on about $0.50 a cycle with Haiku or $5 to $10 with Sonnet. Hosting usually stays free.
 - **Anthropic** bills by usage from prepaid credit, so add a few dollars to start.
 
 Current prices: [Cloudflare Workers](https://developers.cloudflare.com/workers/platform/pricing/), [D1](https://developers.cloudflare.com/d1/platform/pricing/), [Workers AI](https://developers.cloudflare.com/workers-ai/platform/pricing/), [Anthropic](https://www.anthropic.com/pricing).
@@ -115,8 +116,9 @@ The app checks the Access token's signature on every admin request. It never tru
 
 ### 5. Choose how summaries are written
 
-- **Claude (recommended):** create an AI Gateway in the Cloudflare dashboard (AI, AI Gateway). Put its id in `AI_GATEWAY_ID` and your account id in `CF_ACCOUNT_ID` in `wrangler.toml`, then `npx wrangler pages secret put ANTHROPIC_API_KEY --project-name hui-360`.
+- **Claude:** create an AI Gateway in the Cloudflare dashboard (AI, AI Gateway). Put its id in `AI_GATEWAY_ID` and your account id in `CF_ACCOUNT_ID` in `wrangler.toml`, then `npx wrangler pages secret put ANTHROPIC_API_KEY --project-name hui-360`.
 - **Llama:** do nothing. Without an Anthropic key, drafts come from Llama on Workers AI.
+- With a key, drafts use Claude Haiku 5.5. For richer letters at about 20 times the cost, set `CLAUDE_MODEL` to `claude-sonnet-5-5` in `functions/lib/config.js`.
 
 ### 6. Deploy
 
