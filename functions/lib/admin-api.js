@@ -461,6 +461,29 @@ export async function share({ env, request, params, admin }) {
   return json({ ok: true });
 }
 
+// ---------- logo ----------
+
+const LOGO_TYPES = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+export async function putLogo({ env, request, admin }) {
+  const type = (request.headers.get('content-type') || '').split(';')[0].trim();
+  if (!LOGO_TYPES.includes(type)) throw new HttpError(415, 'Use an SVG, PNG, JPG, WebP, or GIF');
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength || bytes.byteLength > 2 * 1024 * 1024) throw new HttpError(413, 'Keep the logo under 2 MB');
+  await env.MEDIA.put('branding/logo', bytes, { httpMetadata: { contentType: type } });
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('logo_v', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value")
+    .bind(String(Date.now())).run();
+  await audit(env, admin, 'logo_upload', type);
+  return json({ ok: true });
+}
+
+export async function deleteLogo({ env, admin }) {
+  await env.MEDIA.delete('branding/logo');
+  await env.DB.prepare("DELETE FROM settings WHERE key = 'logo_v'").run();
+  await audit(env, admin, 'logo_delete', '');
+  return json({ ok: true });
+}
+
 // ---------- files, export, audit ----------
 
 export async function file({ env, url, admin }) {

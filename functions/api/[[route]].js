@@ -3,10 +3,11 @@ import { requireStaff, verifyAccess } from '../lib/auth.js';
 import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 
-const PUBLIC = new Set(['/api/config']);
+const PUBLIC = new Set(['/api/config', '/api/logo']);
 
 const routes = [
   ['GET', '/api/config', s.config],
+  ['GET', '/api/logo', s.logo],
   ['GET', '/api/me', s.me],
   ['PUT', '/api/me/lang', s.setLang],
   ['GET', '/api/assignments/:id', s.assignment],
@@ -22,6 +23,8 @@ const routes = [
   ['PUT', '/api/admin/staff/:id', a.updateStaff],
   ['GET', '/api/admin/settings', a.getSettings],
   ['PUT', '/api/admin/settings', a.putSettings],
+  ['PUT', '/api/admin/logo', a.putLogo],
+  ['DELETE', '/api/admin/logo', a.deleteLogo],
   ['GET', '/api/admin/values', a.listValues],
   ['POST', '/api/admin/value-sets', a.createValueSet],
   ['PUT', '/api/admin/value-sets/:id', a.updateValueSet],

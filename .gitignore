@@ -7,3 +7,4 @@ playwright-report/
 
 # Org specific data stays local, never in the public repo.
 scripts/seed-huimau.sql
+scripts/huimau-logo.svg

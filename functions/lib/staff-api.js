@@ -28,8 +28,23 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v')").all();
   return json(Object.fromEntries(rows.results.map((r) => [r.key, r.value])));
+}
+
+// Public: the organization's logo, uploaded by admin. Served as an image only, so an SVG
+// can animate with CSS but can never run script on this origin.
+export async function logo({ env }) {
+  const obj = await env.MEDIA.get('branding/logo');
+  if (!obj) throw new HttpError(404, 'No logo');
+  return new Response(obj.body, {
+    headers: {
+      'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
+      'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+      'x-content-type-options': 'nosniff',
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  });
 }
 
 export async function me({ env, staff }) {

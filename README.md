@@ -125,7 +125,7 @@ Commit your `wrangler.toml` changes and push to `main`. The workflow runs every 
 ### 7. Make it yours
 
 Open `https://<your domain>/admin/` and sign in.
-1. **Data, Settings:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice.
+1. **Data, Settings:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice. Upload your logo there too (an animated SVG works); it shows on the staff and admin home pages.
 2. **Values:** replace the sample set (from Pukui's ʻŌlelo Noʻeau) with your own values. Each value has a name, an optional ʻōlelo noʻeau, and what it looks like in your organization. The AI measures summaries against these.
 3. **Staff:** add everyone, with a phone or email so you can send links.
 

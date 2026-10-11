@@ -21,12 +21,13 @@ export function setLang(lang) {
 
 let strings = {};
 // Names set by admin (Data, Settings), so every Hui sees its own: {hui} and {director} in any string.
-export const config = { hui: 'the Hui', director: 'your director' };
+export const config = { hui: 'the Hui', director: 'your director', logo: '' };
 export async function initI18n() {
   const get = (url) => fetch(url).then((r) => r.json()).catch(() => ({}));
   const [en, c] = await Promise.all([get('/assets/i18n/en.json'), get('/api/config')]);
   if (c.hui_name) config.hui = c.hui_name;
   if (c.director_name) config.director = c.director_name;
+  if (c.logo_v) config.logo = `/api/logo?v=${c.logo_v}`;
   strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')) };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
 }
@@ -125,6 +126,9 @@ export async function copy(text) {
   }
   toast('Copied');
 }
+
+// The organization's own logo (set in admin, Data, Settings), if it has one.
+export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config.logo}" alt="${esc(config.hui)}">` : '');
 
 // Kalo leaf mark, drawn by hand. No stars, no thumbs.
 export const kalo = (size = 22) =>

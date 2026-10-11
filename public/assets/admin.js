@@ -1,4 +1,4 @@
-import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, $, $$ } from './app.js';
+import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, $, $$ } from './app.js';
 
 await initI18n();
 shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">Staff</a><a href="#/values">Values</a><a href="#/data">Data</a><span id="who" class="muted small"></span>' });
@@ -54,7 +54,7 @@ route();
 
 async function home() {
   const [{ cycles }, { sets }] = await Promise.all([api('/api/admin/cycles'), api('/api/admin/values')]);
-  app.innerHTML = `
+  app.innerHTML = `${orgLogo()}
     <h1>Review cycles</h1>
     ${
       cycles.length
@@ -567,6 +567,11 @@ async function data() {
       <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
       <label>Director's name, as staff call them <input data-path="/api/admin/settings" data-f="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
       <p class="small muted">Staff see these names on their screens, and summary drafts are written in the director's voice.</p>
+      <label>Logo, shown on the staff and admin home pages</label>
+      <div class="row">${orgLogo() || '<span class="small muted">No logo yet.</span>'}
+        <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto">
+        ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
+      <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
     </div>
     <h2>Audit log</h2>
     <p class="small muted">Every read of raw answers, every draft, share, export, and delete.</p>
@@ -574,6 +579,17 @@ async function data() {
       ${audit.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('')}
     </table></div>`;
   bindFields();
+  $('#logo').onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      await api('/api/admin/logo', { method: 'PUT', body: f, headers: { 'content-type': f.type } });
+      location.reload();
+    } catch (err) {
+      toast(err.message, 4000);
+    }
+  };
+  $('#nologo')?.addEventListener('click', async () => confirm('Remove the logo?') && (await save('/api/admin/logo', {}, 'DELETE'), location.reload()));
   $('#export').onclick = async () => {
     $('#export').disabled = true;
     const r = await save('/api/admin/export', {}, 'POST');

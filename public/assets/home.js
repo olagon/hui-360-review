@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang } from './app.js';
+import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo } from './app.js';
 import { startSync } from './idb.js';
 
 registerSW();
@@ -30,7 +30,7 @@ if (me) {
 
 function landing(e) {
   const expired = new URLSearchParams(location.search).has('expired');
-  app.innerHTML = `
+  app.innerHTML = `${orgLogo()}
     <h1>${esc(t('landing.title'))}</h1>
     <p class="prompt" style="font-size:1.25rem">${esc(t('app.tagline'))}</p>
     ${expired ? `<div class="banner warn">${esc(t('landing.expired'))}</div>` : ''}
@@ -63,7 +63,7 @@ function card(a) {
 }
 
 function dashboard({ staff, cycle, assignments, summaries }) {
-  let html = `<h1>${esc(t('dash.hello', { name: staff.name }))}</h1>`;
+  let html = `${orgLogo()}<h1>${esc(t('dash.hello', { name: staff.name }))}</h1>`;
   if (!navigator.onLine) html += `<div class="banner info">${esc(t('dash.offline'))}</div>`;
   if (!cycle) {
     html += `<p>${esc(t('dash.none'))}</p>`;
