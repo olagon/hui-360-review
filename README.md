@@ -2,6 +2,10 @@
 
 # Hui 360
 
+[![Hui 360 in about a minute: open source, free, inspired by huiMAU](docs/hui-360-overview.gif)](docs/hui-360-overview.mp4)
+
+*Hui 360 in about a minute. Click for the [full quality video](docs/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`.*
+
 **An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets an AI drafted letter for each person, written from exact quotes and measured against the organization's own values.
 
 Open source under the [MIT license](LICENSE). Free to use, copy, and change. Runs entirely on Cloudflare, and for a team of 20 it costs a few dollars a year (see [What it costs](#what-it-costs)).
