@@ -7,9 +7,10 @@ test('answers survive going offline and closing the tab', async ({ context, page
   let cycle = (await admin('/cycles')).cycles.find((c) => c.status === 'open');
   if (!cycle) {
     cycle = await admin('/cycles', 'POST', { name: `Offline test ${Date.now()}`, closes_at: '2099-01-01' });
+    await admin(`/cycles/${cycle.id}/status`, 'POST', { status: 'open' });
   }
   const { id: staffId } = await admin('/staff', 'POST', { name: `Offline Tester ${Date.now()}` });
-  await admin(`/cycles/${cycle.id}/status`, 'POST', { status: 'open' }); // adds the self reflection
+  await admin(`/cycles/${cycle.id}/people`, 'PUT', { staff_id: staffId, on: true }); // adds the self reflection
   const { link } = await admin(`/cycles/${cycle.id}/links/${staffId}`, 'POST', {});
 
   await page.goto(link);

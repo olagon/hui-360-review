@@ -6,7 +6,8 @@ test('the list shows every answer after a quick run through', async ({ page, req
   let cycle = (await admin('/cycles')).cycles.find((c) => c.status === 'open');
   if (!cycle) cycle = await admin('/cycles', 'POST', { name: `Dashboard test ${Date.now()}`, closes_at: '2099-01-01' });
   const { id } = await admin('/staff', 'POST', { name: `Quick Answer ${Date.now()}` });
-  await admin(`/cycles/${cycle.id}/status`, 'POST', { status: 'open' });
+  if (cycle.status !== 'open') await admin(`/cycles/${cycle.id}/status`, 'POST', { status: 'open' });
+  await admin(`/cycles/${cycle.id}/people`, 'PUT', { staff_id: id, on: true });
   const { link } = await admin(`/cycles/${cycle.id}/links/${id}`, 'POST', {});
 
   await page.goto(link);

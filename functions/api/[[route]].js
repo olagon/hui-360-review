@@ -42,6 +42,7 @@ const routes = [
   ['POST', '/api/admin/cycles/:id/reuse', a.reuseQuestions],
   ['PUT', '/api/admin/cycles/:id/assignments', a.toggleAssignment],
   ['POST', '/api/admin/cycles/:id/autofill', a.autofill],
+  ['PUT', '/api/admin/cycles/:id/people', a.setParticipant],
   ['GET', '/api/admin/cycles/:id/links', a.links],
   ['POST', '/api/admin/cycles/:id/links/:staff', a.newLink],
   ['GET', '/api/admin/cycles/:id/people/:staff/raw', a.raw],
@@ -56,6 +57,8 @@ const routes = [
   ['POST', '/api/admin/export', a.exportAll],
   ['GET', '/api/admin/exports', a.listExports],
   ['GET', '/api/admin/audit', a.listAudit],
+  ['POST', '/api/admin/sample', a.loadSample],
+  ['DELETE', '/api/admin/sample', a.removeSample],
 ];
 
 function match(pattern, path) {

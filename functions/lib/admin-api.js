@@ -1,5 +1,5 @@
 import { HttpError, json, body, audit } from './http.js';
-import { autoFill } from './assign.js';
+import { autoFill, assignmentHash } from './assign.js';
 import { linkFor, createLink } from './auth.js';
 import { completer } from './ai.js';
 import { draftSummary, stripIdentity, section } from './summarize.js';
@@ -151,7 +151,12 @@ export async function listCycles({ env }) {
 }
 
 async function copyQuestions(env, cycleId) {
-  const prev = await one(env, 'SELECT id FROM cycles WHERE id < ? AND EXISTS (SELECT 1 FROM questions WHERE cycle_id = cycles.id) ORDER BY id DESC LIMIT 1', cycleId);
+  const prev = await one(
+    env,
+    'SELECT id FROM cycles WHERE id < ? AND name != ? AND EXISTS (SELECT 1 FROM questions WHERE cycle_id = cycles.id) ORDER BY id DESC LIMIT 1',
+    cycleId,
+    SAMPLE_NAME,
+  );
   if (prev) {
     await env.DB.prepare(
       `INSERT INTO questions (cycle_id, audience, ord, prompt_en, prompt_haw, kind, required, five_min, value_id)
@@ -159,18 +164,22 @@ async function copyQuestions(env, cycleId) {
     ).bind(cycleId, prev.id).run();
     await relinkValues(env, cycleId);
   } else {
-    const set = await one(env, 'SELECT values_set_id FROM cycles WHERE id = ?', cycleId);
-    const names = await settings(env);
-    const fill = (q) => q.replaceAll('{hui}', names.hui_name || 'the Hui').replaceAll('{director}', names.director_name || 'your director');
-    const values = await all(env, 'SELECT id, name_haw FROM "values" WHERE values_set_id = ?', set?.values_set_id ?? 0);
-    await env.DB.batch(
-      DEFAULT_QUESTIONS.map(([audience, kind, required, five, prompt, value], i) =>
-        env.DB.prepare('INSERT INTO questions (cycle_id, audience, ord, prompt_en, kind, required, five_min, value_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(cycleId, audience, i, fill(prompt), kind, required, five, values.find((v) => v.name_haw === value)?.id ?? null),
-      ),
-    );
+    await insertDefaultQuestions(env, cycleId);
   }
   return prev?.id ?? null;
+}
+
+async function insertDefaultQuestions(env, cycleId) {
+  const set = await one(env, 'SELECT values_set_id FROM cycles WHERE id = ?', cycleId);
+  const names = await settings(env);
+  const fill = (q) => q.replaceAll('{hui}', names.hui_name || 'the Hui').replaceAll('{director}', names.director_name || 'your director');
+  const values = await all(env, 'SELECT id, name_haw FROM "values" WHERE values_set_id = ?', set?.values_set_id ?? 0);
+  await env.DB.batch(
+    DEFAULT_QUESTIONS.map(([audience, kind, required, five, prompt, value], i) =>
+      env.DB.prepare('INSERT INTO questions (cycle_id, audience, ord, prompt_en, kind, required, five_min, value_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(cycleId, audience, i, fill(prompt), kind, required, five, values.find((v) => v.name_haw === value)?.id ?? null),
+    ),
+  );
 }
 
 // Point each question's value at the value with the same name in the cycle's current set.
@@ -188,19 +197,34 @@ export async function createCycle({ env, request }) {
   data.values_set_id ??= (await one(env, 'SELECT id FROM value_sets ORDER BY id DESC LIMIT 1'))?.id ?? null;
   const id = await insert(env, 'cycles', data);
   await copyQuestions(env, id);
+  // Everyone active starts in the review. Admin unchecks anyone who sits this one out.
+  await env.DB.prepare('INSERT INTO cycle_people (cycle_id, staff_id) SELECT ?, id FROM staff WHERE active = 1').bind(id).run();
   return json({ id });
 }
 
 export async function getCycle_({ env, params }) {
   const cycle = await getCycle(env, params.id);
-  const [questions, staff, assignments, summaries, counts] = await Promise.all([
+  const [questions, staff, assignments, summaries, counts, people] = await Promise.all([
     all(env, 'SELECT * FROM questions WHERE cycle_id = ? ORDER BY audience, ord, id', cycle.id),
-    all(env, 'SELECT id, name, preferred_name, email, phone, role, team, active FROM staff WHERE active = 1 ORDER BY name'),
+    all(
+      env,
+      'SELECT id, name, preferred_name, email, phone, role, team, active FROM staff WHERE active = 1 OR id IN (SELECT staff_id FROM cycle_people WHERE cycle_id = ?) ORDER BY name',
+      cycle.id,
+    ),
     all(env, 'SELECT id, reviewer_id, reviewee_id, kind, status FROM assignments WHERE cycle_id = ?', cycle.id),
     all(env, 'SELECT id, reviewee_id, status, shared_at FROM summaries WHERE cycle_id = ?', cycle.id),
     all(env, 'SELECT reviewee_id, COUNT(*) AS n FROM responses WHERE cycle_id = ? GROUP BY reviewee_id', cycle.id),
+    all(env, 'SELECT staff_id FROM cycle_people WHERE cycle_id = ?', cycle.id),
   ]);
-  return json({ cycle, questions, staff, assignments, summaries, responses: Object.fromEntries(counts.map((c) => [c.reviewee_id, c.n])) });
+  return json({
+    cycle,
+    questions,
+    staff,
+    people: people.map((p) => p.staff_id),
+    assignments,
+    summaries,
+    responses: Object.fromEntries(counts.map((c) => [c.reviewee_id, c.n])),
+  });
 }
 
 export async function updateCycle({ env, request, params }) {
@@ -218,7 +242,7 @@ export async function setStatus({ env, request, params, admin }) {
     const other = await one(env, "SELECT name FROM cycles WHERE status = 'open' AND id != ?", cycle.id);
     if (other) throw new HttpError(409, `Close "${other.name}" first. Only one cycle can be open at a time.`);
     await env.DB.prepare(
-      "INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) SELECT ?, id, id, 'self' FROM staff WHERE active = 1",
+      "INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) SELECT cycle_id, staff_id, staff_id, 'self' FROM cycle_people WHERE cycle_id = ?",
     ).bind(cycle.id).run();
   }
   await env.DB.prepare(`UPDATE cycles SET status = ?${status === 'published' ? ", published_at = datetime('now')" : ''} WHERE id = ?`).bind(status, cycle.id).run();
@@ -230,7 +254,12 @@ export async function deleteCycle({ env, request, params, admin }) {
   const cycle = await getCycle(env, params.id);
   const { confirm } = await body(request);
   if ((confirm || '').trim() !== cycle.name.trim()) throw new HttpError(400, 'Type the cycle name exactly to confirm');
-  const id = cycle.id;
+  await purgeCycle(env, cycle.id);
+  await audit(env, admin, 'delete_cycle', `cycle:${cycle.id} ${cycle.name}`);
+  return json({ ok: true });
+}
+
+async function purgeCycle(env, id) {
   await env.DB.batch(
     [
       'DELETE FROM response_link WHERE response_id IN (SELECT id FROM responses WHERE cycle_id = ?)',
@@ -241,6 +270,7 @@ export async function deleteCycle({ env, request, params, admin }) {
       'DELETE FROM community_voices WHERE cycle_id = ?',
       'UPDATE goals SET cycle_id = NULL WHERE cycle_id = ?',
       'DELETE FROM questions WHERE cycle_id = ?',
+      'DELETE FROM cycle_people WHERE cycle_id = ?',
       'DELETE FROM cycles WHERE id = ?',
     ].map((sql) => env.DB.prepare(sql).bind(id)),
   );
@@ -255,8 +285,6 @@ export async function deleteCycle({ env, request, params, admin }) {
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
-  await audit(env, admin, 'delete_cycle', `cycle:${id} ${cycle.name}`);
-  return json({ ok: true });
 }
 
 async function deletePrefix(env, prefix) {
@@ -303,6 +331,34 @@ export async function reuseQuestions({ env, params }) {
   return json({ from: await copyQuestions(env, cycle.id) });
 }
 
+// ---------- who is in a review ----------
+
+export async function setParticipant({ env, request, params }) {
+  const cycle = await getCycle(env, params.id);
+  const { staff_id, on } = await body(request);
+  const sid = Number(staff_id);
+  if (on) {
+    await env.DB.prepare('INSERT OR IGNORE INTO cycle_people (cycle_id, staff_id) VALUES (?, ?)').bind(cycle.id, sid).run();
+    if (cycle.status === 'open') {
+      await env.DB.prepare("INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) VALUES (?, ?, ?, 'self')").bind(cycle.id, sid, sid).run();
+    }
+  } else {
+    const started = await one(
+      env,
+      "SELECT COUNT(*) AS n FROM assignments WHERE cycle_id = ? AND (reviewer_id = ? OR reviewee_id = ?) AND status != 'not_started'",
+      cycle.id,
+      sid,
+      sid,
+    );
+    if (started.n) throw new HttpError(409, 'This person already has answers in this review, so they stay in it');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM assignments WHERE cycle_id = ? AND (reviewer_id = ? OR reviewee_id = ?)').bind(cycle.id, sid, sid),
+      env.DB.prepare('DELETE FROM cycle_people WHERE cycle_id = ? AND staff_id = ?').bind(cycle.id, sid),
+    ]);
+  }
+  return json({ ok: true });
+}
+
 // ---------- assignments ----------
 
 export async function toggleAssignment({ env, request, params }) {
@@ -323,7 +379,7 @@ export async function toggleAssignment({ env, request, params }) {
 export async function autofill({ env, request, params }) {
   const cycleId = Number(params.id);
   const { target = 2 } = await body(request);
-  const staffIds = (await all(env, 'SELECT id FROM staff WHERE active = 1')).map((s) => s.id);
+  const staffIds = (await all(env, 'SELECT staff_id FROM cycle_people WHERE cycle_id = ?', cycleId)).map((s) => s.staff_id);
   const existing = (await all(env, "SELECT reviewer_id, reviewee_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", cycleId)).map((a) => ({
     reviewer: a.reviewer_id,
     reviewee: a.reviewee_id,
@@ -503,7 +559,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
+  'cycle_people', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
@@ -563,3 +619,126 @@ export async function listExports({ env }) {
 }
 
 export const listAudit = async ({ env }) => json({ audit: await all(env, 'SELECT * FROM audit ORDER BY id DESC LIMIT 300') });
+
+// ---------- sample review, so a director can see the finished product ----------
+
+const SAMPLE_NAME = 'Sample review (example)';
+const SAMPLE_EMAIL = '%@sample.example';
+
+export async function loadSample({ env, admin }) {
+  if (await one(env, 'SELECT id FROM cycles WHERE name = ?', SAMPLE_NAME)) throw new HttpError(409, 'The sample is already loaded');
+  const set = await one(env, 'SELECT id FROM value_sets ORDER BY id DESC LIMIT 1');
+  const vals = await all(env, 'SELECT name_haw FROM "values" WHERE values_set_id = ? ORDER BY ord, id', set?.id ?? 0);
+  const [v1, v2] = [vals[0]?.name_haw || 'Working together', vals[1]?.name_haw || 'Learning by doing'];
+  const names = await settings(env);
+  const director = names.director_name || 'your director';
+
+  const person = async (name, preferred, email) => insert(env, 'staff', { name, preferred_name: preferred, email, team: 'Sample', active: 0 });
+  const kainoa = await person('Sample Kainoa', 'Kainoa', 'kainoa@sample.example');
+  const lei = await person('Sample Lei', 'Lei', 'lei@sample.example');
+  const keoni = await person('Sample Keoni', 'Keoni', 'keoni@sample.example');
+
+  const cid = await insert(env, 'cycles', { name: SAMPLE_NAME, opens_at: '2026-01-05', closes_at: '2026-01-30', status: 'published', values_set_id: set?.id ?? null });
+  await env.DB.prepare("UPDATE cycles SET published_at = datetime('now') WHERE id = ?").bind(cid).run();
+  await insertDefaultQuestions(env, cid);
+  await env.DB.batch([kainoa, lei, keoni].map((s) => env.DB.prepare('INSERT INTO cycle_people (cycle_id, staff_id) VALUES (?, ?)').bind(cid, s)));
+  const qs = await all(env, 'SELECT id, audience FROM questions WHERE cycle_id = ? ORDER BY ord', cid);
+  const self = qs.filter((q) => q.audience === 'self');
+  const peer = qs.filter((q) => q.audience === 'peer');
+
+  const answers = [
+    [kainoa, 'self', self, [
+      'Getting the new loʻi section planted with the summer keiki.',
+      'Opening the water back into the loʻi after the storm. Everyone came.',
+      'Patience. I like teaching.',
+      'Saying yes to everything. I was tired by October.',
+      'Planning the season so I am not always catching up.',
+      'More help with grant reports.',
+    ]],
+    [lei, 'peer', peer, [
+      'Kainoa always shows up early to open the gate and has the coffee going before anyone else.',
+      'When the storm took out the water line at the loʻi, he was there at 5am with the pipe fittings and stayed until the water ran again.',
+      'His gift is patience. He teaches keiki how to plant kalo like he has all the time in the world.',
+      'He listens to the kūpuna before he makes a plan.',
+      'He takes on too much and does not ask for help.',
+      'He is ready to lead the education program if we support him.',
+    ], 'Lei'],
+    [keoni, 'peer', peer, [
+      'Mahalo for always making time to teach the new volunteers. You never make anyone feel slow.',
+      'At the workday he stayed until dark fixing the ʻauwai with me.',
+      'He makes everyone feel welcome, even on hard days.',
+      'He asks for the manaʻo of the kūpuna first.',
+      'He could say no more often. He carries a lot by himself.',
+      '',
+    ]],
+  ];
+  for (const [reviewer, kind, questions, texts, signer] of answers) {
+    const aid = await insert(env, 'assignments', { cycle_id: cid, reviewer_id: reviewer, reviewee_id: kainoa, kind, status: 'done' });
+    const hash = await assignmentHash(aid, env.HASH_PEPPER, cid);
+    const stmts = [];
+    texts.forEach((text, i) => {
+      if (!text || !questions[i]) return;
+      const id = crypto.randomUUID();
+      stmts.push(
+        env.DB.prepare('INSERT INTO responses (id, cycle_id, reviewee_id, question_id, kind, body, language, signed_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(id, cid, kainoa, questions[i].id, kind, text, 'en', i === 0 && signer ? signer : null),
+        env.DB.prepare('INSERT INTO response_link (response_id, assignment_hash) VALUES (?, ?)').bind(id, hash),
+      );
+    });
+    await env.DB.batch(stmts);
+  }
+
+  const letter = `Kainoa, mahalo for this year. Your coworkers wrote about the same thing first: you show up before anyone else, and you make room for people to learn. That steadiness carried the team through a hard season.
+
+## Mahalo
+
+"Kainoa always shows up early to open the gate and has the coffee going before anyone else." (Lei)
+
+"Mahalo for always making time to teach the new volunteers. You never make anyone feel slow."
+
+## Values
+
+### ${v1}
+
+Your patience is a gift to everyone around you. "He teaches keiki how to plant kalo like he has all the time in the world."
+
+### ${v2}
+
+You listen before you plan. Two coworkers named it in their own words, including "He listens to the kūpuna before he makes a plan."
+
+## Themes
+
+**Steady when things break.** When the water line failed, "he was there at 5am with the pipe fittings and stayed until the water ran again."
+
+**A natural teacher.** You wrote "Patience. I like teaching." Your coworkers see the same thing.
+
+**Ready for more.** One coworker wrote that you are "ready to lead the education program if we support him."
+
+## Growth
+
+Two coworkers said the same thing in different words: you carry too much by yourself. You named it too: "Saying yes to everything. I was tired by October." The patience you give the keiki is the same patience you can give yourself. Let us plan the season together so you are not always catching up.
+
+## Questions for your huli
+
+- What would you hand off first if you had help?
+- What would your first 90 days leading the education program look like?
+- Which part of next season do you want planned before it starts?`;
+  const sumId = await insert(env, 'summaries', {
+    cycle_id: cid, reviewee_id: kainoa, draft: letter, edited: letter, status: 'shared', shared_body: letter,
+  });
+  await env.DB.prepare("UPDATE summaries SET shared_at = datetime('now') WHERE id = ?").bind(sumId).run();
+  await insert(env, 'employee_reflection', {
+    summary_id: sumId,
+    body: `Mahalo, ${director}. This landed. I want to get better at saying no and asking for help before I am tired. I would love to talk about the education program.`,
+  });
+  await audit(env, admin, 'sample_load', `cycle:${cid}`);
+  return json({ id: cid, person: kainoa });
+}
+
+export async function removeSample({ env, admin }) {
+  const c = await one(env, 'SELECT id FROM cycles WHERE name = ?', SAMPLE_NAME);
+  if (c) await purgeCycle(env, c.id);
+  await env.DB.prepare('DELETE FROM staff WHERE email LIKE ?').bind(SAMPLE_EMAIL).run();
+  await audit(env, admin, 'sample_remove', c ? `cycle:${c.id}` : '');
+  return json({ ok: true });
+}

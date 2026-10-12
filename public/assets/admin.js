@@ -1,7 +1,7 @@
 import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, $, $$ } from './app.js';
 
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">Staff</a><a href="#/values">Values</a><a href="#/data">Data</a><span id="who" class="muted small"></span>' });
+shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><span id="who" class="muted small"></span>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
 api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
@@ -56,6 +56,8 @@ async function home() {
   const [{ cycles }, { sets }] = await Promise.all([api('/api/admin/cycles'), api('/api/admin/values')]);
   app.innerHTML = `${orgLogo()}
     <h1>Review cycles</h1>
+    <p class="muted small">New here? Add everyone in <a href="#/staff">People</a>, then start a review below. Each review walks you through the next step.
+    To see what a finished review looks like, load the sample from <a href="#/data">Data</a>.</p>
     ${
       cycles.length
         ? `<div class="scroll"><table><tr><th>Cycle</th><th>Opens</th><th>Closes</th><th>Status</th><th>Done</th></tr>
@@ -83,17 +85,100 @@ async function home() {
   };
 }
 
+const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['progress', 'Progress'], ['letters', 'Letters']];
+
 async function cycle(id, tab = 'setup') {
   const d = await api(`/api/admin/cycles/${id}`);
   const c = d.cycle;
-  const tabs = ['setup', 'questions', 'assignments', 'links', 'progress', 'people'];
+  const inReview = new Set(d.people);
+  d.members = d.staff.filter((s) => inReview.has(s.id));
   app.innerHTML = `
     <p class="small"><a href="#/">Cycles</a></p>
     <div class="row spread"><h1 style="margin:.25rem 0">${esc(c.name)}</h1>${chip(c.status)}</div>
-    <nav class="tabs">${tabs.map((t) => `<a href="#/cycle/${id}/${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav>
+    ${nextStep(d)}
+    <nav class="tabs">${TABS.map(([t, label]) => `<a href="#/cycle/${id}/${t}" class="${t === tab ? 'on' : ''}">${label}</a>`).join('')}</nav>
     <div id="pane"></div>`;
-  await { setup, questions, assignments, links, progress, people }[tab]?.(d, $('#pane'));
+  await { setup, people: participants, questions, assignments, links, progress, letters }[tab]?.(d, $('#pane'));
 }
+
+// One plain sentence about where this review stands and what to do next.
+function nextStep({ cycle: c, members, assignments: as, summaries, responses }) {
+  const go = (tab, label) => ` <a class="button small" href="#/cycle/${c.id}/${tab}">${label}</a>`;
+  const peers = as.filter((a) => a.kind === 'peer');
+  const lonely = members.filter((m) => !peers.some((a) => a.reviewee_id === m.id)).length;
+  const done = as.filter((a) => a.status === 'done').length;
+  const needLetters = members.filter((m) => responses[m.id]).length;
+  const shared = summaries.filter((s) => s.status === 'shared').length;
+  const letterWord = (n) => `${n} ${n === 1 ? 'letter' : 'letters'}`;
+  let text;
+  if (c.status === 'draft') {
+    text = `Getting ready. ${members.length} ${members.length === 1 ? 'person is' : 'people are'} in this review. Check People, Questions, and Reviewers, then open the review from Setup.`;
+    if (lonely) text += ` ${lonely} ${lonely === 1 ? 'person has' : 'people have'} no reviewer yet.`;
+    text += peers.length ? go('setup', 'Go to Setup') : go('assignments', 'Pick reviewers');
+  } else if (c.status === 'open') {
+    text = `Open${c.closes_at ? ` until ${fmtDate(c.closes_at)}` : ''}. ${done} of ${as.length} reviews done. Send links from Links and nudges from Progress. When everyone is done, close the review in Setup and the Letters tab opens.`;
+    text += done === as.length && as.length ? go('setup', 'Close the review') : go('progress', 'See progress');
+  } else if (c.status === 'closed' && (shared < needLetters || !needLetters)) {
+    text = `Answers are locked. Now write each person's letter in Letters: read their answers, write a draft, then share it. ${shared} of ${letterWord(needLetters)} shared.`;
+    text += go('letters', 'Write letters');
+  } else if (c.status === 'closed') {
+    text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Mark the review published in Setup, then save a copy from Data, Export.`;
+    text += go('setup', 'Mark published');
+  } else {
+    text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs, and you can save a copy any time from Data, Export.`;
+    text += go('letters', 'See letters');
+  }
+  return `<div class="banner"><strong>Next step.</strong> ${text}</div>`;
+}
+
+async function participants({ cycle: c, staff, people }, pane) {
+  const inReview = new Set(people);
+  const locked = ['closed', 'published'].includes(c.status);
+  pane.innerHTML = `
+    <p>Check everyone taking part in this review. Each person checked gets a self reflection when the review opens and shows up in Reviewers. Uncheck anyone sitting this one out.</p>
+    <p><strong>${people.length}</strong> of ${staff.length} people are in this review.</p>
+    <div class="scroll"><table>
+      <tr><th style="width:3rem">In</th><th>Name</th><th>Group</th><th>Email or phone</th></tr>
+      ${staff
+        .map(
+          (s) => `<tr><td><input type="checkbox" data-p="${s.id}" aria-label="Include ${esc(nameOf(s))}" ${inReview.has(s.id) ? 'checked' : ''} ${locked ? 'disabled' : ''} style="width:1.3rem;height:1.3rem;min-height:0;accent-color:var(--kalo)"></td>
+          <td>${esc(s.name)}${s.preferred_name ? ` <span class="muted small">(${esc(s.preferred_name)})</span>` : ''}</td><td>${esc(s.team || '')}</td><td class="small">${esc(s.email || s.phone || '')}</td></tr>`,
+        )
+        .join('')}
+    </table></div>
+    ${
+      locked
+        ? ''
+        : `<h2>Add someone new</h2>
+    <form id="addp" class="card">
+      <p class="small muted" style="margin-top:0">Staff, interns, volunteers, or board members. Anyone who will write or receive reviews. They are added to People for future reviews too.</p>
+      <div class="row"><label style="flex:2">Name <input name="name" required></label><label style="flex:1">Goes by <input name="preferred_name"></label></div>
+      <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label>
+        <label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
+      <button>Add to this review</button>
+    </form>`
+    }
+    <p class="small"><a href="#/staff">Edit everyone's details, or add many people at once, in People</a></p>
+    ${GROUPS}`;
+  for (const box of $$('[data-p]', pane)) {
+    box.onchange = async () => {
+      try {
+        await save(`/api/admin/cycles/${c.id}/people`, { staff_id: Number(box.dataset.p), on: box.checked });
+      } catch {
+        box.checked = !box.checked;
+      }
+      route();
+    };
+  }
+  $('#addp')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { id } = await save('/api/admin/staff', Object.fromEntries(new FormData(e.target)), 'POST');
+    await save(`/api/admin/cycles/${c.id}/people`, { staff_id: id, on: true });
+    route();
+  });
+}
+
+const GROUPS = '<datalist id="groups"><option value="Staff"><option value="Intern"><option value="Volunteer"><option value="Board"></datalist>';
 
 async function setup({ cycle: c }, pane) {
   const { sets } = await api('/api/admin/values');
@@ -221,7 +306,7 @@ async function questions({ cycle: c, questions: qs }, pane) {
   };
 }
 
-async function assignments({ cycle: c, staff, assignments: as }, pane) {
+async function assignments({ cycle: c, members: staff, assignments: as }, pane) {
   const peers = as.filter((a) => a.kind === 'peer');
   const has = new Set(peers.map((a) => `${a.reviewer_id}:${a.reviewee_id}`));
   const got = (id) => peers.filter((a) => a.reviewee_id === id).length;
@@ -229,7 +314,7 @@ async function assignments({ cycle: c, staff, assignments: as }, pane) {
   const flag = (n) => (n < 1 || n > 3 ? 'bad' : '');
   pane.innerHTML = `
     <p class="muted small">Each row is a person being reviewed. Each column is a reviewer. Tap a box to assign. Aim for 1 to 3 reviewers per person.
-    Self reflections are added for everyone when the cycle opens.</p>
+    Only people checked in the People tab show here, and each of them gets a self reflection when the review opens.</p>
     <div class="row"><label class="row" style="margin:0">Reviewers each <select id="target" style="width:auto">${[1, 2, 3].map((n) => opt(n, n, 2)).join('')}</select></label>
     <button class="secondary small" id="auto">Auto fill</button>
     <span class="small muted">Prefers people who work together, avoids last cycle's pairs. Only adds, you can change anything after.</span></div>
@@ -325,16 +410,29 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
   }
 }
 
-async function people({ cycle: c, staff, summaries, responses }, pane) {
+async function letters({ cycle: c, members, summaries, responses }, pane) {
   const sum = new Map(summaries.map((s) => [s.reviewee_id, s]));
   const closed = ['closed', 'published'].includes(c.status);
+  const step = (s) => {
+    const x = sum.get(s.id);
+    if (!responses[s.id] && !x) return '<span class="muted small">No answers about them</span>';
+    if (!x) return 'Read answers, then write a draft';
+    if (x.status === 'shared') return `Shared ${esc(fmtDate(x.shared_at, { month: 'short', day: 'numeric' }))}`;
+    return x.status === 'ready' ? 'Ready, share it' : 'Draft started, finish and share';
+  };
   pane.innerHTML = `
-    ${closed ? '' : '<div class="banner info">Raw answers and drafts open after the cycle closes.</div>'}
-    <div class="scroll"><table><tr><th>Person</th><th>Answers about them</th><th>Summary</th></tr>
-    ${staff
+    ${
+      closed
+        ? `<p>Each person gets a letter about their year. Open a person to read every answer about them, have AI compile a draft, write your final version, and share it. Shared letters show up on their phone, where they can write a reflection back.</p>`
+        : '<div class="banner info">Letters open after you close the review in Setup. Until then, answers stay private to the people writing them.</div>'
+    }
+    ${c.name === 'Sample review (example)' ? '<div class="banner info">This is the sample review, with made up people. Remove it any time from Data.</div>' : '<p class="small muted">Want to see a finished letter first? Load the sample review from <a href="#/data">Data</a>.</p>'}
+    <div class="scroll"><table><tr><th>Person</th><th>Answers about them</th><th>Letter</th><th></th></tr>
+    ${members
       .map(
-        (s) => `<tr><td>${closed ? `<a href="#/person/${c.id}/${s.id}">${esc(nameOf(s))}</a>` : esc(nameOf(s))}</td>
-        <td>${responses[s.id] || 0}</td><td>${sum.get(s.id) ? chip(sum.get(s.id).status) : '<span class="muted small">none yet</span>'}</td></tr>`,
+        (s) => `<tr><td>${esc(nameOf(s))}</td><td>${responses[s.id] || 0}</td>
+        <td>${sum.get(s.id) ? chip(sum.get(s.id).status) : ''} <span class="small">${step(s)}</span></td>
+        <td>${closed && (responses[s.id] || sum.get(s.id)) ? `<a class="button small secondary" href="#/person/${c.id}/${s.id}">Open</a>` : ''}</td></tr>`,
       )
       .join('')}</table></div>`;
 }
@@ -345,7 +443,7 @@ async function person(cycleId, staffId, tab = 'raw') {
   const base = `/api/admin/cycles/${cycleId}/people/${staffId}`;
   const { summary, person: p } = await api(`${base}/summary`);
   app.innerHTML = `
-    <p class="small"><a href="#/cycle/${cycleId}/people">Back to people</a></p>
+    <p class="small no-print"><a href="#/cycle/${cycleId}/letters">Back to letters</a></p>
     <h1 style="margin:.25rem 0">${esc(nameOf(p))}</h1>
     <nav class="tabs">${['raw', 'draft', 'share'].map((t) => `<a href="#/person/${cycleId}/${staffId}/${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</a>`).join('')}</nav>
     <div id="pane"></div>`;
@@ -456,17 +554,20 @@ async function person(cycleId, staffId, tab = 'raw') {
     parts.at(-1).lines.push(line);
   }
   pane.innerHTML = `
-    ${summary.status === 'shared' ? `<div class="banner">Shared ${esc(fmtDate(summary.shared_at))}. Sharing again replaces what ${esc(first(p))} sees.</div>` : ''}
-    <p>Choose what ${esc(first(p))} will see.</p>
-    <div class="row">${parts.map((x, i) => `<label class="check"><input type="checkbox" data-part="${i}" checked> ${esc(x.title)}</label>`).join('')}</div>
-    <h2>Preview</h2>
+    <div class="no-print">
+      ${summary.status === 'shared' ? `<div class="banner">Shared ${esc(fmtDate(summary.shared_at))}. ${esc(first(p))} can read it now. Sharing again replaces what they see.</div>` : ''}
+      <p>Choose what ${esc(first(p))} will see.</p>
+      <div class="row">${parts.map((x, i) => `<label class="check"><input type="checkbox" data-part="${i}" checked> ${esc(x.title)}</label>`).join('')}</div>
+      <h2>Preview</h2>
+    </div>
     <div class="summary-doc" id="preview"></div>
-    <p><button id="share">Share with ${esc(first(p))}</button></p>
-    ${summary.reflection ? `<h2>${esc(first(p))}'s reflection</h2><div class="card raw-body">${esc(summary.reflection)}</div>` : ''}`;
+    <p class="row"><button id="share">Share with ${esc(first(p))}</button><button class="secondary" id="print">Print or save as PDF</button></p>
+    ${summary.reflection ? `<div class="no-print"><h2>${esc(first(p))}'s reflection</h2><div class="card raw-body">${esc(summary.reflection)}</div></div>` : ''}`;
   const chosen = () => parts.filter((_, i) => $(`[data-part="${i}"]`).checked).map((x) => x.lines.join('\n')).join('\n').trim();
   const preview = () => ($('#preview').innerHTML = md(chosen()));
   for (const b of $$('[data-part]', pane)) b.onchange = preview;
   preview();
+  $('#print').onclick = () => print();
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');
@@ -480,33 +581,52 @@ async function staff() {
   const { staff: list } = await api('/api/admin/staff');
   const row = (s) => {
     const p = `/api/admin/staff/${s.id}`;
-    const inp = (f, type = 'text') => `<input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}">`;
+    const inp = (f, type = 'text', extra = '') => `<input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}>`;
     return `<tr>
-      <td>${inp('name')}</td><td>${inp('preferred_name')}</td><td>${inp('email', 'email')}</td><td>${inp('phone', 'tel')}</td><td>${inp('team')}</td>
-      <td><select data-path="${p}" data-f="role">${['staff', 'lead', 'admin'].map((r) => opt(r, r, s.role)).join('')}</select></td>
+      <td>${inp('name')}</td><td>${inp('preferred_name')}</td><td>${inp('email', 'email')}</td><td>${inp('phone', 'tel')}</td><td>${inp('team', 'text', 'list="groups"')}</td>
       <td><select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></td>
       <td>${inp('start_date', 'date')}</td>
       <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td></tr>`;
   };
   app.innerHTML = `
-    <h1>Staff</h1>
-    <p class="muted small">Changes save as you go. Uncheck Active when someone leaves, their past reviews stay.</p>
+    <h1>People</h1>
+    <p>Everyone who writes or receives reviews goes here once: staff, interns, volunteers, board members. Each review then picks who takes part, in that review's People tab.</p>
+    <div class="row" style="align-items:stretch">
+      <form id="add" class="card" style="flex:1;min-width:18rem">
+        <h2 style="margin-top:0">Add one person</h2>
+        <label>Name <input name="name" required></label>
+        <div class="row"><label style="flex:1">Goes by <input name="preferred_name"></label><label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
+        <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
+        <label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>
+        <p><button>Add</button></p>
+      </form>
+      <form id="bulk" class="card" style="flex:1;min-width:18rem">
+        <h2 style="margin-top:0">Add many at once</h2>
+        <label>One person per line: name, then email or phone, then group</label>
+        <textarea name="lines" style="min-height:9rem" placeholder="Kainoa Akana, kainoa@example.org, Staff&#10;Lei Kahale, 808-555-0123, Intern"></textarea>
+        <p><button>Add everyone</button></p>
+      </form>
+    </div>
+    <h2>Everyone</h2>
+    <p class="muted small">Changes save as you go. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out.</p>
     <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Team</th><th>Role</th><th>Language</th><th>Started</th><th>Active</th></tr>
+      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Language</th><th>Started</th><th>Active</th></tr>
       ${list.map(row).join('')}
     </table></div>
-    <h2>Add a person</h2>
-    <form id="add" class="card">
-      <div class="row"><label style="flex:2">Name <input name="name" required></label><label style="flex:1">Goes by <input name="preferred_name"></label></div>
-      <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
-      <div class="row"><label style="flex:1">Team <input name="team"></label>
-        <label style="flex:1">Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label></div>
-      <button>Add</button>
-    </form>`;
+    ${GROUPS}`;
   bindFields();
   $('#add').onsubmit = async (e) => {
     e.preventDefault();
     await save('/api/admin/staff', Object.fromEntries(new FormData(e.target)), 'POST');
+    route();
+  };
+  $('#bulk').onsubmit = async (e) => {
+    e.preventDefault();
+    const lines = new FormData(e.target).get('lines').split('\n').map((l) => l.split(',').map((x) => x.trim())).filter((l) => l[0]);
+    for (const [name, contact = '', team = ''] of lines) {
+      await api('/api/admin/staff', { method: 'POST', json: { name, team, ...(contact.includes('@') ? { email: contact } : { phone: contact }) } });
+    }
+    toast(`Added ${lines.length} ${lines.length === 1 ? 'person' : 'people'}`);
     route();
   };
 }
@@ -545,7 +665,9 @@ async function values() {
 // ---------------- data ----------------
 
 async function data() {
-  const [{ files }, { audit }, settings] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings')]);
+  const [{ files }, { audit }, settings, { cycles }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles')]);
+  const sampleCycle = cycles.find((c) => c.name === 'Sample review (example)');
+  const sample = sampleCycle && { id: sampleCycle.id, person: (await api(`/api/admin/cycles/${sampleCycle.id}`)).summaries[0]?.reviewee_id };
   const byFolder = {};
   for (const f of files) (byFolder[f.key.split('/')[1]] ||= []).push(f);
   const link = (key) => `<a href="/api/admin/file?key=${encodeURIComponent(key)}">${esc(key.split('/').slice(2).join('/'))}</a>`;
@@ -562,6 +684,11 @@ async function data() {
       .reverse()
       .map(([folder, fs]) => `<details class="card"><summary>${esc(folder)}</summary><ul>${fs.map((f) => `<li>${link(f.key)}</li>`).join('')}</ul></details>`)
       .join('')}
+    <h2>Sample review</h2>
+    <div class="card">
+      <p style="margin-top:0">See what a finished review looks like before you run your own. The sample adds a closed review with three made up people, their answers, a finished letter, and a reflection written back. Nobody is contacted.</p>
+      <div class="row">${sample ? `<a class="button" href="#/person/${sample.id}/${sample.person}/share">Open the sample letter</a><a class="button secondary" href="#/cycle/${sample.id}/letters">Open the sample review</a><button class="quiet" id="nosample">Remove the sample</button>` : '<button id="sample">Load the sample review</button>'}</div>
+    </div>
     <h2>Settings</h2>
     <div class="card">
       <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
@@ -590,6 +717,15 @@ async function data() {
     }
   };
   $('#nologo')?.addEventListener('click', async () => confirm('Remove the logo?') && (await save('/api/admin/logo', {}, 'DELETE'), location.reload()));
+  $('#sample')?.addEventListener('click', async () => {
+    const r = await save('/api/admin/sample', {}, 'POST');
+    location.hash = `#/person/${r.id}/${r.person}/share`;
+  });
+  $('#nosample')?.addEventListener('click', async () => {
+    if (!confirm('Remove the sample review and its made up people?')) return;
+    await save('/api/admin/sample', {}, 'DELETE');
+    route();
+  });
   $('#export').onclick = async () => {
     $('#export').disabled = true;
     const r = await save('/api/admin/export', {}, 'POST');

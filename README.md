@@ -145,15 +145,19 @@ Add three test people, create a cycle, open it, answer as each of them from thei
 
 ## A review cycle, start to finish
 
-1. **Create the cycle** with open and close dates. Questions copy from your last cycle, or from the starter set the first time.
-2. **Tune the questions.** Story questions ("tell me about a time...") give far better answers than ratings. Flag 2 or 3 per group as five minute questions.
-3. **Assign reviewers.** Aim for 2 or 3 per person. Auto fill gets you most of the way.
-4. **Open it** and send each person their message from the Links tab.
-5. **Nudge** from the Progress tab as the close date gets near.
-6. **Close it.** Answers lock, and the People tab opens.
-7. **For each person:** read the raw answers, generate a draft, edit it in your own words, then share the parts you choose.
-8. **Talk story.** Sit down with each person. Their reflection box is open once you share.
-9. **Export** a copy for your records, and mark the cycle published.
+1. **Add your people** once, in People. Staff, interns, volunteers, and board members all go here. Paste a list to add many at once.
+2. **Create the cycle** with open and close dates. Questions copy from your last cycle, or from the starter set the first time. A banner at the top of every cycle says what to do next.
+3. **Choose who takes part** in the cycle's People tab. Everyone active starts checked. You can also add someone new right there.
+4. **Tune the questions.** Story questions ("tell me about a time...") give far better answers than ratings. Flag 2 or 3 per group as five minute questions.
+5. **Pick reviewers** in the Reviewers tab. Aim for 2 or 3 per person. Auto fill gets you most of the way.
+6. **Open it** and send each person their message from the Links tab.
+7. **Nudge** from the Progress tab as the close date gets near.
+8. **Close it.** Answers lock, and the Letters tab opens.
+9. **Write the letters.** For each person, read every answer about them, let AI compile a draft that summarizes what was sent, write your final version, and share the parts you choose. Print or save any letter as a PDF.
+10. **Talk story.** Sit down with each person. They read their letter on their phone and can write a reflection back.
+11. **Mark it published** once every letter is shared, and export a copy for your records.
+
+Want to see the end result first? In Data, load the sample review: three made up people, their answers, a finished letter, and a reflection.
 
 ## Local development
 
