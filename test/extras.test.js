@@ -91,3 +91,10 @@ test('a pasted Anthropic key is sealed at rest and only opens with the same serv
   assert.equal(await anthropicKey({ ...env, DB }), key);
   assert.equal(await anthropicKey({ ...env, DB, ANTHROPIC_API_KEY: 'sk-ant-from-secret' }), 'sk-ant-from-secret', 'a Cloudflare secret wins');
 });
+
+test('a dead or empty Anthropic key gets plain words, not an error code', async () => {
+  const { keyTrouble } = await import('../functions/lib/ai.js');
+  assert.match(keyTrouble({ status: 401 }), /stopped working.*expired.*Settings, AI/);
+  assert.match(keyTrouble({ status: 400, message: 'Your credit balance is too low to access the Anthropic API.' }), /out of credit/);
+  assert.equal(keyTrouble({ status: 529, message: 'Overloaded' }), '', 'anything else gets the generic try again');
+});

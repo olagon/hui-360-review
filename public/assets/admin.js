@@ -1171,6 +1171,32 @@ const AI_OFF_LIST = [
   ['Nothing sent to AI', 'No answer, name, or word about anyone goes to any AI model.'],
 ];
 
+// How to make an Anthropic key, field by field as the console asks, and the box to paste it in.
+const keyForm = (replacing) => `
+  <details ${replacing ? 'open' : ''}>
+    <summary><strong>How to get a key</strong> (about 5 minutes)</summary>
+    <ol class="small steps-plain">
+      <li>Go to <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> and sign in or sign up. Use the account of the person who will run reviews for years, like your director. A key belongs to the person who makes it and stops working if they leave your Anthropic organization.</li>
+      <li>Open <strong>Billing</strong>, add a card, and buy credit. The smallest amount ($5) is plenty.</li>
+      <li>Optional but wise: open <strong>Limits</strong> and set a monthly spend limit, like $5, so the cost can never surprise you.</li>
+      <li>Open <strong>API keys</strong> and press <strong>Create key</strong>. Fill in the form:
+        <ul>
+          <li><strong>Name:</strong> Hui 360, or anything you will recognize later.</li>
+          <li><strong>Expires:</strong> pick the longest choice, or no expiration if it is offered. When a key expires, drafts stop until you paste a new one, so put a reminder on your calendar a week before.</li>
+          <li><strong>Linked account:</strong> leave it as you. Requests with the key count as yours.</li>
+          <li><strong>Scope:</strong> the workspace the key belongs to. A workspace has its own spend limit and usage report. Default workspace is fine if this account is only for ${APP_NAME}. If your organization uses Anthropic for other things too, first make a workspace named ${APP_NAME} (in the console, Settings, then Workspaces), give it a small monthly limit, and pick it here, so this app's cost is capped and easy to see. The form makes a regular key, which cannot use the Admin API. That is right: the app only writes drafts.</li>
+        </ul>
+        Then press <strong>Create key</strong>.</li>
+      <li>Copy the key right away. It starts with <code>sk-ant-</code> and is shown only once. If you lose it, delete it in the console and make a new one.</li>
+      <li>Paste it below and press Save. The app checks it with Anthropic before saving it.</li>
+    </ol>
+  </details>
+  <form id="${replacing ? 'keyform2' : 'keyform'}" class="row" style="margin-top:.75rem">
+    <input type="password" name="key" autocomplete="off" spellcheck="false" placeholder="sk-ant-..." aria-label="Anthropic API key" style="flex:1;min-width:14rem">
+    <button>${replacing ? 'Save new key' : 'Save key'}</button>
+  </form>
+  <p class="small muted" style="margin-bottom:0">The key is encrypted before it is stored, never shown again (only its last four characters), and left out of every export. If it ever stops working (it expired, was deleted, or ran out of credit), drafts say so, and you paste a new one here or remove it to go back to Llama.</p>`;
+
 const auditRows = (rows) => rows.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('');
 
 async function settingsPage() {
@@ -1227,22 +1253,9 @@ async function settingsPage() {
       ${key?.source === 'secret'
         ? `<p class="banner info small" style="margin-bottom:0">A key ending in ${esc(key.last4)} was set up by whoever installed the app, as a Cloudflare secret. To change it, ask them.</p>`
         : key
-          ? `<p class="row" style="margin-bottom:0"><span>Your key ending in <strong>${esc(key.last4)}</strong> is saved and working.</span><button class="quiet small" id="nokey">Remove key</button></p>`
-          : `<details>
-              <summary><strong>How to get a key</strong> (about 5 minutes)</summary>
-              <ol class="small">
-                <li>Go to <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> and sign up with your organization's email.</li>
-                <li>Open <strong>Billing</strong>, add a card, and buy credit. The smallest amount ($5) is plenty.</li>
-                <li>Optional but wise: in <strong>Limits</strong>, set a monthly spend limit, like $5.</li>
-                <li>Open <strong>API Keys</strong>, press <strong>Create Key</strong>, name it "Hui 360", and copy it. It starts with <code>sk-ant-</code> and is shown only once.</li>
-                <li>Paste it below and press Save. The app checks that it works before saving it.</li>
-              </ol>
-            </details>
-            <form id="keyform" class="row" style="margin-top:.75rem">
-              <input type="password" name="key" autocomplete="off" spellcheck="false" placeholder="sk-ant-..." aria-label="Anthropic API key" style="flex:1;min-width:14rem">
-              <button>Save key</button>
-            </form>
-            <p class="small muted" style="margin-bottom:0">The key is encrypted before it is stored, never shown again (only its last four characters), and left out of every export. Remove it any time to go back to Llama.</p>`}
+          ? `<p class="row" style="margin-bottom:0"><span>Your key ending in <strong>${esc(key.last4)}</strong> is saved. If drafts ever say the key stopped working, replace it below.</span><button class="quiet small" id="nokey">Remove key</button></p>`
+          : keyForm(false)}
+      ${key?.source === 'settings' ? `<details style="margin-top:.75rem"><summary>Replace with a new key</summary>${keyForm(true)}</details>` : ''}
     </div></section>
 
     <section id="email"><h2>Automated Emails</h2>
@@ -1296,7 +1309,7 @@ async function settingsPage() {
   });
   const want = location.hash.split('/')[2];
   if (want) document.getElementById(want)?.scrollIntoView();
-  $('#keyform')?.addEventListener('submit', async (e) => {
+  for (const f of $$('#keyform, #keyform2')) f.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
       await api('/api/admin/anthropic-key', { method: 'PUT', json: { key: e.target.key.value } });

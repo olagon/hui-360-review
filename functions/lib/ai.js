@@ -52,6 +52,14 @@ export async function checkKey(env, key) {
   await new Anthropic({ apiKey: key }).models.list({ limit: 1 }); // straight to Anthropic, not through the gateway
 }
 
+// Plain words for the ways a pasted key stops working, so the director knows what to do.
+export function keyTrouble(e) {
+  const fix = 'Paste a new key in Settings, AI, or press Remove key there to use the free Llama.';
+  if (e?.status === 401 || e?.status === 403) return `Your Anthropic key stopped working. It may have expired, been deleted, or belonged to someone who left your Anthropic organization. ${fix}`;
+  if (/credit balance/i.test(e?.message || '')) return `Your Anthropic account is out of credit. Add credit in the Anthropic console (Billing). ${fix}`;
+  return '';
+}
+
 // The model switch: Claude with an Anthropic key, Llama on Workers AI otherwise.
 function model(env, key) {
   if (key) {
@@ -59,9 +67,14 @@ function model(env, key) {
     // Server side fallback (if a safety classifier declines) exists for Sonnet and Opus, not Haiku.
     const fallback = /sonnet|opus/.test(CLAUDE_MODEL) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {};
     return async (system, user) => {
-      const msg = await client.beta.messages
-        .stream({ model: CLAUDE_MODEL, max_tokens: 16000, system, messages: [{ role: 'user', content: user }], ...fallback })
-        .finalMessage();
+      let msg;
+      try {
+        msg = await client.beta.messages
+          .stream({ model: CLAUDE_MODEL, max_tokens: 16000, system, messages: [{ role: 'user', content: user }], ...fallback })
+          .finalMessage();
+      } catch (e) {
+        throw new HttpError(502, keyTrouble(e) || `Claude did not answer (${e.status || e.message}). Try again in a minute.`);
+      }
       if (msg.stop_reason === 'refusal') throw new HttpError(502, 'The model declined to write this draft. Try again or write it by hand.');
       return msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
     };
