@@ -565,21 +565,23 @@ async function links({ cycle: c }, pane) {
     pane.innerHTML = '<p>Links are ready once the cycle is open. Set up questions and assignments, then open it from Setup.</p>';
     return;
   }
-  const { people } = await api(`/api/admin/cycles/${c.id}/links`);
+  const [{ people }, ch] = await Promise.all([api(`/api/admin/cycles/${c.id}/links`), channels()]);
+  // Show where this person's message will go: their email when the app emails them, otherwise the phone or email to send it to yourself.
+  const reach = (p) =>
+    ch.email && emails(p) ? `Emails to ${p.email}` : p.phone ? `Copy and text to ${p.phone}` : p.email ? `Copy and email to ${p.email}` : 'No email or phone yet';
   pane.innerHTML = `
     <p class="muted small">Each link is personal, works for 60 days, and can be opened again. Email them from here, or copy each message into Messages or email.</p>
     <p class="row" id="emailall"></p>
     <p><button id="all" class="secondary">Copy all messages</button></p>
     ${people
       .map(
-        (p) => `<div class="card"><div class="row spread"><strong>${esc(nameOf(p))}</strong><span class="small muted">${esc(p.phone || p.email || '')}</span></div>
-        <p class="small" style="word-break:break-all">${esc(message(p, c))}</p>
+        (p) => `<div class="card"><div class="row spread"><strong>${esc(nameOf(p))}</strong><span class="small muted">${esc(reach(p))}</span></div>
+        <p class="small" style="overflow-wrap:anywhere">${esc(message(p, c))}</p>
         <div class="row"><button class="small" data-copy="${p.id}">Copy message</button><button class="quiet small" data-new="${p.id}">New link</button></div></div>`,
       )
       .join('')}`;
   $('#all').onclick = () => copy(people.map((p) => `${nameOf(p)}${p.phone ? ` (${p.phone})` : ''}\n${message(p, c)}`).join('\n\n'));
   for (const b of $$('[data-copy]', pane)) b.onclick = () => copy(message(people.find((p) => p.id === Number(b.dataset.copy)), c));
-  const ch = await channels();
   emailButton($('#emailall'), people, 'Email everyone their link', `Your link for ${c.name}`, (p) => message(p, c));
   if (ch.email) {
     for (const b of $$('[data-copy]', pane)) {
