@@ -608,9 +608,9 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out.</p>
     <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Language</th><th>Started</th><th>Active</th></tr>
+      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Language</th><th>Joined</th><th>Active</th></tr>
       ${list.map(row).join('')}
     </table></div>
     ${GROUPS}`;
