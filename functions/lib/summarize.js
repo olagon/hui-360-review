@@ -217,3 +217,34 @@ export function detectLanguage(s) {
   if (haw > 0.55 && /[ʻāēīōū]/.test(s)) return 'mixed';
   return 'en';
 }
+
+// A letter draft with no AI: every answer about the person, word for word, grouped for the director to rewrite.
+export function answersDraft(name, hui, groups) {
+  const sections = [
+    ['self', `In ${name}'s own words`],
+    ['peer', 'What coworkers said'],
+    ['upward', 'What the team said about their leadership'],
+    ['community', `From outside ${hui}`],
+    ['mahalo', 'Mahalo during the year'],
+    ['feedback', `Feedback ${name} asked for`],
+  ];
+  const answer = (r) => {
+    const by = r.signed_name ? ` (from ${r.signed_name})` : r.who ? ` (${r.who})` : '';
+    const words = (r.body || '').trim().replace(/\s*\n+\s*/g, ' ');
+    return words ? `> ${words}${by}` : r.audio_key ? '> (A voice answer with no text. Listen to it in Raw.)' : '';
+  };
+  return sections
+    .map(([audience, title]) => {
+      const gs = groups.filter((g) => g.audience === audience);
+      if (!gs.length) return '';
+      const parts = gs.map((g) => {
+        const answers = g.responses.map(answer).filter(Boolean);
+        if (!answers.length) return '';
+        const heading = audience === 'mahalo' ? '' : `### ${g.prompt.replace(/^Feedback they asked for: /, '')}\n\n`;
+        return heading + answers.join('\n\n');
+      });
+      return [`## ${title}`, ...parts.filter(Boolean)].join('\n\n');
+    })
+    .filter((s) => s.includes('> '))
+    .join('\n\n');
+}

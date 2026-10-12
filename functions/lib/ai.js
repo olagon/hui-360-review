@@ -2,8 +2,24 @@ import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, LLAMA_MODEL, WHISPER_MODEL } from './config.js';
 import { HttpError } from './http.js';
 
-// The single switch: Claude when ANTHROPIC_API_KEY is set, Llama on Workers AI otherwise.
+// Settings, AI. When it is off, nothing about anyone is sent to any model.
+export async function aiOn(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ai'").first();
+  return row?.value !== 'off';
+}
+export const AI_OFF = 'AI is turned off in Settings, so start from the answers and write it yourself.';
+
+// Every model call goes through here, so the AI switch in Settings holds everywhere.
 export function completer(env) {
+  const run = model(env);
+  return async (system, user) => {
+    if (!(await aiOn(env))) throw new HttpError(409, AI_OFF);
+    return run(system, user);
+  };
+}
+
+// The model switch: Claude when ANTHROPIC_API_KEY is set, Llama on Workers AI otherwise.
+function model(env) {
   if (env.ANTHROPIC_API_KEY) {
     const baseURL =
       env.AI_GATEWAY_ID && env.CF_ACCOUNT_ID

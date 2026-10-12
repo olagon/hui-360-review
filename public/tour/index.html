@@ -72,7 +72,7 @@
     .center { text-align: center; align-items: center; }
     .controls { display: flex; gap: .75rem; align-items: center; margin: .75rem 0; }
     .progress-line { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
-    .progress-line span { display: block; height: 100%; width: 100%; background: var(--kalo); transform-origin: 0 50%; animation: grow 71s linear 0s both; }
+    .progress-line span { display: block; height: 100%; width: 100%; background: var(--kalo); transform-origin: 0 50%; animation: grow 77s linear 0s both; }
     @keyframes grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
     body.record header.top, body.record footer.foot, body.record .controls, body.record .after { display: none !important; }
     body.record main { padding: 0; max-width: none; }
@@ -197,7 +197,31 @@
             </div>
           </section>
 
-          <section class="scene center" style="--s:42s; --d:5s">
+          <section class="scene" style="--s:42s; --d:6s">
+            <div class="kicker in" style="--t:.1s">Your choice</div>
+            <h2 class="in" style="--t:.3s">Run it with AI, or without.</h2>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:22px">
+              <div class="card in" style="--t:1.1s">
+                <div style="font-weight:700; font-size:30px; color:var(--kalo)">AI on</div>
+                <ul class="bul" style="font-size:24px; gap:12px; margin-top:12px">
+                  <li><span class="dot"></span>Talk instead of type</li>
+                  <li><span class="dot"></span>A first draft of each letter. You write the final.</li>
+                  <li><span class="dot"></span>Early signals, never names</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:2.1s">
+                <div style="font-weight:700; font-size:30px; color:var(--ocean)">AI off</div>
+                <ul class="bul" style="font-size:24px; gap:12px; margin-top:12px">
+                  <li><span class="dot" style="background:var(--ocean)"></span>Everyone types</li>
+                  <li><span class="dot" style="background:var(--ocean)"></span>Letters start from the answers, word for word</li>
+                  <li><span class="dot" style="background:var(--ocean)"></span>Nothing is sent to any AI</li>
+                </ul>
+              </div>
+            </div>
+            <p class="lead in" style="--t:3.2s; margin-top:22px">One switch in Settings. Everything else works the same.</p>
+          </section>
+
+          <section class="scene center" style="--s:48s; --d:5s">
             <div class="kicker in" style="--t:.1s">Your language</div>
             <h2 class="in" style="--t:.3s">Every word, the way it should be written.</h2>
             <div class="langs">
@@ -208,7 +232,7 @@
             <p class="lead in" style="--t:2.6s; margin-top:40px">ʻokina and kahakō done right. Hawaiian quotes stay in Hawaiian.</p>
           </section>
 
-          <section class="scene" style="--s:47s; --d:7s">
+          <section class="scene" style="--s:53s; --d:7s">
             <div class="row2" style="grid-template-columns:.8fr 1.2fr">
               <div>
                 <div class="kicker in" style="--t:.1s">What it costs</div>
@@ -226,7 +250,7 @@
             </div>
           </section>
 
-          <section class="scene" style="--s:54s; --d:7s">
+          <section class="scene" style="--s:60s; --d:7s">
             <div class="kicker in" style="--t:.1s">Getting started</div>
             <h2 class="in" style="--t:.3s">Set it up in an afternoon.</h2>
             <ol class="steps">
@@ -239,12 +263,12 @@
             <p class="lead in" style="--t:4.4s; margin-top:24px">You need one person comfortable following instructions in a terminal.</p>
           </section>
 
-          <section class="scene center" style="--s:61s; --d:4s">
+          <section class="scene center" style="--s:67s; --d:4s">
             <h2 class="in" style="--t:.2s">Your words stay yours.</h2>
             <p class="lead in" style="--t:1s">Export everything any time. Delete a whole review in one step.<br>Every time an admin reads answers, it is logged.</p>
           </section>
 
-          <section class="scene center last" style="--s:65s; --d:6s">
+          <section class="scene center last" style="--s:71s; --d:6s">
             <img class="pop" style="--t:.2s" src="/favicon.svg" width="120" height="120" alt="">
             <h1 class="in" style="--t:.6s; margin-top:24px; font-size:64px">Hui 360</h1>
             <p class="lead in" style="--t:1.1s; margin-top:12px">Free and open source, for every hui.</p>
@@ -267,6 +291,7 @@
         <p><strong>Anonymous by design:</strong> answers are stored with who they are about, never who wrote them. Only a mahalo you choose to sign carries your name.</p>
         <p><strong>For the director:</strong> set up a review in minutes with your own questions and values, auto fill who reviews whom, watch progress, and send gentle nudges.</p>
         <p><strong>The letters:</strong> AI compiles a draft that summarizes what everyone sent, using exact quotes measured against your values, and every quote is checked word for word. You write the final version and decide what each person sees.</p>
+        <p><strong>With or without AI:</strong> AI is optional, one switch in Settings. With it on, staff can talk instead of type, AI compiles a first draft of each letter that you rewrite, and early signals count themes without names. With it off, everyone types, each letter starts from the answers word for word, and nothing is sent to any AI. Everything else works the same.</p>
         <p><strong>Your language:</strong> English, ʻŌlelo Hawaiʻi, or both, with ʻokina and kahakō done right.</p>
         <p><strong>What it costs:</strong> for a team of 20, hosting, database, and voice to text are free on Cloudflare. AI draft summaries cost $0 to $0.25 a review. A typical year is $0 to $1.</p>
         <p><strong>Getting started:</strong> copy the project from GitHub, create a few free Cloudflare pieces, lock the admin pages to your director's email, add your people, values, and logo, and send each person their link. It takes an afternoon and one person comfortable following instructions in a terminal. <a href="https://github.com/olagon/hui-360-review#set-it-up-for-your-organization">Full setup steps</a>.</p>
@@ -288,7 +313,7 @@
     addEventListener('resize', fit);
     fit();
 
-    const TOTAL = 71000;
+    const TOTAL = 77000;
     const anims = () => document.getAnimations();
     const btn = document.getElementById('play');
     const setPlaying = (on) => {

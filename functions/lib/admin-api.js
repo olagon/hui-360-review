@@ -1,8 +1,9 @@
 import { HttpError, json, body, audit } from './http.js';
 import { autoFill, assignmentHash } from './assign.js';
 import { linkFor, createLink } from './auth.js';
-import { completer } from './ai.js';
-import { draftSummary, stripIdentity, section } from './summarize.js';
+import { completer, aiOn } from './ai.js';
+import { CLAUDE_MODEL } from './config.js';
+import { draftSummary, stripIdentity, section, answersDraft } from './summarize.js';
 import systemPrompt from './prompts/summary-system.txt';
 import userPrompt from './prompts/summary-user.txt';
 import fixPrompt from './prompts/summary-fix.txt';
@@ -93,10 +94,11 @@ export async function updateStaff({ env, request, params }) {
 
 // ---------- settings ----------
 
-export const getSettings = async ({ env }) => json(await settings(env));
+export const getSettings = async ({ env }) => json({ ...(await settings(env)), engine: env.ANTHROPIC_API_KEY ? CLAUDE_MODEL : 'llama' });
 
-export async function putSettings({ env, request }) {
+export async function putSettings({ env, request, admin }) {
   const data = await body(request);
+  if ('ai' in data) await audit(env, admin, data.ai === 'off' ? 'ai_off' : 'ai_on', 'settings');
   await env.DB.batch(
     Object.entries(data).map(([k, v]) =>
       env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind(k, String(v)),
@@ -256,7 +258,7 @@ export async function setStatus({ env, request, params, admin, waitUntil }) {
     await syncUpward(env, cycle.id);
   }
   // Classify answers in the background once a review closes, for early signals and reviewer tone.
-  if (status === 'closed') waitUntil?.(analyze(env, cycle.id).catch((e) => console.error('analyze', e)));
+  if (status === 'closed' && (await aiOn(env))) waitUntil?.(analyze(env, cycle.id).catch((e) => console.error('analyze', e)));
   await env.DB.prepare(`UPDATE cycles SET status = ?${status === 'published' ? ", published_at = datetime('now')" : ''} WHERE id = ?`).bind(status, cycle.id).run();
   await audit(env, admin, `cycle_${status}`, `cycle:${cycle.id}`);
   return json({ ok: true });
@@ -475,24 +477,35 @@ export async function newLink({ env, params, url, admin }) {
 export async function raw({ env, params, admin }) {
   const cycle = await getCycle(env, params.id);
   if (!['closed', 'published'].includes(cycle.status)) throw new HttpError(409, 'Raw responses open after the cycle closes');
+  await audit(env, admin, 'read_raw', `cycle:${cycle.id} staff:${params.staff}`);
+  const { groups, linkOf } = await rawGroups(env, cycle, Number(params.staff));
+  // Reviewer tone, as a count for this person only. A tag on each answer would let the admin
+  // line up one reviewer's answers across questions and people, which undoes the shuffle.
+  const tags = await toneTags(env, cycle.id);
+  const tones = { generous: 0, critical: 0 };
+  for (const hash of new Set(Object.values(linkOf))) if (tags[hash]) tones[tags[hash]]++;
+  return json({ groups, tones });
+}
+
+// Every answer about one person, grouped by question and shuffled within each, plus outside voices,
+// the year's mahalo, and the feedback they asked for.
+async function rawGroups(env, cycle, staffId) {
   const rows = await all(
     env,
     `SELECT r.id, r.question_id, q.prompt_en, q.audience, q.ord, q.kind AS question_kind, r.body, r.audio_key, r.transcript, r.language, r.signed_name
      FROM responses r JOIN questions q ON q.id = r.question_id
      WHERE r.cycle_id = ? AND r.reviewee_id = ? ORDER BY q.audience = 'self' DESC, q.audience, q.ord`,
     cycle.id,
-    Number(params.staff),
+    staffId,
   );
-  await audit(env, admin, 'read_raw', `cycle:${cycle.id} staff:${params.staff}`);
-  const tags = await toneTags(env, cycle.id);
-  const linkOf = Object.fromEntries((await all(env, 'SELECT l.response_id, l.assignment_hash FROM response_link l JOIN responses r ON r.id = l.response_id WHERE r.cycle_id = ? AND r.reviewee_id = ?', cycle.id, Number(params.staff))).map((l) => [l.response_id, l.assignment_hash]));
+  const linkOf = Object.fromEntries((await all(env, 'SELECT l.response_id, l.assignment_hash FROM response_link l JOIN responses r ON r.id = l.response_id WHERE r.cycle_id = ? AND r.reviewee_id = ?', cycle.id, staffId)).map((l) => [l.response_id, l.assignment_hash]));
   const groups = [];
   for (const r of rows) {
     let g = groups.find((x) => x.question_id === r.question_id);
     if (!g) groups.push((g = { question_id: r.question_id, prompt: r.prompt_en, audience: r.audience, kind: r.question_kind, responses: [] }));
     g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name });
   }
-  const voices = await all(env, 'SELECT question, response, who FROM community_voices WHERE cycle_id = ? AND reviewee_id = ? AND response IS NOT NULL', cycle.id, Number(params.staff));
+  const voices = await all(env, 'SELECT question, response, who FROM community_voices WHERE cycle_id = ? AND reviewee_id = ? AND response IS NOT NULL', cycle.id, staffId);
   for (const v of voices) {
     let g = groups.find((x) => x.audience === 'community' && x.prompt === v.question);
     if (!g) groups.push((g = { question_id: `voice:${groups.length}`, prompt: v.question, audience: 'community', kind: 'story', responses: [] }));
@@ -500,18 +513,13 @@ export async function raw({ env, params, admin }) {
   }
   // The year's mahalo and the feedback they asked for. The letter can quote these, so the director sees them too.
   // Both carry names by design: a mahalo shows its sender unless sent without a name, and feedback is asked of a named coworker.
-  const staffId = Number(params.staff);
   const mahalo = await all(env, "SELECT m.body, f.name, f.preferred_name FROM mahalo m LEFT JOIN staff f ON f.id = m.from_id WHERE m.to_id = ? AND m.created_at > datetime('now', '-1 year') ORDER BY m.id", staffId);
   if (mahalo.length) groups.push({ question_id: 'mahalo', prompt: 'Mahalo sent during the year', audience: 'mahalo', kind: 'mahalo', responses: mahalo.map((m) => ({ id: null, body: m.body, signed_name: m.preferred_name || m.name || null })) });
   const asks = await all(env, "SELECT f.id, f.prompt, f.response, s.name, s.preferred_name FROM feedback_requests f JOIN staff s ON s.id = f.to_id WHERE f.from_id = ? AND f.response IS NOT NULL AND f.created_at > datetime('now', '-1 year') ORDER BY f.id", staffId);
   for (const f of asks) groups.push({ question_id: `ask:${f.id}`, prompt: `Feedback they asked for: ${f.prompt}`, audience: 'feedback', kind: 'story', responses: [{ id: null, body: f.response, who: f.preferred_name || f.name }] });
   // Shuffle within each question so position never lines up across questions.
   for (const g of groups) g.responses = shuffle(g.responses);
-  // Reviewer tone, as a count for this person only. A tag on each answer would let the admin
-  // line up one reviewer's answers across questions and people, which undoes the shuffle.
-  const tones = { generous: 0, critical: 0 };
-  for (const hash of new Set(Object.values(linkOf))) if (tags[hash]) tones[tags[hash]]++;
-  return json({ groups, tones });
+  return { groups, linkOf };
 }
 
 export async function getSummary({ env, params }) {
@@ -571,10 +579,26 @@ export async function draft({ env, params, admin }) {
   return json({ draft: markdown, notes });
 }
 
-export async function blankSummary({ env, params }) {
-  await env.DB.prepare("INSERT OR IGNORE INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, '')").bind(Number(params.id), Number(params.staff)).run();
+// A draft with no AI: every answer about the person, word for word, for the director to rewrite.
+// With { empty: true } it starts blank instead (Add as quote uses that).
+export async function blankSummary({ env, params, request, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(params.staff));
+  if (!person) throw new HttpError(404, 'Not found');
+  let text = '';
+  if (!(await body(request)).empty && ['closed', 'published'].includes(cycle.status)) {
+    const { groups } = await rawGroups(env, cycle, person.id);
+    text = answersDraft(person.preferred_name || person.name, (await settings(env)).hui_name || 'the Hui', groups);
+    await audit(env, admin, 'draft_from_answers', `cycle:${cycle.id} staff:${person.id}`);
+  }
+  // Fills an empty draft (prep may have made the row already), never one with words in it.
+  await env.DB.prepare(
+    `INSERT INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, ?)
+     ON CONFLICT (cycle_id, reviewee_id) DO UPDATE SET draft = excluded.draft WHERE TRIM(COALESCE(summaries.edited, summaries.draft, '')) = ''`,
+  ).bind(cycle.id, person.id, text).run();
   return json({ ok: true });
 }
+
 
 // Community voices for this review, plus mahalo and feedback answers from the past year.
 async function yearExtras(env, cycleId, personId) {

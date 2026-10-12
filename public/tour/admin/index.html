@@ -72,7 +72,7 @@
     .center { text-align: center; align-items: center; }
     .controls { display: flex; gap: .75rem; align-items: center; margin: .75rem 0; }
     .progress-line { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
-    .progress-line span { display: block; height: 100%; width: 100%; background: var(--kalo); transform-origin: 0 50%; animation: grow 87s linear 0s both; }
+    .progress-line span { display: block; height: 100%; width: 100%; background: var(--kalo); transform-origin: 0 50%; animation: grow 93s linear 0s both; }
     @keyframes grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
     body.record header.top, body.record footer.foot, body.record .controls, body.record .after { display: none !important; }
     body.record main { padding: 0; max-width: none; }
@@ -220,13 +220,37 @@
             <h2 class="in" style="--t:.3s">Read. Draft. Make it yours. Share.</h2>
             <div class="flow">
               <div class="card in" style="--t:1.2s"><b>Raw</b><p>Every answer about Kainoa, shuffled. A quiet note says if his reviewers run generous.</p></div>
-              <div class="card in" style="--t:2.4s"><b>Draft</b><p>AI compiles a draft that summarizes what was sent. Every quote checked word for word.</p></div>
+              <div class="card in" style="--t:2.4s"><b>Draft</b><p>AI compiles a draft of what was sent, every quote checked. Or start from the answers, no AI.</p></div>
               <div class="card in" style="--t:3.6s"><b>Your version</b><p>Edit it like any document. Highlight a line in Raw to add it as a quote.</p></div>
               <div class="card in" style="--t:4.8s"><b>Share</b><p>Choose which parts Kainoa sees. Print or save a PDF.</p></div>
             </div>
           </section>
 
-          <section class="scene" style="--s:52s; --d:9s">
+          <section class="scene" style="--s:52s; --d:6s">
+            <div class="kicker in" style="--t:.1s">Your choice</div>
+            <h2 class="in" style="--t:.3s">Run it with AI, or without.</h2>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:22px">
+              <div class="card in" style="--t:1.1s">
+                <div style="font-weight:700; font-size:30px; color:var(--kalo)">AI on</div>
+                <ul class="bul" style="font-size:24px; gap:12px; margin-top:12px">
+                  <li><span class="dot"></span>Talk instead of type</li>
+                  <li><span class="dot"></span>A first draft of each letter. You write the final.</li>
+                  <li><span class="dot"></span>Early signals, never names</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:2.1s">
+                <div style="font-weight:700; font-size:30px; color:var(--ocean)">AI off</div>
+                <ul class="bul" style="font-size:24px; gap:12px; margin-top:12px">
+                  <li><span class="dot" style="background:var(--ocean)"></span>Everyone types</li>
+                  <li><span class="dot" style="background:var(--ocean)"></span>Letters start from the answers, word for word</li>
+                  <li><span class="dot" style="background:var(--ocean)"></span>Nothing is sent to any AI</li>
+                </ul>
+              </div>
+            </div>
+            <p class="lead in" style="--t:3.2s; margin-top:22px">One switch in Settings. Everything else works the same.</p>
+          </section>
+
+          <section class="scene" style="--s:58s; --d:9s">
             <div class="row2">
               <div>
                 <div class="kicker in" style="--t:.1s">6 · Let them know</div>
@@ -247,7 +271,7 @@
             </div>
           </section>
 
-          <section class="scene" style="--s:61s; --d:8s">
+          <section class="scene" style="--s:67s; --d:8s">
             <div class="row2">
               <div>
                 <div class="kicker in" style="--t:.1s">7 · Talk story</div>
@@ -269,7 +293,7 @@
             </div>
           </section>
 
-          <section class="scene" style="--s:69s; --d:7s">
+          <section class="scene" style="--s:75s; --d:7s">
             <div class="kicker in" style="--t:.1s">8 · The whole team</div>
             <h2 class="in" style="--t:.3s">One report on the team. One page for your board.</h2>
             <div class="flow" style="grid-template-columns:1fr 1fr">
@@ -278,7 +302,7 @@
             </div>
           </section>
 
-          <section class="scene" style="--s:76s; --d:6s">
+          <section class="scene" style="--s:82s; --d:6s">
             <div class="kicker in" style="--t:.1s">9 · Finish</div>
             <h2 class="in" style="--t:.3s">Mark it published. Save a copy.</h2>
             <ul class="bul">
@@ -288,7 +312,7 @@
             </ul>
           </section>
 
-          <section class="scene center last" style="--s:82s; --d:5s">
+          <section class="scene center last" style="--s:88s; --d:5s">
             <img class="pop" style="--t:.2s" src="/favicon.svg" width="110" height="110" alt="">
             <h2 class="in" style="--t:.6s; margin-top:24px">Every step is in the Admin guide.</h2>
             <p class="lead in" style="--t:1.2s">Print it and tick the boxes as you go.</p>
@@ -311,6 +335,7 @@
         <p><strong>3. While it is open:</strong> Progress shows status only. Email a nudge to everyone behind in one click. Early signals show counts of themes like burnout, never names.</p>
         <p><strong>4. Close it:</strong> answers lock and the Letters tab opens. Answers are shuffled, have no names, and every read is logged.</p>
         <p><strong>5. Write each letter:</strong> read Raw, have AI compile a draft that summarizes what was sent, make it yours, and choose what to share.</p>
+        <p><strong>With or without AI:</strong> AI is optional, one switch in Settings. With it off, everyone types, each letter starts from the answers word for word, reports start from an outline, and nothing is sent to any AI. Everything else works the same.</p>
         <p><strong>6. Let them know:</strong> in Share, press Email and their name. They get their own link, read the letter on their phone, and can write a reflection back.</p>
         <p><strong>7. Talk story:</strong> enter when you are free, lay out the meetings, send calendar files, and use the prep notes. Set two or three goals together.</p>
         <p><strong>8. The whole team:</strong> write the team report for staff and the board report for your board.</p>
@@ -332,7 +357,7 @@
     addEventListener('resize', fit);
     fit();
 
-    const TOTAL = 87000;
+    const TOTAL = 93000;
     const anims = () => document.getAnimations();
     const btn = document.getElementById('play');
     const setPlaying = (on) => {

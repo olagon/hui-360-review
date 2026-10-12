@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, getLang, registerSW, APP_NAME, $ } from './app.js';
+import { api, t, initI18n, shell, esc, getLang, registerSW, APP_NAME, config, $ } from './app.js';
 import { get, all, saveDraft, queueAudio, on, startSync, recovered, flush } from './idb.js';
 
 registerSW();
@@ -85,7 +85,7 @@ function renderQuestion(i) {
         ? `<div class="scale" role="group" aria-labelledby="prompt">${scale.map((w) => `<button type="button" aria-pressed="${s.body === w}" ${closed ? 'disabled' : ''}>${esc(w)}</button>`).join('')}</div>`
         : `<textarea class="answer" aria-labelledby="prompt" placeholder="${esc(t('review.placeholder'))}" ${closed ? 'readonly' : ''}>${esc(s.body)}</textarea>
            <div class="tools">
-             ${closed ? '' : `<button type="button" class="mic secondary">${micIcon}<span>${esc(t('review.mic'))}</span></button>`}
+             ${closed || !config.ai ? '' : `<button type="button" class="mic secondary">${micIcon}<span>${esc(t('review.mic'))}</span></button>`}
              <span class="status" role="status"></span>
            </div>`
     }

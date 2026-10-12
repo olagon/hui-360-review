@@ -306,6 +306,8 @@ All three phases are built, except the Hawaiian i18n review pass, which needs a 
 - Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Team report tab and prints on its own.
+- Data is now Settings (Olin, 2026-10-12), in sections: Organization, AI, Automated Emails, Mahalo board, Sample review, Your data (export and audit log).
+- AI is optional (Olin, 2026-10-12): `settings.ai = 'off'` turns it off. `completer()` checks it before every model call, and audio is kept but not transcribed, so the server enforces it. In the UI with AI off: the mic is hidden, letters use "Start from the answers" (`answersDraft()` in summarize.js, every answer word for word), team and board reports start from an outline, and prep, signals, and tone are hidden. "Start from the answers" is also offered with AI on.
 - Email (Olin's call, October 2026): Cloudflare Email Sending through the mailer Worker, since Olin is on Workers Paid. Resend stays as the free plan fallback. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. Replies go to the first active staff member with role admin (Director) who has an email. There is no setting for it.
 
 ## Setup walkthrough for Olin

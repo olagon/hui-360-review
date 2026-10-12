@@ -1,7 +1,7 @@
 import { HttpError, body, json } from './http.js';
 import { assignmentHash } from './assign.js';
 import { detectLanguage } from './summarize.js';
-import { transcribe } from './ai.js';
+import { transcribe, aiOn } from './ai.js';
 import { MAX_AUDIO_BYTES } from './config.js';
 import { channels } from './notify.js';
 
@@ -29,7 +29,7 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai')").all();
   return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: channels(env).email });
 }
 
@@ -170,6 +170,8 @@ export async function audio({ env, staff, request, url }) {
   const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm';
   const key = `audio/${a.cycle_id}/${crypto.randomUUID()}.${ext}`;
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type } });
+  // With AI off the recording is still kept (nothing is lost), just not turned into text.
+  if (!(await aiOn(env))) return json({ key, transcript: '', language: null });
   try {
     const hint = `Mahalo. Aloha. ʻĀina, kuleana, laulima, pilina, kōkua, Hui. ${a.reviewee_preferred || a.reviewee_name}.`;
     const { text, language } = await transcribe(env, bytes, hint);

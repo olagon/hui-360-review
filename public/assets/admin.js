@@ -39,7 +39,7 @@ const api = (path, opts = {}) => {
 };
 
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
+shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/settings">Settings</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
 api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
@@ -204,7 +204,7 @@ function bindFields(root = app) {
 
 // ---------------- router ----------------
 
-const views = { '': home, staff, values, data, cycle, person };
+const views = { '': home, staff, values, settings: settingsPage, data: settingsPage, cycle, person };
 async function route() {
   const [name, ...args] = location.hash.replace(/^#\/?/, '').split('/');
   app.innerHTML = '<p class="muted">Loading...</p>';
@@ -226,7 +226,7 @@ async function home() {
     <div class="row spread"><h1>Review cycles</h1>${moonToday()}</div>
     <div id="digest"></div>
     <p class="muted small">New here? Watch the <a href="/tour/admin/">90 second walkthrough</a> or read the <a href="/guide/">guide</a>. Add everyone in <a href="#/staff">People</a>, then start a review below. Each review walks you through the next step.
-    To see what a finished review looks like, load the sample from <a href="#/data">Data</a>.</p>
+    To see what a finished review looks like, load the sample from <a href="#/settings">Settings</a>.</p>
     ${
       cycles.length
         ? `<div class="scroll"><table><tr><th>Cycle</th><th>Opens</th><th>Closes</th><th>Status</th><th>Done</th></tr>
@@ -313,10 +313,10 @@ function nextStep({ cycle: c, members, assignments: as, summaries, responses }) 
     text = `Answers are locked. Now write each person's letter in Letters: read their answers, write a draft, then share it. ${shared} of ${letterWord(needLetters)} shared.`;
     text += go('letters', 'Write letters');
   } else if (c.status === 'closed') {
-    text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Next, write the team report: one report on the whole team, with no names. Then mark the review published in Setup and save a copy from Data, Export.`;
+    text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Next, write the team report: one report on the whole team, with no names. Then mark the review published in Setup and save a copy from Settings, Your data.`;
     text += go('team', 'Team report');
   } else {
-    text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs. The team report and a copy of everything (Data, Export) are there any time.`;
+    text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs. The team report and a copy of everything (Settings, Your data) are there any time.`;
     text += go('letters', 'See letters');
   }
   return `<div class="banner no-print"><strong>Next step.</strong> ${text}</div>`;
@@ -623,7 +623,7 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
     const p = byId.get(Number(b.dataset.nudge));
     b.onclick = () => sendOrCopy(p, linkOf(p).then((link) => nudge({ ...p, link }, c)), 'A gentle reminder');
   }
-  if (c.status !== 'draft') signals(c, $('#signals'));
+  if (c.status !== 'draft' && config.ai) signals(c, $('#signals')); // early signals need AI
 }
 
 // Early signals: repeated themes across every answer so far, as counts. Never names, never quotes.
@@ -760,7 +760,7 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
         ? `<p>Each person gets a letter about their year. Open a person to read every answer about them, have AI compile a draft, write your final version, and share it. Shared letters show up on their phone, where they can write a reflection back.</p>`
         : '<div class="banner info">Letters open after you close the review in Setup. Until then, answers stay private to the people writing them.</div>'
     }
-    ${c.name === 'Sample review (example)' ? '<div class="banner info">This is the sample review, with made up people. Remove it any time from Data.</div>' : '<p class="small muted">Want to see a finished letter first? Load the sample review from <a href="#/data">Data</a>.</p>'}
+    ${c.name === 'Sample review (example)' ? '<div class="banner info">This is the sample review, with made up people. Remove it any time from Settings.</div>' : '<p class="small muted">Want to see a finished letter first? Load the sample review from <a href="#/settings">Settings</a>.</p>'}
     <p class="row no-print" id="letterall"></p>
     <div class="scroll"><table><tr><th>Person</th><th>Answers about them</th><th>Letter</th><th></th></tr>
     ${members
@@ -788,7 +788,7 @@ async function team({ cycle: c }, pane) {
     <h2 class="print-only">Team report</h2>
     <p class="no-print">One report on the whole team: what you do well, where you struggle, what people asked of you, and ideas for next year. It never names anyone. Edit it, print it for your board, or share it with everyone in this review.</p>
     <p><strong>${stats.people}</strong> people took part. <strong>${stats.done} of ${stats.total}</strong> reviews finished (${stats.pct}%).</p>
-    <div class="row no-print"><button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button><span class="small muted" id="tstatus"></span></div>
+    <div class="row no-print">${config.ai ? `<button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button>` : text ? '' : '<button id="toutline">Start from an outline</button>'}<span class="small muted" id="tstatus"></span></div>
     <div id="tnotes" class="no-print"></div>
     ${
       report?.draft || report?.edited
@@ -801,7 +801,11 @@ async function team({ cycle: c }, pane) {
   const notes = JSON.parse(sessionStorage.getItem('hui360_team_notes') || '[]');
   sessionStorage.removeItem('hui360_team_notes');
   if (notes.length) $('#tnotes').innerHTML = `<div class="banner info small">${notes.map(esc).join('<br>')}</div>`;
-  $('#tgen').onclick = async () => {
+  $('#toutline')?.addEventListener('click', async () => {
+    await save(`/api/admin/cycles/${c.id}/team`, { edited: TEAM_OUTLINE });
+    route();
+  });
+  if ($('#tgen')) $('#tgen').onclick = async () => {
     if (report?.edited && !confirm('Regenerating replaces the report, including your edits. Go ahead?')) return;
     $('#tgen').disabled = true;
     $('#tstatus').textContent = 'Reading every answer and writing the draft. This can take a minute.';
@@ -831,6 +835,10 @@ async function team({ cycle: c }, pane) {
   };
 }
 
+// With AI off, reports start from these headings. Write under each one.
+const TEAM_OUTLINE = '## What we do well\n\nWrite here.\n\n## Where we struggle\n\nWrite here.\n\n## What people asked for\n\nWrite here.\n\n## Ideas for next year\n\nWrite here.';
+const BOARD_OUTLINE = '## Team health\n\nWrite here.\n\n## Growth\n\nWrite here.\n\n## Participation\n\n{facts}\n\n## Ideas for leadership\n\nWrite here.';
+
 // Board report: one page, anonymized, no quotes. Printed on its own.
 function board(c, report, stats, pane) {
   const text = report ? report.board_edited ?? report.board_draft ?? '' : '';
@@ -839,10 +847,15 @@ function board(c, report, stats, pane) {
       <h2>Board report</h2>
       <p class="no-print">One page for your board: team health, growth themes, participation, and one or two ideas for leadership. No quotes and no names, so nothing in it points to anyone.</p>
       <p class="print-only">${esc(config.hui)} · ${esc(c.name)} · ${stats.people} people took part, ${stats.pct}% of reviews finished.</p>
-      <div class="row no-print"><button id="bgen" class="${text ? 'secondary' : ''}">${text ? 'Regenerate board report' : 'Write the board report'}</button><span class="small muted" id="bstatus"></span></div>
+      <div class="row no-print">${config.ai ? `<button id="bgen" class="${text ? 'secondary' : ''}">${text ? 'Regenerate board report' : 'Write the board report'}</button>` : text ? '' : '<button id="boutline">Start from an outline</button>'}<span class="small muted" id="bstatus"></span></div>
       ${text ? `<div id="bed">${editorHtml(text, 'Board report')}</div><p class="no-print"><button class="secondary" id="bprint">Print the board report</button></p>` : ''}
     </section>`);
-  $('#bgen').onclick = async () => {
+  $('#boutline')?.addEventListener('click', async () => {
+    const facts = `${stats.people} people took part. ${stats.done} of ${stats.total} reviews were finished (${stats.pct}%).`;
+    await save(`/api/admin/cycles/${c.id}/board`, { edited: BOARD_OUTLINE.replace('{facts}', facts) });
+    route();
+  });
+  if ($('#bgen')) $('#bgen').onclick = async () => {
     if (report?.board_edited && !confirm('Regenerating replaces the board report, including your edits. Go ahead?')) return;
     $('#bgen').disabled = true;
     $('#bstatus').textContent = 'Writing. This can take a minute.';
@@ -883,7 +896,7 @@ async function person(cycleId, staffId, tab = 'raw') {
     pane.innerHTML = `
       <p class="small muted">Opening this tab is logged. Answers are shuffled within each question, so position tells you nothing about who wrote them.
       Highlight any sentence and tap "Add as quote" to drop it into the draft.</p>
-      ${toneNote.length ? `<div class="banner info small">Only you see this. Of the people who reviewed ${esc(first(p))}, ${toneNote.join(', and ')}. Read with that in mind. To keep answers anonymous, it never says which answers are theirs.</div>` : ''}
+      ${config.ai && toneNote.length ? `<div class="banner info small">Only you see this. Of the people who reviewed ${esc(first(p))}, ${toneNote.join(', and ')}. Read with that in mind. To keep answers anonymous, it never says which answers are theirs.</div>` : ''}
       ${groups.length ? '' : '<p>No answers about this person.</p>'}
       ${groups
         .map(
@@ -919,7 +932,7 @@ async function person(cycleId, staffId, tab = 'raw') {
     btn.onclick = async () => {
       const quote = getSelection().toString().trim().replace(/\s+/g, ' ');
       if (!quote) return;
-      if (!summary) await api(`${base}/blank`, { method: 'POST', json: {} });
+      if (!summary) await api(`${base}/blank`, { method: 'POST', json: { empty: true } });
       const s = (await api(`${base}/summary`)).summary;
       const current = s.edited ?? s.draft ?? '';
       await save(`/api/admin/summaries/${s.id}`, { edited: `${current.trimEnd()}\n\n> "${quote}"\n` });
@@ -932,25 +945,25 @@ async function person(cycleId, staffId, tab = 'raw') {
   if (tab === 'draft') {
     pane.innerHTML = `
       <div class="row">
-        <button id="gen">${summary?.draft ? 'Regenerate draft' : 'Write a draft'}</button>
-        ${summary ? '' : '<button class="secondary" id="blank">Start a blank draft</button>'}
-        <span class="small muted" id="genStatus"></span>
+        ${config.ai ? `<button id="gen">${summary?.draft ? 'Regenerate draft' : 'Write a draft'}</button>` : ''}
+        ${summary && text().trim() ? '' : `<button class="${config.ai ? 'secondary' : ''}" id="blank">Start from the answers${config.ai ? ' (no AI)' : ''}</button>`}
+        <span class="small muted" id="genStatus">${config.ai ? '' : 'AI is off in Settings, so you write the letter from the answers.'}</span>
       </div>
       <div id="notes"></div>
       ${
         summary
-          ? `<p class="small muted">Edit it like any document. Your changes save as you type. Quotes in the draft were checked word for word against the answers.</p>
+          ? `<p class="small muted">Edit it like any document. Your changes save as you type.${config.ai ? ' Quotes in an AI draft were checked word for word against the answers.' : ''}</p>
              <div id="letter">${editorHtml(text(), `Letter for ${nameOf(p)}`)}</div>
              <label class="check"><input type="checkbox" id="ready" ${summary.status !== 'draft' ? 'checked' : ''} ${summary.status === 'shared' ? 'disabled' : ''}> Ready to share</label>`
           : ''
       }
-      <details class="card" id="prep" ${summary?.talk_story_prep ? 'open' : ''}>
+      ${config.ai || summary?.talk_story_prep ? `<details class="card" id="prep" ${summary?.talk_story_prep ? 'open' : ''}>
         <summary><strong>Talk story prep</strong> <span class="small muted">Only you see this</span></summary>
         <p class="small muted">Openers, one thing to celebrate, one tension worth sitting with, one question to ask, and last year's goals, from the same answers as the letter.</p>
         <div class="summary-doc" style="border:0;padding:0">${md(summary?.talk_story_prep || '')}</div>
-        <p style="margin-bottom:0"><button class="secondary small" id="prepgen">${summary?.talk_story_prep ? 'Write it again' : 'Write talk story prep'}</button> <span class="small muted" id="prepstatus"></span></p>
-      </details>`;
-    $('#prepgen').onclick = async () => {
+        ${config.ai ? `<p style="margin-bottom:0"><button class="secondary small" id="prepgen">${summary?.talk_story_prep ? 'Write it again' : 'Write talk story prep'}</button> <span class="small muted" id="prepstatus"></span></p>` : ''}
+      </details>` : ''}`;
+    if ($('#prepgen')) $('#prepgen').onclick = async () => {
       $('#prepgen').disabled = true;
       $('#prepstatus').textContent = 'Writing. This can take a minute.';
       try {
@@ -963,7 +976,7 @@ async function person(cycleId, staffId, tab = 'raw') {
       }
       $('#prepgen').disabled = false;
     };
-    $('#gen').onclick = async () => {
+    if ($('#gen')) $('#gen').onclick = async () => {
       if (summary?.edited && !confirm('Regenerating replaces the draft, including your edits. Go ahead?')) return;
       const b = $('#gen');
       b.disabled = true;
@@ -979,6 +992,9 @@ async function person(cycleId, staffId, tab = 'raw') {
     };
     $('#blank')?.addEventListener('click', async () => {
       await api(`${base}/blank`, { method: 'POST', json: {} });
+      sessionStorage.setItem('hui360_notes', JSON.stringify([
+        `These are the raw answers about ${first(p)}, word for word, with no AI. Rewrite them into your letter before you share it. Take out anything that could point to who wrote an answer, like a date, a place, or a role only one person has.`,
+      ]));
       route();
     });
     const notes = JSON.parse(sessionStorage.getItem('hui360_notes') || '[]');
@@ -1073,7 +1089,7 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Uncheck it for anyone who would rather hear from you directly. Sign in link works any time of year, even with no review open, for My page and mahalo. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Settings). Uncheck it for anyone who would rather hear from you directly. Sign in link works any time of year, even with no review open, for My page and mahalo. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
     <div class="scroll"><table>
       <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th><th>Sign in link</th></tr>
       ${list.map(row).join('')}
@@ -1138,46 +1154,63 @@ async function values() {
   $('#newset').onclick = async () => (await save('/api/admin/value-sets', { name: 'New values' }, 'POST'), route());
 }
 
-// ---------------- data ----------------
+// ---------------- settings ----------------
 
-async function data() {
+const AI_ON = [
+  ['Voice answers', 'Staff can tap Talk and say it. AI turns it into text they can fix.'],
+  ['Letter drafts', 'AI compiles a draft from what was sent, with exact quotes measured against your values. Every quote is checked word for word. You write the final version.'],
+  ['Team and board reports', 'A first draft of each, with no names.'],
+  ['Talk story prep', 'Openers, something to celebrate, a tension, and a question for each meeting.'],
+  ['Early signals', 'Counts of answers that sound like burnout, unclear roles, safety, or friction. Never names.'],
+];
+const AI_OFF_LIST = [
+  ['Typed answers', 'Staff type their answers. The Talk button is hidden.'],
+  ['Letters from the answers', 'Each letter starts with every answer about the person, word for word. You turn it into the letter.'],
+  ['Reports from an outline', 'Team and board reports start with headings you fill in.'],
+  ['No prep or signals', 'Talk story prep, early signals, and reviewer tone are off.'],
+  ['Nothing sent to AI', 'No answer, name, or word about anyone goes to any AI model.'],
+];
+
+async function settingsPage() {
   const [{ files }, { audit }, settings, { cycles }, ch, { mahalo }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles'), channels(), api('/api/admin/mahalo')]);
   const sampleCycle = cycles.find((c) => c.name === 'Sample review (example)');
   const sample = sampleCycle && { id: sampleCycle.id, person: (await api(`/api/admin/cycles/${sampleCycle.id}`)).summaries[0]?.reviewee_id };
   const byFolder = {};
   for (const f of files) (byFolder[f.key.split('/')[1]] ||= []).push(f);
   const link = (key) => `<a href="/api/admin/file?key=${encodeURIComponent(key)}">${esc(key.split('/').slice(2).join('/'))}</a>`;
+  const aiOn = settings.ai !== 'off';
+  const engine = settings.engine === 'llama' ? "Llama 3.3 on Cloudflare's free AI ($0)" : `Claude (${esc(settings.engine)}) with your Anthropic key, a few cents a review`;
+  const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
+  const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
   app.innerHTML = `
-    <h1>Data</h1>
-    <div class="card">
-      <h2 style="margin-top:0">Export everything</h2>
-      <p>One click writes a full JSON file and a folder of Markdown files (one per person per cycle) to the Hui's R2 storage. Everything the Hui enters is the Hui's.
-      The reviewer hash table is left out on purpose, so an export can never be used to match answers to people.</p>
-      <button id="export">Export now</button>
-    </div>
-    ${Object.entries(byFolder)
-      .sort()
-      .reverse()
-      .map(([folder, fs]) => `<details class="card"><summary>${esc(folder)}</summary><ul>${fs.map((f) => `<li>${link(f.key)}</li>`).join('')}</ul></details>`)
-      .join('')}
-    <h2>Sample review</h2>
-    <div class="card">
-      <p style="margin-top:0">See what a finished review looks like before you run your own. The sample adds a closed review with three made up people, their answers, a finished letter, and a reflection written back. Nobody is contacted.</p>
-      <div class="row">${sample ? `<a class="button" href="#/person/${sample.id}/${sample.person}/share">Open the sample letter</a><a class="button secondary" href="#/cycle/${sample.id}/letters">Open the sample review</a><button class="quiet" id="nosample">Remove the sample</button>` : '<button id="sample">Load the sample review</button>'}</div>
-    </div>
-    <h2>Settings</h2>
+    <h1>Settings</h1>
+    <nav class="chips">${SECTIONS.map(([id, label]) => `<a href="#/settings/${id}">${label}</a>`).join('')}</nav>
+
+    <section id="org"><h2>Organization</h2>
     <div class="card">
       <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
       <label>Director's name, as staff call them <input data-path="/api/admin/settings" data-f="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
-      <p class="small muted">Staff see these names on their screens, and summary drafts are written in the director's voice.</p>
+      <p class="small muted">Staff see these names on their screens, and letter drafts are written in the director's voice.</p>
       <label>Logo, shown on the staff and admin home pages</label>
       <div class="row">${orgLogo() || '<span class="small muted">No logo yet.</span>'}
         <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto">
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
-    </div>
-    <h2>Automated Emails</h2>
+    </div></section>
+
+    <section id="ai"><h2>AI</h2>
+    <div class="card">
+      <label class="check" style="font-size:1.1rem"><input type="checkbox" id="aitoggle" ${aiOn ? 'checked' : ''}> <strong>Use AI</strong></label>
+      <p class="small muted">The app works fully either way. AI only ever sees the words, the question, your values, and the name of the person a letter is for, never who wrote anything. ${aiOn ? `Right now it runs on ${engine}.` : ''}</p>
+      <div class="cols2">
+        <div class="card ${aiOn ? 'on' : ''}" style="margin:0"><h3 style="margin-top:0">With AI on</h3>${list(AI_ON)}</div>
+        <div class="card ${aiOn ? '' : 'on'}" style="margin:0"><h3 style="margin-top:0">With AI off</h3>${list(AI_OFF_LIST)}</div>
+      </div>
+      <p class="small muted" style="margin-bottom:0">Everything else works the same: reviews, anonymity, email, mahalo, goals, and export. You can switch any time. Answers already written stay as they are.</p>
+    </div></section>
+
+    <section id="email"><h2>Automated Emails</h2>
     <div class="card">
       ${ch.email
         ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`
@@ -1189,17 +1222,49 @@ async function data() {
       <p class="small muted">${ch.email && ch.cron
         ? 'Off unless checked. Each person behind gets one short reminder with their link, twice a week, until they finish or the review closes. Only people with Send email checked.'
         : 'Not set up for this app yet, so use Today\'s nudges on the Cycles page instead.'}</p>
-    </div>
-    <h2>Mahalo board</h2>
+    </div></section>
+
+    <section id="mahalo"><h2>Mahalo board</h2>
     <div class="card">
       <p style="margin-top:0" class="small muted">Public mahalo staff have posted. Remove anything that should not be there.</p>
       ${mahalo.length ? mahalo.map((m) => `<div class="row spread list-item"><span><strong>${esc(m.to_name)}</strong> ${esc(m.body)} <span class="small muted">${esc(m.from_name || 'unsigned')}</span></span><button class="quiet small" data-unmahalo="${m.id}">Remove</button></div>`).join('') : '<p class="muted" style="margin:0">None yet.</p>'}
+    </div></section>
+
+    <section id="sample"><h2>Sample review</h2>
+    <div class="card">
+      <p style="margin-top:0">See what a finished review looks like before you run your own. The sample adds a closed review with three made up people, their answers, a finished letter, and a reflection written back. Nobody is contacted.</p>
+      <div class="row">${sample ? `<a class="button" href="#/person/${sample.id}/${sample.person}/share">Open the sample letter</a><a class="button secondary" href="#/cycle/${sample.id}/letters">Open the sample review</a><button class="quiet" id="nosample">Remove the sample</button>` : '<button id="sample">Load the sample review</button>'}</div>
+    </div></section>
+
+    <section id="data"><h2>Your data</h2>
+    <div class="card">
+      <h3 style="margin-top:0">Export everything</h3>
+      <p>One click writes a full JSON file and a folder of Markdown files (one per person per review) to your organization's storage. Everything you enter is yours.
+      The reviewer hash table is left out on purpose, so an export can never be used to match answers to people.</p>
+      <button id="export">Export now</button>
+      ${Object.entries(byFolder)
+        .sort()
+        .reverse()
+        .map(([folder, fs]) => `<details style="margin-top:.75rem"><summary>${esc(folder)}</summary><ul>${fs.map((f) => `<li>${link(f.key)}</li>`).join('')}</ul></details>`)
+        .join('')}
     </div>
-    <h2>Audit log</h2>
-    <p class="small muted">Every read of raw answers, every draft, share, export, and delete.</p>
+    <h3>Audit log</h3>
+    <p class="small muted">Every read of raw answers, every draft, share, export, AI switch, and delete.</p>
     <div class="scroll"><table><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Target</th></tr>
       ${audit.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('')}
-    </table></div>`;
+    </table></div></section>`;
+  const want = location.hash.split('/')[2];
+  if (want) document.getElementById(want)?.scrollIntoView();
+  $('#aitoggle').onchange = async (e) => {
+    const on = e.target.checked;
+    if (!confirm(on ? 'Turn AI on? Voice answers, letter drafts, reports, prep, and early signals come back.' : 'Turn AI off? Nothing will be sent to any AI model. Staff type their answers, and letters start from the answers.')) {
+      e.target.checked = !on;
+      return;
+    }
+    await save('/api/admin/settings', { ai: on ? 'on' : 'off' });
+    config.ai = on;
+    route();
+  };
   bindFields();
   $('#moon').onchange = (e) => save('/api/admin/settings', { moon_calendar: e.target.checked ? 'on' : 'off' });
   for (const b of $$('[data-unmahalo]')) b.onclick = async () => confirm('Remove this mahalo from the board?') && (await save(`/api/admin/mahalo/${b.dataset.unmahalo}`, {}, 'DELETE'), route());

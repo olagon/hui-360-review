@@ -43,7 +43,8 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
 - Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional Monday and Friday reminder for anyone behind.
-- A Hawaiian moon name for today and next to review dates. Turn it off in Data.
+- A Hawaiian moon name for today and next to review dates. Turn it off in Settings.
+- **AI is optional.** One switch in Settings. With it on: voice answers, AI first drafts of letters and reports, talk story prep, and early signals. With it off: staff type, letters start from the answers word for word, reports start from an outline, and nothing is sent to any AI model. Everything else works the same.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
 
 ## How anonymity works
@@ -69,7 +70,7 @@ Estimates from Cloudflare's and Anthropic's published prices as of October 2026,
 | Email (optional) | Emailing links, nudges, and letters | **$0**: included in Workers Paid, or Resend's free plan up to 3,000 a month |
 | Domain | Your web address | **$0** with your own domain or the free `pages.dev` address, about $10 a year otherwise |
 
-**Typical total: $0 to $1 a year.** Without an Anthropic key everything still works, drafts included, on Cloudflare's free allowance. Prefer to write every letter by hand? Use "Start a blank draft" and skip AI entirely.
+**Typical total: $0 to $1 a year.** Without an Anthropic key everything still works, drafts included, on Cloudflare's free allowance. Prefer no AI at all? Turn it off in Settings: letters start from the answers word for word, and nothing is sent to any AI model.
 
 When you might pay more:
 - **Cloudflare Workers Paid, $5 a month**, if you outgrow the free daily limits (a large organization, lots of voice on the same day) or long recordings hit the free plan's 10 ms CPU limit.
@@ -168,7 +169,7 @@ npx wrangler pages secret put CRON_SECRET --project-name hui-360
 npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
 ```
 
-Then in admin, Data, Automated Emails, check the reminder box.
+Then in admin, Settings, Automated Emails, check the reminder box.
 
 ### 7. Deploy
 
@@ -181,7 +182,7 @@ Commit your `wrangler.toml` changes and push to `main`. The workflow runs every 
 ### 8. Make it yours
 
 Open `https://<your domain>/admin/` and sign in.
-1. **Data, Settings:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice. Upload your logo there too (an animated SVG works); it shows on the staff and admin home pages.
+1. **Settings, Organization:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice. Upload your logo there too (an animated SVG works); it shows on the staff and admin home pages.
 2. **Values:** replace the sample set (from Pukui's ʻŌlelo Noʻeau) with your own values. Each value has a name, an optional ʻōlelo noʻeau, and what it looks like in your organization. The AI measures summaries against these.
 3. **People:** add everyone, with a phone or email so you can send links.
 
@@ -204,7 +205,7 @@ Add three test people, create a cycle, open it, answer as each of them from thei
 11. **Talk story.** Lay out the meetings in the Talk story tab and send calendar files. Open each person's Draft tab for talk story prep. They read their letter on their phone and can write a reflection back, then set their goals on My page.
 12. **Mark it published** once every letter is shared, and export a copy for your records.
 
-Want to see the end result first? In Data, load the sample review: three made up people, their answers, a finished letter, and a reflection.
+Want to see the end result first? In Settings, load the sample review: three made up people, their answers, a finished letter, and a reflection.
 
 ## Local development
 

@@ -2,8 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  verifyQuotes, dropQuotes, draftSummary, stripIdentity, summaryPrompt, cleanText, lint, restoreSigners, section, detectLanguage, namesIn,
-} from '../functions/lib/summarize.js';
+  verifyQuotes, dropQuotes, draftSummary, stripIdentity, summaryPrompt, cleanText, lint, restoreSigners, section, detectLanguage, namesIn, answersDraft } from '../functions/lib/summarize.js';
 
 const templates = Object.fromEntries(
   ['system', 'user', 'fix'].map((k) => [k, readFileSync(new URL(`../functions/lib/prompts/summary-${k}.txt`, import.meta.url), 'utf8')]),
@@ -123,4 +122,25 @@ test('team drafts retry when they name someone, and flag names that remain', asy
   assert.equal(calls, 2);
   assert.equal(markdown, 'A coworker keeps everyone steady.');
   assert.deepEqual(notes, []);
+});
+
+test('the no AI draft holds every answer word for word, grouped, with nothing invented', () => {
+  const groups = [
+    { audience: 'self', prompt: 'What are you most proud of?', responses: [{ body: 'The loʻi\nopened again.' }] },
+    { audience: 'peer', prompt: 'Mahalo?', responses: [{ body: 'Mahalo for the 5am fix.', signed_name: 'Lei' }, { body: 'Always kind.' }] },
+    { audience: 'peer', prompt: 'Grow?', responses: [{ body: '', audio_key: 'audio/1' }, { body: '  ' }] },
+    { audience: 'community', prompt: 'What stood out?', responses: [{ body: 'Listens first.', who: 'Partner school' }] },
+    { audience: 'feedback', prompt: 'Feedback they asked for: How did Saturday go?', responses: [{ body: 'Great.', who: 'Bo' }] },
+    { audience: 'mahalo', prompt: 'Mahalo sent during the year', responses: [{ body: 'Thanks for the coffee.' }] },
+  ];
+  const md = answersDraft('Kainoa', 'huiMAU', groups);
+  assert.match(md, /^## In Kainoa's own words\n\n### What are you most proud of\?\n\n> The loʻi opened again\.$/m);
+  assert.match(md, /> Mahalo for the 5am fix\. \(from Lei\)/);
+  assert.match(md, /> Always kind\.$/m);
+  assert.match(md, /Listen to it in Raw/);
+  assert.match(md, /## From outside huiMAU\n\n### What stood out\?\n\n> Listens first\. \(Partner school\)/);
+  assert.match(md, /### How did Saturday go\?\n\n> Great\. \(Bo\)/);
+  assert.match(md, /## Mahalo during the year\n\n> Thanks for the coffee\./);
+  assert.ok(md.indexOf('own words') < md.indexOf('What coworkers said'));
+  assert.equal(answersDraft('Kainoa', 'huiMAU', []), '');
 });

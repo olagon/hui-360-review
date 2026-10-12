@@ -21,7 +21,7 @@ export function setLang(lang) {
 
 let strings = {};
 // Names set by admin (Data, Settings), so every Hui sees its own: {hui} and {director} in any string.
-export const config = { hui: 'the Hui', director: 'your director', logo: '', moon: true, email: false };
+export const config = { hui: 'the Hui', director: 'your director', logo: '', moon: true, email: false, ai: true };
 export async function initI18n() {
   const get = (url) => fetch(url).then((r) => r.json()).catch(() => ({}));
   const [en, c] = await Promise.all([get('/assets/i18n/en.json'), get('/api/config')]);
@@ -30,6 +30,7 @@ export async function initI18n() {
   if (c.logo_v) config.logo = `/api/logo?v=${c.logo_v}`;
   config.moon = c.moon_calendar !== 'off';
   config.email = !!c.email;
+  config.ai = c.ai !== 'off';
   strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')) };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
 }
