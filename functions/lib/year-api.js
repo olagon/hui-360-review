@@ -227,6 +227,9 @@ export async function reminders({ env, request, url }) {
   const n = await settings(env);
   const cycle = await one(env, "SELECT * FROM cycles WHERE status = 'open' ORDER BY id DESC LIMIT 1");
   if (!cycle || n.auto_remind !== '1') return json({ sent: 0 });
+  // No reminders after the close date, even if nobody has pressed Close yet. Dates are Hawaiʻi dates.
+  const hawaiiToday = new Date(Date.now() - 10 * 3600000).toISOString().slice(0, 10);
+  if (cycle.closes_at && cycle.closes_at < hawaiiToday) return json({ sent: 0, closed: true });
   const behind = await all(
     env,
     `SELECT DISTINCT s.* FROM assignments a JOIN staff s ON s.id = a.reviewer_id WHERE a.cycle_id = ? AND a.status != 'done' AND s.active = 1`,

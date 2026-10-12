@@ -178,4 +178,7 @@ test('morning reminders keep going past an address that fails', async () => {
   console.error = realError;
   assert.deepEqual(sent.map((m) => m.to), ['good@example.org']);
   await assert.rejects(() => reminders({ env, url: new URL('https://hui.example'), request: post({}, { 'x-cron-secret': 'wrong' }) }), /Not allowed/);
+  env.KV.map.clear();
+  DB.raw.exec("UPDATE cycles SET closes_at = '2020-01-01' WHERE id = 9");
+  assert.deepEqual(await run(), { sent: 0, closed: true }, 'nothing after the close date');
 });
