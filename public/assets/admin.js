@@ -213,7 +213,7 @@ function bindFields(root = app) {
 
 // ---------------- router ----------------
 
-const views = { '': home, staff, values, settings: settingsPage, data: settingsPage, cycle, person };
+const views = { '': home, staff, values, settings: settingsPage, data: settingsPage, translations, cycle, person };
 async function route() {
   const [name, ...args] = location.hash.replace(/^#\/?/, '').split('/');
   app.innerHTML = '<p class="muted">Loading...</p>';
@@ -1098,7 +1098,7 @@ async function staff() {
         ${inp('name', 'Name')}${inp('preferred_name', 'Goes by')}${inp('email', 'Email', 'email')}${inp('phone', 'Phone', 'tel')}
         ${inp('team', 'Group', 'text', 'list="groups" placeholder="Staff"')}
         <label>Role <select data-path="${p}" data-f="role">${Object.entries(ROLE).map(([v, l]) => opt(v, l, s.role)).join('')}</select></label>
-        <label>Language <select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></label>
+        ${config.hawaiian ? `<label>Language <select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></label>` : ''}
         ${inp('start_date', 'Joined (optional)', 'date')}
         <label class="check"><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''}> Send email</label>
         <label class="check"><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''}> Active</label>
@@ -1123,7 +1123,7 @@ async function staff() {
           <label>Name <input name="name" required></label>
           <div class="row"><label style="flex:1">Goes by <input name="preferred_name"></label><label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
           <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
-          <label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>
+          ${config.hawaiian ? `<label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>` : ''}
           <label class="check"><input type="checkbox" name="send_email" checked> Send email (their link, reminders, and when their letter is ready)</label>
           <p><button>Add</button></p>
         </form>
@@ -1143,7 +1143,7 @@ async function staff() {
         <li><strong>Goes by.</strong> The name staff see and letters use.</li>
         <li><strong>Group.</strong> Staff, Intern, Volunteer, Board, or a team name. A team lead reads the shared letters of everyone in their group.</li>
         <li><strong>Role.</strong> Staff for most people. Team lead for someone who leads a group, who is reviewed by that group in an upward review. Director for you: staff review you in an upward review, and replies to the app's emails come to you.</li>
-        <li><strong>Language.</strong> The language their screens start in. They can switch any time.</li>
+        ${config.hawaiian ? '<li><strong>Language.</strong> The language their screens start in. They can switch any time.</li>' : ''}
         <li><strong>Joined.</strong> Optional, the date they started with your organization. To see who has started or finished a review, open that review's Progress tab.</li>
         <li><strong>Send email.</strong> The app can email them their link, reminders, and when their letter is ready (once email is on in Settings). Uncheck it for anyone who would rather hear from you directly.</li>
         <li><strong>Active.</strong> Uncheck it when someone leaves. Their past reviews stay, and new reviews leave them out.</li>
@@ -1190,6 +1190,102 @@ async function staff() {
     toast(`Added ${lines.length} ${lines.length === 1 ? 'person' : 'people'}`);
     route();
   };
+}
+
+// ---------------- translations ----------------
+
+// Every screen text in English, the starter Hawaiian file, and what admins translated here (which wins).
+async function loadTranslations() {
+  const get = (u) => fetch(u).then((r) => r.json());
+  const [en, file, saved] = await Promise.all([get('/assets/i18n/en.json'), get('/assets/i18n/haw.json'), api('/api/admin/translations')]);
+  const keys = Object.keys(en).filter((k) => !k.startsWith('_'));
+  const haw = Object.fromEntries(keys.map((k) => [k, saved.haw[k] ?? (typeof file[k] === 'string' ? file[k] : '')]));
+  return { en, keys, haw, meta: saved.meta };
+}
+async function translationProgress() {
+  const { keys, haw } = await loadTranslations().catch(() => ({ keys: [1], haw: {} }));
+  return { total: keys.length, done: keys.filter((k) => haw[k]).length };
+}
+
+const AREA = {
+  app: 'Everywhere', nav: 'Menus', footer: 'Footer', lang: 'Language picker', signout: 'Signing out', error: 'Error messages', sync: 'Saving offline',
+  landing: 'Home page', dash: 'Home page, signed in', card: 'Review cards', review: 'Answering questions', me: 'My page', goals: 'My page, goals',
+  mahalo: 'Mahalo', feedback: 'Asking for feedback', timeline: 'My page, timeline', myteam: 'My page, team leads', voice: 'Community voice page',
+  moon: 'Moon calendar', open: 'How reviews are run',
+};
+const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(' ');
+
+async function translations() {
+  const { en, keys, haw, meta } = await loadTranslations();
+  const area = (k) => k.split('.')[0];
+  const areas = [...new Set(keys.map(area))];
+  const row = (k) => `<div class="tr" data-k="${esc(k)}" data-done="${haw[k] ? 1 : 0}" data-search="${esc(`${en[k]} ${haw[k]}`.toLowerCase())}">
+      <p class="small" style="margin:0 0 .3rem">${esc(en[k]).replace(/\{(\w+)\}/g, '<code>{$1}</code>')}</p>
+      <textarea rows="${Math.min(5, Math.ceil(en[k].length / 70) + 1)}" lang="haw" aria-label="ʻŌlelo Hawaiʻi for: ${esc(en[k])}">${esc(haw[k])}</textarea>
+      <p class="small muted tr-status" style="margin:.2rem 0 0">${meta[k] ? `Saved by ${esc(meta[k].by || 'admin')}, ${esc(whenAt(meta[k].at))}` : haw[k] ? 'From the starter file' : ''}</p>
+    </div>`;
+  const done = keys.filter((k) => haw[k]).length;
+  app.innerHTML = `
+    <p class="small"><a href="#/settings/lang">Settings</a></p>
+    <h1>Translations</h1>
+    <p>Every piece of text staff see, in English, with a box for ʻŌlelo Hawaiʻi. What you type saves as you go and shows to staff right away. Leave a box empty to show the English. Please have a fluent speaker write or check these: do not guess at words.</p>
+    <p><strong id="trdone">${done}</strong> of ${keys.length} translated.</p>
+    <div class="progress" aria-hidden="true"><span id="trbar" style="width:${Math.round((100 * done) / keys.length)}%"></span></div>
+    <div class="card trtools">
+      <div class="row">
+        <input type="search" id="trfind" placeholder="Find text" aria-label="Find text" style="flex:1;min-width:12rem">
+        <select id="trshow" aria-label="Show" style="width:auto"><option value="todo">Not yet translated</option><option value="all">All</option><option value="done">Translated</option></select>
+      </div>
+      <p class="row small" style="margin:.6rem 0 0">Type a letter into the box you are in:
+        ${['ʻ', 'ā', 'ē', 'ī', 'ō', 'ū', 'Ā', 'Ē', 'Ī', 'Ō', 'Ū'].map((c) => `<button type="button" class="small secondary" data-ins="${c}" aria-label="Insert ${c}">${c}</button>`).join('')}</p>
+      <p class="small muted" style="margin:.5rem 0 0">Keep anything in <code>{curly braces}</code> exactly as it is. The app fills it in, for example <code>{director}</code> becomes ${esc(config.director)}.</p>
+    </div>
+    ${areas.map((a) => `<section class="trarea"><h2>${esc(AREA[a] || a)}</h2>${keys.filter((k) => area(k) === a).map(row).join('')}</section>`).join('')}`;
+  let last = null;
+  const filter = () => {
+    const q = $('#trfind').value.trim().toLowerCase();
+    const show = $('#trshow').value;
+    for (const r of $$('.tr')) {
+      const okShow = show === 'all' || (show === 'todo' ? r.dataset.done === '0' : r.dataset.done === '1');
+      r.hidden = !okShow || (q && !r.dataset.search.includes(q));
+    }
+    for (const s of $$('.trarea')) s.hidden = !$$('.tr', s).some((r) => !r.hidden);
+  };
+  $('#trfind').oninput = filter;
+  $('#trshow').onchange = filter;
+  filter();
+  for (const b of $$('[data-ins]')) {
+    b.onmousedown = (e) => e.preventDefault(); // keep the cursor in the box
+    b.onclick = () => {
+      const ta = document.activeElement?.tagName === 'TEXTAREA' ? document.activeElement : last;
+      if (!ta) return toast('Click into a box first');
+      ta.focus();
+      document.execCommand('insertText', false, b.dataset.ins);
+    };
+  }
+  for (const r of $$('.tr')) {
+    const k = r.dataset.k;
+    const ta = $('textarea', r);
+    const status = $('.tr-status', r);
+    ta.onfocus = () => (last = ta);
+    const put = debounce(async () => {
+      const value = ta.value.trim();
+      const warn = value && holes(value) !== holes(en[k]) ? ` Check the {curly braces}: the English has ${holes(en[k]) || 'none'}.` : '';
+      try {
+        await api('/api/admin/translations', { method: 'PUT', json: { key: k, value } });
+        status.textContent = (value ? 'Saved.' : 'Cleared, so staff see the English.') + warn;
+        status.style.color = warn ? 'var(--warn)' : '';
+      } catch (e) {
+        status.textContent = `Not saved: ${e.message}`;
+      }
+      haw[k] = value;
+      r.dataset.done = value ? '1' : '0';
+      const n = keys.filter((x) => haw[x]).length;
+      $('#trdone').textContent = n;
+      $('#trbar').style.width = `${Math.round((100 * n) / keys.length)}%`;
+    });
+    ta.oninput = () => ((status.textContent = 'Saving...'), put());
+  }
 }
 
 // ---------------- values ----------------
@@ -1293,7 +1389,8 @@ async function settingsPage() {
   const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
   const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
-  const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const SECTIONS = [['org', 'Organization'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const lang = await translationProgress();
   const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
   const fromDomain = (ch.from || '').match(/@([^>\s]+)/)?.[1] || '';
   app.innerHTML = `
@@ -1311,6 +1408,16 @@ async function settingsPage() {
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+    </div></section>
+
+    <section id="lang"><h2>Language</h2>
+    <div class="card">
+      <label class="check" style="font-size:1.05rem"><input type="checkbox" id="hawtoggle" ${settings.hawaiian === 'on' ? 'checked' : ''}> <strong>Offer ʻŌlelo Hawaiʻi to staff</strong></label>
+      <p class="small muted">When this is on, staff can switch their screens to ʻŌlelo Hawaiʻi or to both languages. When it is off, everyone sees English and the language picker is hidden.</p>
+      <p><strong>${lang.done} of ${lang.total}</strong> screen texts are translated so far. Anything not yet translated shows in English.</p>
+      <div class="progress" aria-hidden="true"><span style="width:${Math.round((100 * lang.done) / lang.total)}%"></span></div>
+      <p class="row" style="margin-bottom:0"><a class="button secondary" href="#/translations">Manage translations</a>
+        <span class="small muted">Questions have their own ʻŌlelo Hawaiʻi box in each review's Questions tab.</span></p>
     </div></section>
 
     <section id="ai"><h2>AI</h2>
@@ -1481,6 +1588,15 @@ async function settingsPage() {
     } catch (err) {
       toast(err.message, 8000);
     }
+  };
+  $('#hawtoggle').onchange = async (e) => {
+    const on = e.target.checked;
+    if (on && lang.done < lang.total / 2 && !confirm(`Only ${lang.done} of ${lang.total} screen texts are translated, so staff who pick ʻŌlelo Hawaiʻi will see mostly English. Offer it anyway?`)) {
+      e.target.checked = false;
+      return;
+    }
+    await save('/api/admin/settings', { hawaiian: on ? 'on' : 'off' });
+    config.hawaiian = on;
   };
   $('#aitoggle').onchange = async (e) => {
     const on = e.target.checked;

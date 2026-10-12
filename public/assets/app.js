@@ -6,7 +6,9 @@ export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 // ---------- language ----------
 
 const LANG_KEY = 'hui360_lang';
+// English unless the organization offers ʻŌlelo Hawaiʻi (Settings, Language) and this person chose it.
 export const getLang = () => {
+  if (!config.hawaiian) return 'en';
   try {
     return localStorage.getItem(LANG_KEY) || 'en';
   } catch {
@@ -21,7 +23,7 @@ export function setLang(lang) {
 
 let strings = {};
 // Names set by admin (Data, Settings), so every Hui sees its own: {hui} and {director} in any string.
-export const config = { hui: 'the Hui', director: 'your director', logo: '', moon: true, email: false, ai: true };
+export const config = { hui: 'the Hui', director: 'your director', logo: '', moon: true, email: false, ai: true, hawaiian: false };
 export async function initI18n() {
   const get = (url) => fetch(url).then((r) => r.json()).catch(() => ({}));
   const [en, c] = await Promise.all([get('/assets/i18n/en.json'), get('/api/config')]);
@@ -31,7 +33,9 @@ export async function initI18n() {
   config.moon = c.moon_calendar !== 'off';
   config.email = !!c.email;
   config.ai = c.ai !== 'off';
-  strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')) };
+  config.hawaiian = c.hawaiian === 'on';
+  // Hawaiian: the starter file, then whatever admins translated in Settings, Translations.
+  strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')), ...((await get('/api/i18n/haw')).strings || {}) };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
 }
 export function t(key, vars = {}) {
@@ -209,7 +213,7 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } 
   header.className = 'top';
   header.innerHTML = `<a class="brand" href="/">${mark()} <span>${esc(APP_NAME)}</span></a>
     <nav>${nav}${signedIn ? `<a href="#" id="signout">${esc(t('signout'))}</a>` : ''}${
-      langSwitch
+      langSwitch && config.hawaiian
         ? `<select id="lang" aria-label="${esc(t('lang.label'))}" style="width:auto;min-height:36px;padding:.25rem .5rem;font-size:.95rem">
         ${['en', 'haw', 'both'].map((l) => `<option value="${l}" ${l === lang ? 'selected' : ''}>${esc(t(`lang.${l}`))}</option>`).join('')}
       </select>`

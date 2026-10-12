@@ -216,7 +216,7 @@ Workers AI always runs remotely, even in local dev, so voice and Llama drafts ne
 - **Name:** `APP_NAME` in `public/assets/app.js`.
 - **Summary prompts:** plain text files in `functions/lib/prompts/`. Edit them without touching code. Every quote in a draft is checked word for word against the answers, and any that do not match are removed.
 - **Models:** `functions/lib/config.js`.
-- **Words on screen:** `public/assets/i18n/en.json` and `haw.json`. The Hawaiian file is a first pass, and every key in its `_todo` list still shows English. Please have a fluent speaker fill those in rather than guessing.
+- **Words on screen:** English lives in `public/assets/i18n/en.json`. ʻŌlelo Hawaiʻi is managed in the app: **Settings, Language, Manage translations** lists every screen text with a box for the Hawaiian, saves as you type, and goes live with no deploy. The language picker only shows once you turn on **Offer ʻŌlelo Hawaiʻi to staff** there. Please have a fluent speaker write the translations rather than guessing.
 - **Colors:** CSS variables at the top of `public/assets/style.css`.
 
 ## Built with

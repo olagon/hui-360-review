@@ -4,10 +4,11 @@ import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 import * as y from '../lib/year-api.js';
 
-const PUBLIC = new Set(['/api/config', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
+const PUBLIC = new Set(['/api/config', '/api/i18n/:lang', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
 
 const routes = [
   ['GET', '/api/config', s.config],
+  ['GET', '/api/i18n/:lang', s.translationsFor],
   ['GET', '/api/logo', s.logo],
   ['POST', '/api/logout', s.logout],
   ['GET', '/api/me', s.me],
@@ -99,6 +100,8 @@ const routes = [
   ['GET', '/api/admin/exports', a.listExports],
   ['GET', '/api/admin/audit', a.listAudit],
   ['GET', '/api/admin/ai-runs', a.listAiRuns],
+  ['GET', '/api/admin/translations', a.getTranslations],
+  ['PUT', '/api/admin/translations', a.putTranslation],
   ['POST', '/api/admin/sample', a.loadSample],
   ['DELETE', '/api/admin/sample', a.removeSample],
 ];

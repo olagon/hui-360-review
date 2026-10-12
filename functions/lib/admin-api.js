@@ -1039,7 +1039,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit', 'ai_runs',
+  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit', 'ai_runs', 'translations',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
@@ -1097,6 +1097,28 @@ export async function exportAll({ env, admin }) {
 export async function listExports({ env }) {
   const page = await env.MEDIA.list({ prefix: 'exports/', limit: 1000 });
   return json({ files: page.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })) });
+}
+
+// ---------- translations (Settings, Translations) ----------
+
+export async function getTranslations({ env }) {
+  const rows = await all(env, "SELECT key, value, updated_at, updated_by FROM translations WHERE lang = 'haw'");
+  return json({ haw: Object.fromEntries(rows.map((r) => [r.key, r.value])), meta: Object.fromEntries(rows.map((r) => [r.key, { at: r.updated_at, by: r.updated_by }])) });
+}
+
+export async function putTranslation({ env, request, admin }) {
+  const b = await body(request);
+  const key = String(b.key || '').slice(0, 100);
+  if (!/^[\w.]+$/.test(key)) throw new HttpError(400, 'Unknown text');
+  const value = String(b.value ?? '').trim().slice(0, 2000);
+  if (!value) await env.DB.prepare("DELETE FROM translations WHERE lang = 'haw' AND key = ?").bind(key).run();
+  else {
+    await env.DB.prepare(
+      `INSERT INTO translations (lang, key, value, updated_by) VALUES ('haw', ?, ?, ?)
+       ON CONFLICT (lang, key) DO UPDATE SET value = excluded.value, updated_at = datetime('now'), updated_by = excluded.updated_by`,
+    ).bind(key, value, admin || null).run();
+  }
+  return json({ ok: true });
 }
 
 // The AI log, newest first, 25 at a time, with the estimated cost of each Claude call.

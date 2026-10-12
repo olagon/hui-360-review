@@ -29,8 +29,15 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian')").all();
   return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: (await channels(env)).email });
+}
+
+// Public: screen text an admin translated in Settings, Translations. Read before anyone signs in.
+export async function translationsFor({ env, params }) {
+  if (params.lang !== 'haw') throw new HttpError(404, 'Not found');
+  const rows = await env.DB.prepare('SELECT key, value FROM translations WHERE lang = ?').bind(params.lang).all().catch(() => ({ results: [] }));
+  return json({ strings: Object.fromEntries(rows.results.map((r) => [r.key, r.value])) });
 }
 
 // Public: the organization's logo, uploaded by admin. Served as an image only, so an SVG

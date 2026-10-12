@@ -16,7 +16,7 @@ try {
 }
 
 // First visit on this phone: use the language admin set for this person.
-if (me && !localStorage.getItem('hui360_lang') && me.staff.lang !== getLang()) {
+if (me && config.hawaiian && !localStorage.getItem('hui360_lang') && me.staff.lang !== getLang()) {
   setLang(me.staff.lang);
   await initI18n();
 }
