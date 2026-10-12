@@ -47,6 +47,9 @@ export async function logo({ env }) {
   });
 }
 
+export const logout = () =>
+  json({ ok: true }, 200, { 'set-cookie': 'hui360_s=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0' });
+
 export async function me({ env, staff }) {
   const cycle = await env.DB.prepare("SELECT id, name, opens_at, closes_at, status FROM cycles WHERE status = 'open' ORDER BY id DESC LIMIT 1").first();
   const assignments = [];
@@ -74,11 +77,15 @@ export async function me({ env, staff }) {
     }
   }
   const shared = await env.DB.prepare("SELECT COUNT(*) AS n FROM summaries WHERE reviewee_id = ? AND status = 'shared'").bind(staff.id).first();
+  const team = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM team_reports t JOIN cycle_people p ON p.cycle_id = t.cycle_id WHERE p.staff_id = ? AND t.shared_at IS NOT NULL',
+  ).bind(staff.id).first();
   return json({
     staff: { id: staff.id, name: staff.preferred_name || staff.name, lang: staff.lang },
     cycle,
     assignments,
     summaries: shared.n,
+    team: team.n,
   });
 }
 
@@ -172,7 +179,12 @@ export async function summaries({ env, staff }) {
      FROM summaries s JOIN cycles c ON c.id = s.cycle_id LEFT JOIN employee_reflection r ON r.summary_id = s.id
      WHERE s.reviewee_id = ? AND s.status = 'shared' ORDER BY s.shared_at DESC`,
   ).bind(staff.id).all();
-  return json({ summaries: rows.results });
+  const team = await env.DB.prepare(
+    `SELECT c.name AS cycle, COALESCE(t.edited, t.draft) AS body, t.shared_at FROM team_reports t
+     JOIN cycles c ON c.id = t.cycle_id JOIN cycle_people p ON p.cycle_id = t.cycle_id
+     WHERE p.staff_id = ? AND t.shared_at IS NOT NULL ORDER BY t.shared_at DESC`,
+  ).bind(staff.id).all();
+  return json({ summaries: rows.results, team: team.results });
 }
 
 export async function reflection({ env, staff, params, request }) {

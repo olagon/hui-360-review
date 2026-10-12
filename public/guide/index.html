@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbfaf7">
+  <title>Admin guide</title>
+  <link rel="preload" href="/assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    .guide h2 { margin-top: 2.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    .guide h2 small { font-weight: 400; color: var(--muted); font-size: .9rem; }
+    .todo { list-style: none; padding: 0; margin: .75rem 0; display: grid; gap: .6rem; }
+    .todo li { display: flex; gap: .7rem; align-items: flex-start; }
+    .todo input { width: 1.25rem; height: 1.25rem; min-height: 0; margin-top: .25rem; flex: none; accent-color: var(--kalo); }
+    .where { font-size: .85rem; color: var(--kalo); font-weight: 600; white-space: nowrap; }
+    .note { background: var(--ocean-soft); border-left: 3px solid var(--ocean); padding: .8rem 1rem; margin: 1rem 0; }
+    @media print { .guide h2 { break-after: avoid; } .todo li { break-inside: avoid; } .note { border: 1px solid #999; } }
+  </style>
+  <script type="module">
+    import { initI18n, shell, registerSW, config } from '/assets/app.js';
+    registerSW();
+    await initI18n();
+    shell({ langSwitch: false });
+    for (const el of document.querySelectorAll('[data-name]')) el.textContent = config[el.dataset.name];
+    document.getElementById('print').onclick = () => print();
+  </script>
+</head>
+<body>
+  <main class="guide">
+    <h1>Admin guide</h1>
+    <p>Everything <span data-name="director">your director</span> does to run a review, from first setup to the last letter. Print it and tick the boxes as you go, or keep it open next to the admin pages.</p>
+    <p class="row no-print">
+      <a class="button" href="/tour/admin/">Watch the 1 minute admin video</a>
+      <button class="secondary" id="print" type="button">Print this guide</button>
+      <a class="button secondary" href="/admin/">Go to admin</a>
+    </p>
+
+    <div class="note"><strong>The one thing to know first.</strong> The app never sends email or texts. Every message to staff (their link, a reminder, and "your letter is ready") is a button that copies a ready-to-send message. You paste it into a text or email and send it yourself.</div>
+
+    <h2>1. Once, before your first review <small>about 20 minutes</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Sign in.</span> Go to <strong>/admin/</strong> and type your email. You get a code by email. Type it in and you stay signed in for the day. Only emails on the admin list get in.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Data, Settings.</span> Check your organization's name, what staff call you, and your logo. Staff see these on every screen, and letter drafts are written in your voice.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Values.</span> Make sure your values and their descriptions are right. The AI measures each letter against them.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">People.</span> Add everyone who will write or receive reviews: staff, interns, volunteers, board. Paste a list to add many at once. Set Group to say which. Add a phone or email so you can send links.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Data, Sample review.</span> Optional. Load the sample to see a finished letter and a reflection, then remove it.</span></li>
+    </ul>
+
+    <h2>2. Set up a review <small>about 30 minutes</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Cycles.</span> Start a new review. Give it a name (like Hoʻoilo 2026), an open date, a close date two or three weeks later, and your values. A Next step banner on the review tells you what to do from here.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">People tab.</span> Everyone active starts checked. Uncheck anyone sitting this one out. Add anyone new right there.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Questions tab.</span> Read every question. Peer reviews start with mahalo. Story questions ("tell me about a time") get the best answers. Mark 2 or 3 per group as five minute questions for people short on time.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Reviewers tab.</span> Press Auto fill, then change anything you like. Aim for 2 or 3 reviewers for each person. Everyone checked also gets a self reflection.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Setup tab.</span> Press Open the review.</span></li>
+    </ul>
+
+    <h2>3. Send everyone their link <small>about 10 minutes</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Links tab.</span> Press Copy message next to each person, or Copy all messages. Text or email each person their own message.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>Each link is personal and signs that phone in as that person. Never forward one person's link to someone else. If someone loses theirs, press New link next to their name.</span></li>
+    </ul>
+
+    <h2>4. While the review is open <small>two or three weeks</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Progress tab.</span> Check once or twice a week. It shows who has started and finished, never what anyone wrote.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>For anyone behind, press Copy nudge and send it. Five minutes is enough for the quick version.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>You cannot read any answers yet. They open when you close the review, so people can write freely.</span></li>
+    </ul>
+
+    <h2>5. Close the review <small>1 minute</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Setup tab.</span> When everyone is done, or on the close date, press Close the review. Answers lock and the Letters tab opens.</span></li>
+    </ul>
+
+    <h2>6. Write each person's letter <small>15 to 30 minutes each</small></h2>
+    <p>In the <strong>Letters</strong> tab, open each person and work through three tabs.</p>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Raw.</span> Read every answer about them. Answers are shuffled, so you cannot tell who wrote what, except a mahalo someone chose to sign. Play any voice recordings. Every time you open Raw, it is logged.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Draft.</span> Press Write a draft. In about 30 seconds the AI compiles a draft that summarizes what was sent, using people's exact words, measured against your values. Every quote is checked against the answers.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Draft.</span> Now write the final version in your own words. Edit it like any document. To bring in a line, highlight it in Raw and press Add as quote. It saves as you type.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Share.</span> Uncheck any section you want to keep to yourself, read the preview, and press Share.</span></li>
+    </ul>
+
+    <h2>7. Let each person know <small>1 minute each</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Share.</span> Press Copy message to them and send it by text or email. The message has a fresh link.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>When they open it, their home page says <strong>Your letter is ready</strong>. They read it on their phone and can write a reflection back to you. Their reflection shows up at the bottom of the Share tab.</span></li>
+    </ul>
+
+    <h2>8. Write the team report <small>about 20 minutes</small></h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Team report tab.</span> Press Write a draft. The AI reads every answer in the review and compiles one report on the whole team: what you do well, where you struggle, what people asked for, and ideas for next year. It never names anyone.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>Rewrite it in your own words. Print it or save it as a PDF for your board.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>If you want staff to see it, press Share with everyone in this review. It shows on their home page as What we learned together. Let them know it is there.</span></li>
+    </ul>
+
+    <h2>9. Talk story</h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span>Set a time with each person. Bring their letter (press Print or save as PDF in Share) and their reflection.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span>Together, talk through the questions at the end of the letter and set two or three goals for the year ahead.</span></li>
+    </ul>
+
+    <h2>10. Finish</h2>
+    <ul class="todo">
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Setup tab.</span> When every letter and the team report are done, press Mark published.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Data.</span> Press Export now to save a full copy for your records: one JSON file and one file per person.</span></li>
+    </ul>
+
+    <h2>Good to know</h2>
+    <ul>
+      <li>You can read every answer, but never who wrote it, except a mahalo someone chose to sign. If someone has only one reviewer, you will know whose answers those are.</li>
+      <li>The AI never sees who wrote what. It sees the words, the question, your values, and the name of the person the letter is for.</li>
+      <li>Staff can change their answers any time until you close the review.</li>
+      <li>Only one review can be open at a time. Once a review closes, its questions, reviewers, and people lock. Reopen it in Setup to change them.</li>
+      <li>On a shared computer or phone, use Sign out at the top when you finish. Staff have their own Sign out too.</li>
+      <li>Voice recordings delete themselves 90 days after they are recorded. The typed words stay.</li>
+      <li>To delete everything from a review, go to its Setup tab and type its name. This cannot be undone, so export first.</li>
+      <li>Someone left? In People, uncheck Active. Their past reviews stay, and new reviews leave them out.</li>
+    </ul>
+    <p class="no-print" style="margin-top:2rem"><a href="/how/">How this works, for staff</a> · <a href="/privacy/">Privacy and trust</a></p>
+  </main>
+</body>
+</html>

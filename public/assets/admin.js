@@ -1,7 +1,7 @@
-import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, $, $$ } from './app.js';
+import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
 
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><span id="who" class="muted small"></span>' });
+shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
 api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
@@ -10,6 +10,86 @@ const debounce = (fn, ms = 700) => {
   let t;
   return (...a) => (clearTimeout(t), (t = setTimeout(() => fn(...a), ms)));
 };
+// The editor shows a formatted letter. Underneath, letters are stored as simple
+// marked up text (## for a heading, ** for bold, > for a quote) so they print,
+// share, and export the same everywhere. This turns the editor back into that.
+function htmlToText(root) {
+  const inline = (node) =>
+    [...node.childNodes]
+      .map((n) => {
+        if (n.nodeType === 3) return n.textContent.replace(/\u00a0/g, ' ');
+        if (n.nodeType !== 1) return '';
+        const inner = inline(n);
+        if (n.tagName === 'BR') return '\n';
+        if (/^(STRONG|B)$/.test(n.tagName) && inner.trim()) return `**${inner.trim()}**`;
+        if (/^(EM|I)$/.test(n.tagName) && inner.trim()) return `*${inner.trim()}*`;
+        return inner;
+      })
+      .join('');
+  const blocks = [];
+  for (const n of root.childNodes) {
+    if (n.nodeType === 3) {
+      if (n.textContent.trim()) blocks.push(n.textContent.trim());
+      continue;
+    }
+    if (n.nodeType !== 1) continue;
+    const t = n.tagName;
+    const words = inline(n).trim();
+    if (/^H[1-6]$/.test(t)) words && blocks.push(`${'#'.repeat(Math.max(1, Number(t[1]) - 1))} ${words.replace(/\n+/g, ' ')}`);
+    else if (t === 'UL' || t === 'OL') blocks.push([...n.children].map((li) => `- ${inline(li).trim()}`).join('\n'));
+    else if (t === 'BLOCKQUOTE') words && blocks.push(words.split('\n').map((l) => `> ${l}`).join('\n'));
+    else if (words) blocks.push(words);
+  }
+  return blocks.join('\n\n');
+}
+
+const editorHtml = (text, label) => `
+  <div class="toolbar no-print" role="toolbar" aria-label="Formatting">
+    <button type="button" class="quiet small" data-cmd="formatBlock" data-arg="h3">Heading</button>
+    <button type="button" class="quiet small" data-cmd="formatBlock" data-arg="p">Normal text</button>
+    <button type="button" class="quiet small" data-cmd="bold"><strong>Bold</strong></button>
+    <button type="button" class="quiet small" data-cmd="insertUnorderedList">Bullets</button>
+    <button type="button" class="quiet small" data-cmd="formatBlock" data-arg="blockquote">Quote</button>
+    <span class="small muted" data-save role="status"></span>
+  </div>
+  <div class="summary-doc editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${esc(label)}">${md(text)}</div>`;
+
+function wireEditor(root, store) {
+  const editor = $('.editor', root);
+  const status = $('[data-save]', root);
+  document.execCommand('defaultParagraphSeparator', false, 'p');
+  const put = debounce(async () => {
+    try {
+      await store(htmlToText(editor));
+      status.textContent = 'Saved';
+    } catch (e) {
+      status.textContent = `Not saved: ${e.message}`;
+    }
+  });
+  editor.oninput = () => ((status.textContent = 'Saving...'), put());
+  // Paste as plain words so formatting from Word or email does not come along.
+  editor.onpaste = (e) => {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  };
+  for (const b of $$('[data-cmd]', root)) {
+    b.onmousedown = (e) => e.preventDefault();
+    b.onclick = () => {
+      document.execCommand(b.dataset.cmd, false, b.dataset.arg ? `<${b.dataset.arg}>` : null);
+      editor.focus();
+      editor.oninput();
+    };
+  }
+}
+
+// Closed reviews are a record: show why the controls are off.
+function lockPane(pane, c, what) {
+  if (!['closed', 'published'].includes(c.status)) return;
+  pane.insertAdjacentHTML('afterbegin', `<div class="banner info">This review is closed, so ${what} are locked. Reopen it in Setup to change them.</div>`);
+  for (const el of $$('input, textarea, select, button', pane)) el.disabled = true;
+  for (const el of $$('[draggable]', pane)) el.draggable = false;
+}
+
 const opt = (value, label, selected) => `<option value="${esc(value)}" ${String(value) === String(selected ?? '') ? 'selected' : ''}>${esc(label)}</option>`;
 const chip = (status) => `<span class="chip ${status}">${esc(status.replace('_', ' '))}</span>`;
 const first = (p) => (p.preferred_name || p.name).split(' ')[0];
@@ -85,7 +165,7 @@ async function home() {
   };
 }
 
-const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['progress', 'Progress'], ['letters', 'Letters']];
+const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['progress', 'Progress'], ['letters', 'Letters'], ['team', 'Team report']];
 
 async function cycle(id, tab = 'setup') {
   const d = await api(`/api/admin/cycles/${id}`);
@@ -98,7 +178,7 @@ async function cycle(id, tab = 'setup') {
     ${nextStep(d)}
     <nav class="tabs">${TABS.map(([t, label]) => `<a href="#/cycle/${id}/${t}" class="${t === tab ? 'on' : ''}">${label}</a>`).join('')}</nav>
     <div id="pane"></div>`;
-  await { setup, people: participants, questions, assignments, links, progress, letters }[tab]?.(d, $('#pane'));
+  await { setup, people: participants, questions, assignments, links, progress, letters, team }[tab]?.(d, $('#pane'));
 }
 
 // One plain sentence about where this review stands and what to do next.
@@ -122,13 +202,13 @@ function nextStep({ cycle: c, members, assignments: as, summaries, responses }) 
     text = `Answers are locked. Now write each person's letter in Letters: read their answers, write a draft, then share it. ${shared} of ${letterWord(needLetters)} shared.`;
     text += go('letters', 'Write letters');
   } else if (c.status === 'closed') {
-    text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Mark the review published in Setup, then save a copy from Data, Export.`;
-    text += go('setup', 'Mark published');
+    text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Next, write the team report: one report on the whole team, with no names. Then mark the review published in Setup and save a copy from Data, Export.`;
+    text += go('team', 'Team report');
   } else {
-    text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs, and you can save a copy any time from Data, Export.`;
+    text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs. The team report and a copy of everything (Data, Export) are there any time.`;
     text += go('letters', 'See letters');
   }
-  return `<div class="banner"><strong>Next step.</strong> ${text}</div>`;
+  return `<div class="banner no-print"><strong>Next step.</strong> ${text}</div>`;
 }
 
 async function participants({ cycle: c, staff, people }, pane) {
@@ -170,6 +250,7 @@ async function participants({ cycle: c, staff, people }, pane) {
       route();
     };
   }
+  lockPane(pane, c, 'the people in it');
   $('#addp')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const { id } = await save('/api/admin/staff', Object.fromEntries(new FormData(e.target)), 'POST');
@@ -299,6 +380,7 @@ async function questions({ cycle: c, questions: qs }, pane) {
       route();
     };
   }
+  lockPane(pane, c, 'questions');
   $('#reuse').onclick = async () => {
     if (!confirm('Replace these questions with the ones from the last cycle?')) return;
     await save(`/api/admin/cycles/${c.id}/reuse`, {}, 'POST');
@@ -343,6 +425,7 @@ async function assignments({ cycle: c, members: staff, assignments: as }, pane) 
       route();
     };
   }
+  lockPane(pane, c, 'reviewers');
   $('#auto').onclick = async () => {
     const { added } = await save(`/api/admin/cycles/${c.id}/autofill`, { target: Number($('#target').value) }, 'POST');
     toast(`Added ${added} pairs`);
@@ -437,11 +520,59 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
       .join('')}</table></div>`;
 }
 
+async function team({ cycle: c }, pane) {
+  if (!['closed', 'published'].includes(c.status)) {
+    pane.innerHTML = '<div class="banner info">The team report opens after you close the review in Setup.</div>';
+    return;
+  }
+  const { report, stats } = await api(`/api/admin/cycles/${c.id}/team`);
+  const text = report ? report.edited ?? report.draft ?? '' : '';
+  pane.innerHTML = `
+    <h2 class="print-only">Team report</h2>
+    <p class="no-print">One report on the whole team: what you do well, where you struggle, what people asked of you, and ideas for next year. It never names anyone. Edit it, print it for your board, or share it with everyone in this review.</p>
+    <p><strong>${stats.people}</strong> people took part. <strong>${stats.done} of ${stats.total}</strong> reviews finished (${stats.pct}%).</p>
+    <div class="row no-print"><button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button><span class="small muted" id="tstatus"></span></div>
+    <div id="tnotes" class="no-print"></div>
+    ${
+      report
+        ? `<div id="ted">${editorHtml(text, 'Team report')}</div>
+      ${report.shared_at ? `<div class="banner no-print">Shared ${esc(fmtDate(report.shared_at))}. Everyone in this review sees it on their home page. The app does not send messages, so you may want to let them know.</div>` : ''}
+      <p class="row no-print"><button id="tshare" class="${report.shared_at ? 'quiet' : ''}">${report.shared_at ? 'Stop sharing' : 'Share with everyone in this review'}</button>
+        <button class="secondary" id="tprint">Print or save as PDF</button></p>`
+        : ''
+    }`;
+  const notes = JSON.parse(sessionStorage.getItem('hui360_team_notes') || '[]');
+  sessionStorage.removeItem('hui360_team_notes');
+  if (notes.length) $('#tnotes').innerHTML = `<div class="banner info small">${notes.map(esc).join('<br>')}</div>`;
+  $('#tgen').onclick = async () => {
+    if (report?.edited && !confirm('Regenerating replaces the report, including your edits. Go ahead?')) return;
+    $('#tgen').disabled = true;
+    $('#tstatus').textContent = 'Reading every answer and writing the draft. This can take a minute.';
+    try {
+      const r = await api(`/api/admin/cycles/${c.id}/team/draft`, { method: 'POST', json: {} });
+      sessionStorage.setItem('hui360_team_notes', JSON.stringify(r.notes || []));
+      route();
+    } catch (e) {
+      $('#tstatus').textContent = e.message;
+      $('#tgen').disabled = false;
+    }
+  };
+  if (!report) return;
+  wireEditor($('#ted'), (edited) => api(`/api/admin/cycles/${c.id}/team`, { method: 'PUT', json: { edited } }));
+  $('#tprint').onclick = () => print();
+  $('#tshare').onclick = async () => {
+    const on = !report.shared_at;
+    if (!confirm(on ? 'Share the team report with everyone in this review?' : 'Stop sharing the team report?')) return;
+    await save(`/api/admin/cycles/${c.id}/team/share`, { shared: on }, 'POST');
+    route();
+  };
+}
+
 // ---------------- one person's workspace ----------------
 
 async function person(cycleId, staffId, tab = 'raw') {
   const base = `/api/admin/cycles/${cycleId}/people/${staffId}`;
-  const { summary, person: p } = await api(`${base}/summary`);
+  const { summary, person: p, cycle: cyc } = await api(`${base}/summary`);
   app.innerHTML = `
     <p class="small no-print"><a href="#/cycle/${cycleId}/letters">Back to letters</a></p>
     <h1 style="margin:.25rem 0">${esc(nameOf(p))}</h1>
@@ -508,8 +639,8 @@ async function person(cycleId, staffId, tab = 'raw') {
       <div id="notes"></div>
       ${
         summary
-          ? `<p class="small muted">Edits save as you type. Quotes in the draft were checked word for word against the answers.</p>
-             <textarea id="text" style="min-height:60vh;font-size:1rem">${esc(text())}</textarea>
+          ? `<p class="small muted">Edit it like any document. Your changes save as you type. Quotes in the draft were checked word for word against the answers.</p>
+             <div id="letter">${editorHtml(text(), `Letter for ${nameOf(p)}`)}</div>
              <label class="check"><input type="checkbox" id="ready" ${summary.status !== 'draft' ? 'checked' : ''} ${summary.status === 'shared' ? 'disabled' : ''}> Ready to share</label>`
           : ''
       }`;
@@ -535,8 +666,7 @@ async function person(cycleId, staffId, tab = 'raw') {
     sessionStorage.removeItem('hui360_notes');
     if (notes.length) $('#notes').innerHTML = `<div class="banner info small">${notes.map(esc).join('<br>')}</div>`;
     if (summary) {
-      const put = debounce((edited) => save(`/api/admin/summaries/${summary.id}`, { edited }));
-      $('#text').oninput = (e) => put(e.target.value);
+      wireEditor($('#letter'), (edited) => api(`/api/admin/summaries/${summary.id}`, { method: 'PUT', json: { edited } }));
       $('#ready').onchange = (e) => save(`/api/admin/summaries/${summary.id}`, { status: e.target.checked ? 'ready' : 'draft' });
     }
     return;
@@ -561,13 +691,24 @@ async function person(cycleId, staffId, tab = 'raw') {
       <h2>Preview</h2>
     </div>
     <div class="summary-doc" id="preview"></div>
-    <p class="row"><button id="share">Share with ${esc(first(p))}</button><button class="secondary" id="print">Print or save as PDF</button></p>
+    <p class="row no-print"><button id="share">Share with ${esc(first(p))}</button><button class="secondary" id="print">Print or save as PDF</button></p>
+    ${
+      summary.status === 'shared'
+        ? `<div class="card no-print"><h2 style="margin-top:0">Let ${esc(first(p))} know</h2>
+           <p>The app does not send email or texts. Copy this message and send it to ${esc(first(p))} yourself. It has a fresh link that opens their letter.</p>
+           <p><button id="tell">Copy message to ${esc(first(p))}</button></p></div>`
+        : ''
+    }
     ${summary.reflection ? `<div class="no-print"><h2>${esc(first(p))}'s reflection</h2><div class="card raw-body">${esc(summary.reflection)}</div></div>` : ''}`;
   const chosen = () => parts.filter((_, i) => $(`[data-part="${i}"]`).checked).map((x) => x.lines.join('\n')).join('\n').trim();
   const preview = () => ($('#preview').innerHTML = md(chosen()));
   for (const b of $$('[data-part]', pane)) b.onchange = preview;
   preview();
   $('#print').onclick = () => print();
+  $('#tell')?.addEventListener('click', async () => {
+    const { link } = await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} });
+    copy(`Aloha ${first(p)}, your letter from ${cyc.name} is ready. Open your link to read it, and write back if you like: ${link} Mahalo, ${config.director}`);
+  });
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');

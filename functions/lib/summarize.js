@@ -77,6 +77,7 @@ export function summaryPrompt(input, templates) {
     values: formatValues(input.values || []),
     responses: formatResponses(input.responses),
     last_year: input.lastYear || 'None.',
+    facts: input.facts || '',
   };
   return { system: renderPrompt(templates.system, vars), user: renderPrompt(templates.user, vars) };
 }
@@ -143,8 +144,16 @@ export function cleanText(md) {
     .trim();
 }
 
-export function lint(md, signers = {}) {
+// Names that must not appear, like everyone in the review for the team report.
+export function namesIn(md, names = []) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return [...new Set(names.filter((n) => n && n.length > 1 && new RegExp(`(^|[^\\p{L}ʻ])${esc(n)}($|[^\\p{L}ʻ])`, 'iu').test(md)))];
+}
+
+export function lint(md, signers = {}, forbid = []) {
   const problems = [];
+  const named = namesIn(md, forbid);
+  if (named.length) problems.push(`It names people: ${named.join(', ')}. Say "a coworker" instead.`);
   const lower = md.toLowerCase();
   const banned = BANNED.filter((w) => lower.includes(w));
   if (banned.length) problems.push(`It uses words to avoid: ${banned.join(', ')}.`);
@@ -172,7 +181,7 @@ export async function draftSummary({ input, templates, complete }) {
   ];
   const check = (md) => {
     const bad = verifyQuotes(md, sources);
-    const problems = lint(md, input.signers);
+    const problems = lint(md, input.signers, input.forbid);
     if (bad.length) problems.unshift(`These quotes are not word for word from any response: ${bad.map((q) => `"${q}"`).join('; ')}.`);
     return { bad, problems };
   };
@@ -190,7 +199,7 @@ export async function draftSummary({ input, templates, complete }) {
     md = dropQuotes(md, result.bad);
     notes.push(`Removed ${result.bad.length} quote${result.bad.length > 1 ? 's' : ''} that did not match any response word for word.`);
   }
-  notes.push(...lint(md, input.signers).filter((p) => !p.startsWith('It uses signer')));
+  notes.push(...lint(md, input.signers, input.forbid).filter((p) => !p.startsWith('It uses signer')));
   return { markdown: restoreSigners(md, input.signers || {}), notes };
 }
 

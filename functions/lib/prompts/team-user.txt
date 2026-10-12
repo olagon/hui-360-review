@@ -1,0 +1,13 @@
+Organization: {{hui_name}}
+Review cycle: {{cycle}}
+{{facts}}
+
+<values>
+{{values}}
+</values>
+
+<answers>
+{{responses}}
+</answers>
+
+Write the team report for {{hui_name}}.

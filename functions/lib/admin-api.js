@@ -6,6 +6,8 @@ import { draftSummary, stripIdentity, section } from './summarize.js';
 import systemPrompt from './prompts/summary-system.txt';
 import userPrompt from './prompts/summary-user.txt';
 import fixPrompt from './prompts/summary-fix.txt';
+import teamSystem from './prompts/team-system.txt';
+import teamUser from './prompts/team-user.txt';
 
 // Seed questions, used when a cycle has no earlier cycle to copy from.
 // prompt_haw is left empty on purpose: a fluent speaker should write those.
@@ -271,6 +273,7 @@ async function purgeCycle(env, id) {
       'UPDATE goals SET cycle_id = NULL WHERE cycle_id = ?',
       'DELETE FROM questions WHERE cycle_id = ?',
       'DELETE FROM cycle_people WHERE cycle_id = ?',
+      'DELETE FROM team_reports WHERE cycle_id = ?',
       'DELETE FROM cycles WHERE id = ?',
     ].map((sql) => env.DB.prepare(sql).bind(id)),
   );
@@ -298,7 +301,16 @@ async function deletePrefix(env, prefix) {
 
 // ---------- questions ----------
 
+// Closed and published reviews are a record. Reopen in Setup to change them.
+async function editable(env, cycleId) {
+  const c = await getCycle(env, cycleId);
+  if (c.status === 'closed' || c.status === 'published') throw new HttpError(409, 'This review is closed, so it is locked. Reopen it in Setup to make changes.');
+  return c;
+}
+const questionCycle = async (env, qid) => (await one(env, 'SELECT cycle_id FROM questions WHERE id = ?', Number(qid)))?.cycle_id;
+
 export async function createQuestion({ env, request, params }) {
+  await editable(env, params.id);
   const b = pick(await body(request), QUESTION_FIELDS);
   const max = await one(env, 'SELECT COALESCE(MAX(ord), 0) AS m FROM questions WHERE cycle_id = ?', Number(params.id));
   const id = await insert(env, 'questions', { cycle_id: Number(params.id), ord: max.m + 1, audience: 'peer', prompt_en: 'New question', ...b });
@@ -306,11 +318,13 @@ export async function createQuestion({ env, request, params }) {
 }
 
 export async function updateQuestion({ env, request, params }) {
+  await editable(env, await questionCycle(env, params.id));
   await update(env, 'questions', params.id, pick(await body(request), QUESTION_FIELDS));
   return json({ ok: true });
 }
 
 export async function deleteQuestion({ env, params }) {
+  await editable(env, await questionCycle(env, params.id));
   const used = await one(env, 'SELECT COUNT(*) AS n FROM responses WHERE question_id = ?', Number(params.id));
   if (used.n) throw new HttpError(409, 'People have already answered this question, so it cannot be deleted');
   await env.DB.prepare('DELETE FROM questions WHERE id = ?').bind(Number(params.id)).run();
@@ -318,13 +332,14 @@ export async function deleteQuestion({ env, params }) {
 }
 
 export async function orderQuestions({ env, request, params }) {
+  await editable(env, params.id);
   const { ids } = await body(request);
   await env.DB.batch(ids.map((qid, i) => env.DB.prepare('UPDATE questions SET ord = ? WHERE id = ? AND cycle_id = ?').bind(i, Number(qid), Number(params.id))));
   return json({ ok: true });
 }
 
 export async function reuseQuestions({ env, params }) {
-  const cycle = await getCycle(env, params.id);
+  const cycle = await editable(env, params.id);
   const used = await one(env, 'SELECT COUNT(*) AS n FROM responses WHERE cycle_id = ?', cycle.id);
   if (used.n) throw new HttpError(409, 'This cycle already has answers, so its questions cannot be replaced');
   await env.DB.prepare('DELETE FROM questions WHERE cycle_id = ?').bind(cycle.id).run();
@@ -334,7 +349,7 @@ export async function reuseQuestions({ env, params }) {
 // ---------- who is in a review ----------
 
 export async function setParticipant({ env, request, params }) {
-  const cycle = await getCycle(env, params.id);
+  const cycle = await editable(env, params.id);
   const { staff_id, on } = await body(request);
   const sid = Number(staff_id);
   if (on) {
@@ -362,7 +377,7 @@ export async function setParticipant({ env, request, params }) {
 // ---------- assignments ----------
 
 export async function toggleAssignment({ env, request, params }) {
-  const cycleId = Number(params.id);
+  const cycleId = (await editable(env, params.id)).id;
   const { reviewer_id, reviewee_id, on, kind = 'peer' } = await body(request);
   if (reviewer_id === reviewee_id) throw new HttpError(400, 'Self reflections are added automatically');
   if (on) {
@@ -377,7 +392,7 @@ export async function toggleAssignment({ env, request, params }) {
 }
 
 export async function autofill({ env, request, params }) {
-  const cycleId = Number(params.id);
+  const cycleId = (await editable(env, params.id)).id;
   const { target = 2 } = await body(request);
   const staffIds = (await all(env, 'SELECT staff_id FROM cycle_people WHERE cycle_id = ?', cycleId)).map((s) => s.staff_id);
   const existing = (await all(env, "SELECT reviewer_id, reviewee_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", cycleId)).map((a) => ({
@@ -451,7 +466,8 @@ export async function getSummary({ env, params }) {
     Number(params.staff),
   );
   const person = await one(env, 'SELECT id, name, preferred_name, lang FROM staff WHERE id = ?', Number(params.staff));
-  return json({ summary: s, person });
+  const cycle = await one(env, 'SELECT id, name, status FROM cycles WHERE id = ?', Number(params.id));
+  return json({ summary: s, person, cycle });
 }
 
 export async function draft({ env, params, admin }) {
@@ -540,6 +556,81 @@ export async function deleteLogo({ env, admin }) {
   return json({ ok: true });
 }
 
+// ---------- team report: the whole review, no names ----------
+
+async function participation(env, cycleId) {
+  const people = await one(env, 'SELECT COUNT(*) AS n FROM cycle_people WHERE cycle_id = ?', cycleId);
+  const a = await one(env, "SELECT COUNT(*) AS total, SUM(status = 'done') AS done FROM assignments WHERE cycle_id = ?", cycleId);
+  const pct = a.total ? Math.round((100 * (a.done || 0)) / a.total) : 0;
+  return { people: people.n, done: a.done || 0, total: a.total, pct };
+}
+
+export async function getTeam({ env, params }) {
+  const cycle = await getCycle(env, params.id);
+  return json({
+    report: await one(env, 'SELECT * FROM team_reports WHERE cycle_id = ?', cycle.id),
+    stats: await participation(env, cycle.id),
+  });
+}
+
+export async function draftTeam({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  if (!['closed', 'published'].includes(cycle.status)) throw new HttpError(409, 'The team report opens after the review closes');
+  const rows = await all(
+    env,
+    `SELECT q.prompt_en AS prompt, r.kind AS audience, r.body, NULL AS signed_name, l.assignment_hash AS reviewer_key
+     FROM responses r JOIN questions q ON q.id = r.question_id LEFT JOIN response_link l ON l.response_id = r.id
+     WHERE r.cycle_id = ? ORDER BY q.audience, q.ord`,
+    cycle.id,
+  );
+  if (!rows.length) throw new HttpError(409, 'There are no answers in this review yet');
+  const { responses } = stripIdentity(rows);
+  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ?', cycle.id))
+    .flatMap((s) => [s.name, s.preferred_name, s.name.split(' ')[0]])
+    .filter(Boolean);
+  const values = await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0);
+  const n = await settings(env);
+  const st = await participation(env, cycle.id);
+  const { markdown, notes } = await draftSummary({
+    input: {
+      name: n.hui_name || 'the Hui',
+      cycle: cycle.name,
+      huiName: n.hui_name,
+      director: n.director_name,
+      values,
+      responses,
+      signers: {},
+      forbid: names,
+      facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished.`,
+    },
+    templates: { system: teamSystem, user: teamUser, fix: fixPrompt },
+    complete: completer(env),
+  });
+  await env.DB.prepare(
+    `INSERT INTO team_reports (cycle_id, draft) VALUES (?, ?)
+     ON CONFLICT (cycle_id) DO UPDATE SET draft = excluded.draft, edited = NULL`,
+  ).bind(cycle.id, markdown).run();
+  await audit(env, admin, 'draft_team', `cycle:${cycle.id}`);
+  return json({ draft: markdown, notes });
+}
+
+export async function saveTeam({ env, request, params }) {
+  const cycle = await getCycle(env, params.id);
+  const { edited } = await body(request);
+  await env.DB.prepare(
+    'INSERT INTO team_reports (cycle_id, edited) VALUES (?, ?) ON CONFLICT (cycle_id) DO UPDATE SET edited = excluded.edited',
+  ).bind(cycle.id, String(edited ?? '')).run();
+  return json({ ok: true });
+}
+
+export async function shareTeam({ env, request, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const { shared } = await body(request);
+  await env.DB.prepare(`UPDATE team_reports SET shared_at = ${shared ? "datetime('now')" : 'NULL'} WHERE cycle_id = ?`).bind(cycle.id).run();
+  await audit(env, admin, shared ? 'share_team' : 'unshare_team', `cycle:${cycle.id}`);
+  return json({ ok: true });
+}
+
 // ---------- files, export, audit ----------
 
 export async function file({ env, url, admin }) {
@@ -559,7 +650,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'cycle_people', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
+  'cycle_people', 'team_reports', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
@@ -731,6 +822,43 @@ Two coworkers said the same thing in different words: you carry too much by your
     summary_id: sumId,
     body: `Mahalo, ${director}. This landed. I want to get better at saying no and asking for help before I am tired. I would love to talk about the education program.`,
   });
+  const hui = names.hui_name || 'the Hui';
+  const report = `This year the team grew in patience and in care for each other. What people thanked each other for most was simply showing up: early mornings, late workdays, and time spent teaching.
+
+## What we do well
+
+**We show up when it counts.** Most reviews named a moment someone came early or stayed late, like the morning the water line broke after the storm.
+
+**We teach with patience.** Several people wrote about coworkers who make new volunteers and keiki feel welcome. "You never make anyone feel slow."
+
+**We listen before we plan.** Asking the kūpuna first came up in more than one review.
+
+## Our values in practice
+
+### ${v1}
+
+People named patience and teaching as the gifts they see most in each other.
+
+### ${v2}
+
+Care for one another showed up in small, daily ways, from coffee before sunrise to staying until dark.
+
+## Where we struggle
+
+**Too much on too few.** The most common concern was saying yes to everything and running out of energy by the end of the season.
+
+**Asking for help.** Several reviews said coworkers carry a lot alone and do not ask for help.
+
+## What people asked of ${hui}
+
+More help with grant reports, and a plan for the season before it starts.
+
+## Ideas for next year
+
+- Plan the season together in January, so no one is always catching up.
+- Pair up on grant reports so the writing does not fall on one person.
+- Make it normal to say no: name one thing each person can hand off.`;
+  await env.DB.prepare("INSERT INTO team_reports (cycle_id, draft, edited, shared_at) VALUES (?, ?, ?, datetime('now'))").bind(cid, report, report).run();
   await audit(env, admin, 'sample_load', `cycle:${cid}`);
   return json({ id: cid, person: kainoa });
 }

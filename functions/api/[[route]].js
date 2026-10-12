@@ -3,11 +3,12 @@ import { requireStaff, verifyAccess } from '../lib/auth.js';
 import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 
-const PUBLIC = new Set(['/api/config', '/api/logo']);
+const PUBLIC = new Set(['/api/config', '/api/logo', '/api/logout']);
 
 const routes = [
   ['GET', '/api/config', s.config],
   ['GET', '/api/logo', s.logo],
+  ['POST', '/api/logout', s.logout],
   ['GET', '/api/me', s.me],
   ['PUT', '/api/me/lang', s.setLang],
   ['GET', '/api/assignments/:id', s.assignment],
@@ -43,6 +44,10 @@ const routes = [
   ['PUT', '/api/admin/cycles/:id/assignments', a.toggleAssignment],
   ['POST', '/api/admin/cycles/:id/autofill', a.autofill],
   ['PUT', '/api/admin/cycles/:id/people', a.setParticipant],
+  ['GET', '/api/admin/cycles/:id/team', a.getTeam],
+  ['POST', '/api/admin/cycles/:id/team/draft', a.draftTeam],
+  ['PUT', '/api/admin/cycles/:id/team', a.saveTeam],
+  ['POST', '/api/admin/cycles/:id/team/share', a.shareTeam],
   ['GET', '/api/admin/cycles/:id/links', a.links],
   ['POST', '/api/admin/cycles/:id/links/:staff', a.newLink],
   ['GET', '/api/admin/cycles/:id/people/:staff/raw', a.raw],

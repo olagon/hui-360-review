@@ -167,3 +167,9 @@ blockquote { border-left: 2px solid var(--kalo); margin: 1rem 0; padding: 0.25re
 }
 .org-logo { display: block; width: 132px; height: 132px; object-fit: contain; margin: 1.5rem auto 0.25rem; }
 .card .org-logo { width: 72px; height: 72px; margin: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; position: sticky; top: 0; z-index: 2; background: var(--bg); padding: .5rem 0; }
+.editor { min-height: 55vh; outline: none; line-height: 1.65; }
+.editor:focus { border-color: var(--ocean); box-shadow: 0 0 0 3px var(--ocean-soft); }
+.editor blockquote { color: var(--ink); }
+.print-only { display: none; }
+@media print { .print-only { display: block; } }

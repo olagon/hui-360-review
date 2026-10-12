@@ -19,7 +19,7 @@ if (me && !localStorage.getItem('hui360_lang') && me.staff.lang !== getLang()) {
   setLang(me.staff.lang);
   await initI18n();
 }
-shell({ onLang: me ? (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) : null });
+shell({ signedIn: !!me, onLang: me ? (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) : null });
 
 if (me) {
   // Answers saved on the phone may reach the server after this page loads. Redraw when they do.
@@ -71,7 +71,7 @@ function card(a) {
   </div>`;
 }
 
-function dashboard({ staff, cycle, assignments, summaries }) {
+function dashboard({ staff, cycle, assignments, summaries, team }) {
   let html = `${orgLogo()}<h1>${esc(t('dash.hello', { name: staff.name }))}</h1>`;
   if (!navigator.onLine) html += `<div class="banner info">${esc(t('dash.offline'))}</div>`;
   if (!cycle) {
@@ -82,6 +82,13 @@ function dashboard({ staff, cycle, assignments, summaries }) {
     if (quick) html += `<p><a class="button secondary" href="/review/?a=${quick.id}&quick=1">${esc(t('dash.quick'))}</a></p>`;
     html += assignments.map(card).join('');
   }
-  if (summaries) html += `<p><a href="/me/">${esc(t('dash.summaries'))}</a></p>`;
+  if (team) {
+    html = html.replace('</h1>', `</h1><div class="card"><h2 style="margin-top:0">${esc(t('dash.teamTitle'))}</h2>
+      <p>${esc(t('dash.teamBody'))}</p><p style="margin-bottom:0"><a class="button secondary" href="/me/#team">${esc(t('dash.teamButton'))}</a></p></div>`);
+  }
+  if (summaries) {
+    html = html.replace('</h1>', `</h1><div class="card" style="border-color:var(--kalo)"><h2 style="margin-top:0">${esc(t('dash.letterTitle'))}</h2>
+      <p>${esc(t('dash.letterBody'))}</p><p style="margin-bottom:0"><a class="button" href="/me/">${esc(t('dash.letterButton'))}</a></p></div>`);
+  }
   app.innerHTML = html;
 }

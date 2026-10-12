@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  verifyQuotes, dropQuotes, draftSummary, stripIdentity, summaryPrompt, cleanText, lint, restoreSigners, section, detectLanguage,
+  verifyQuotes, dropQuotes, draftSummary, stripIdentity, summaryPrompt, cleanText, lint, restoreSigners, section, detectLanguage, namesIn,
 } from '../functions/lib/summarize.js';
 
 const templates = Object.fromEntries(
@@ -104,4 +104,23 @@ test('section pulls one heading out of a summary', () => {
 test('detectLanguage', () => {
   assert.equal(detectLanguage('He aloha nō au i ka ʻāina a me koʻu mau hoa hana.'), 'haw');
   assert.equal(detectLanguage('She always helps with the planting and keeps everyone laughing.'), 'en');
+});
+
+test('namesIn finds names, including Hawaiian ones, but not inside other words', () => {
+  const md = 'A coworker said Pōmaikaʻi leads the oli. Kai said hi. Kainoa was there.';
+  assert.deepEqual(namesIn(md, ['Pōmaikaʻi', 'Kai', 'Lei', 'Kainoa']).sort(), ['Kai', 'Kainoa', 'Pōmaikaʻi']);
+  assert.deepEqual(namesIn('The leis were lovely.', ['Lei']), []);
+});
+
+test('team drafts retry when they name someone, and flag names that remain', async () => {
+  const replies = ['Kainoa keeps everyone steady.', 'A coworker keeps everyone steady.'];
+  let calls = 0;
+  const { markdown, notes } = await draftSummary({
+    input: { ...input(), forbid: ['Kainoa'] },
+    templates,
+    complete: async () => replies[calls++],
+  });
+  assert.equal(calls, 2);
+  assert.equal(markdown, 'A coworker keeps everyone steady.');
+  assert.deepEqual(notes, []);
 });

@@ -134,12 +134,26 @@ export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config
 export const mark = (size = 22) => `<img class="mark" src="/favicon.svg" width="${size}" height="${size}" alt="">`;
 
 // Header with the language switch, and the footer every page carries.
-export function shell({ nav = '', langSwitch = true, onLang } = {}) {
+// Staff sign out: send anything waiting, then clear this phone so the next person sees nothing.
+export async function signOut() {
+  const { flush, pending } = await import('./idb.js');
+  await flush();
+  if ((await pending()) && !confirm(t('signout.unsent'))) return;
+  await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  try {
+    for (const k of await caches.keys()) await caches.delete(k);
+    for (const k of Object.keys(localStorage)) if (k.startsWith('hui360_draft:')) localStorage.removeItem(k);
+    indexedDB.deleteDatabase('hui360');
+  } catch {}
+  location.href = '/';
+}
+
+export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } = {}) {
   const lang = getLang();
   const header = document.createElement('header');
   header.className = 'top';
   header.innerHTML = `<a class="brand" href="/">${mark()} <span>${esc(APP_NAME)}</span></a>
-    <nav>${nav}${
+    <nav>${nav}${signedIn ? `<a href="#" id="signout">${esc(t('signout'))}</a>` : ''}${
       langSwitch
         ? `<select id="lang" aria-label="${esc(t('lang.label'))}" style="width:auto;min-height:36px;padding:.25rem .5rem;font-size:.95rem">
         ${['en', 'haw', 'both'].map((l) => `<option value="${l}" ${l === lang ? 'selected' : ''}>${esc(t(`lang.${l}`))}</option>`).join('')}
@@ -154,6 +168,10 @@ export function shell({ nav = '', langSwitch = true, onLang } = {}) {
     <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin'))}</div>
     <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>`;
   document.body.append(footer);
+  $('#signout', header)?.addEventListener('click', (e) => {
+    e.preventDefault();
+    signOut();
+  });
   $('#lang', header)?.addEventListener('change', async (e) => {
     setLang(e.target.value);
     await onLang?.(e.target.value);

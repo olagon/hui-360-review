@@ -3,7 +3,7 @@ import { get, all, saveDraft, queueAudio, on, startSync, recovered, flush } from
 
 registerSW();
 await initI18n();
-shell({ onLang: (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) });
+shell({ signedIn: true, onLang: (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) });
 startSync((n) => t('sync.pending', { n }));
 
 const app = $('#app');
