@@ -4,7 +4,7 @@
 
 [![Hui 360 in about a minute: open source, free, inspired by huiMAU](docs/hui-360-overview.gif)](docs/hui-360-overview.mp4)
 
-*Hui 360 in about a minute. Click for the [full quality video](docs/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`.*
+*Hui 360 in about a minute. Click for the [full quality video](docs/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`. For directors, a 90 second walkthrough of running a review start to finish: [video](docs/hui-360-admin-walkthrough.mp4), or `/tour/admin/` in the app.*
 
 **An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets an AI drafted letter for each person, written from exact quotes and measured against the organization's own values.
 

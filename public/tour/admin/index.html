@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbfaf7">
+  <title>Running a review</title>
+  <link rel="preload" href="/assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    /* One 1280x720 stage, scaled to fit. Every motion is a CSS animation on one shared
+       timeline (--s is the scene start), so the same page plays live and renders to video. */
+    .wrap { width: 100%; max-width: 1280px; margin: 0 auto; }
+    .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fbfaf7; }
+    .stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; font-size: 28px; color: var(--ink); }
+    .scene { position: absolute; inset: 0; padding: 72px 96px; display: flex; flex-direction: column; justify-content: center; animation: scene var(--d) linear var(--s) both; }
+    .scene.last { animation-name: scene-last; }
+    .scene::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 10px; opacity: .28;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 0h20L10 10z' fill='%233d6b4f'/%3E%3C/svg%3E") repeat-x; }
+    @keyframes scene { 0% { opacity: 0 } 5% { opacity: 1 } 95% { opacity: 1 } 100% { opacity: 0 } }
+    @keyframes scene-last { 0% { opacity: 0 } 6% { opacity: 1 } 100% { opacity: 1 } }
+    .in { animation: up .8s cubic-bezier(.2, .8, .2, 1) calc(var(--s) + var(--t, 0s)) both; }
+    @keyframes up { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
+    .pop { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1) calc(var(--s) + var(--t, 0s)) both; }
+    @keyframes pop { from { opacity: 0; transform: scale(.4) } to { opacity: 1; transform: none } }
+    .type { display: inline-block; white-space: nowrap; animation: type var(--dur, 1.6s) steps(36) calc(var(--s) + var(--t, 0s)) both; }
+    @keyframes type { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+    .strike { position: relative; }
+    .strike::after { content: ''; position: absolute; left: 0; top: 52%; height: 3px; background: var(--warn); width: 100%; transform-origin: 0 50%; animation: strike .5s ease calc(var(--s) + var(--t, 0s)) both; }
+    @keyframes strike { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+    .swap-a { animation: out .4s ease calc(var(--s) + var(--t)) both; }
+    .swap-b { animation: up .6s ease calc(var(--s) + var(--t)) both; }
+    @keyframes out { from { opacity: 1 } to { opacity: 0 } }
+    .tint { animation: tint .6s ease calc(var(--s) + var(--t)) both; }
+    @keyframes tint { from { background: var(--warn-soft); color: var(--warn) } to { background: var(--kalo-soft); color: var(--kalo) } }
+    .glow { animation: glow 1s ease calc(var(--s) + var(--t)) both; }
+    @keyframes glow { from { background-size: 0% 100% } to { background-size: 100% 100% } }
+    .spin { animation: spin 40s linear 0s infinite; transform-origin: 50% 50%; }
+    @keyframes spin { to { transform: rotate(360deg) } }
+
+    .stage h1 { font-size: 76px; margin: 0; letter-spacing: -.03em; }
+    .stage h2 { font-size: 54px; margin: 0 0 20px; letter-spacing: -.025em; line-height: 1.12; }
+    .stage p { margin: 0; }
+    .lead { font-size: 32px; color: var(--muted); line-height: 1.4; }
+    .kicker { font-size: 22px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--kalo); margin-bottom: 18px; }
+    .row2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 64px; align-items: center; height: 100%; }
+    .bul { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 18px; font-size: 30px; }
+    .bul li { display: flex; gap: 16px; align-items: center; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--kalo); flex: none; }
+    .pill { display: inline-block; padding: 10px 26px; border-radius: 999px; border: 2px solid var(--kalo); color: var(--kalo); font-weight: 600; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 28px 32px; box-shadow: 0 10px 40px rgba(29, 42, 47, .07); }
+    .phone { width: 330px; height: 600px; margin: 0 auto; border-radius: 46px; border: 10px solid #1d2a2f; background: #fbfaf7; padding: 34px 22px; font-size: 19px; display: flex; flex-direction: column; gap: 12px; }
+    .phone .q { font-weight: 600; font-size: 22px; line-height: 1.3; }
+    .phone .box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; height: 210px; line-height: 1.45; }
+    .phone .btn { align-self: flex-start; border: 1px solid var(--kalo); color: var(--kalo); border-radius: 10px; padding: 8px 16px; }
+    .phone .bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    .phone .bar span { display: block; height: 100%; width: 40%; background: var(--kalo); }
+    .grid { display: grid; grid-template-columns: 170px repeat(4, 64px); gap: 10px; font-size: 20px; align-items: center; }
+    .cell { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--line); background: #fff; display: grid; place-items: center; }
+    .cell.on { background: var(--kalo); border-color: var(--kalo); }
+    .chip { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 18px; font-weight: 600; }
+    .q-hi { background: linear-gradient(var(--kalo-soft), var(--kalo-soft)) no-repeat 0 0 / 0% 100%; border-radius: 4px; }
+    .check { display: inline-flex; gap: 8px; align-items: center; font-size: 18px; color: var(--kalo); font-weight: 600; }
+    .cost { display: grid; grid-template-columns: 1fr auto; gap: 18px 40px; font-size: 32px; margin-top: 16px; align-items: baseline; }
+    .cost b { font-size: 40px; color: var(--kalo); text-align: right; }
+    .total { margin-top: 30px; padding-top: 22px; border-top: 2px solid var(--line); font-size: 36px; font-weight: 600; }
+    .steps { counter-reset: s; list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 16px; font-size: 30px; }
+    .steps li { counter-increment: s; display: flex; gap: 20px; align-items: center; }
+    .steps li::before { content: counter(s); width: 46px; height: 46px; border-radius: 50%; background: var(--kalo-soft); color: var(--kalo); font-weight: 700; display: grid; place-items: center; flex: none; }
+    .langs { display: flex; gap: 28px; justify-content: center; margin-top: 40px; font-size: 40px; }
+    .center { text-align: center; align-items: center; }
+    .controls { display: flex; gap: .75rem; align-items: center; margin: .75rem 0; }
+    .progress-line { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+    .progress-line span { display: block; height: 100%; width: 100%; background: var(--kalo); transform-origin: 0 50%; animation: grow 87s linear 0s both; }
+    @keyframes grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+    body.record header.top, body.record footer.foot, body.record .controls, body.record .after { display: none !important; }
+    body.record main { padding: 0; max-width: none; }
+    body.record .frame { border: 0; border-radius: 0; }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+    .trow { display: flex; gap: 18px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
+    .trow:first-child { border-top: 0; }
+    .trow.t3 { display: grid; grid-template-columns: 1.4fr .8fr 1.1fr; }
+    .trow.head { color: var(--muted); font-size: 17px; font-weight: 600; }
+    .trow span:first-child { flex: 1; }
+    .tabs-demo { display: flex; gap: 10px; font-size: 19px; }
+    .tabs-demo span { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+    .tabs-demo .tab-on { animation: tabon .5s ease calc(var(--s) + var(--t)) both; }
+    @keyframes tabon { from { background: #fff; color: var(--muted) } to { background: var(--kalo-soft); color: var(--kalo); border-color: var(--kalo) } }
+    .bubble { align-self: flex-end; max-width: 86%; background: var(--ocean); color: #fff; padding: 12px 16px; border-radius: 18px 18px 4px 18px; font-size: 17px; line-height: 1.4; }
+    .bubble.them { align-self: flex-start; background: #e9e6df; color: var(--ink); border-radius: 18px 18px 18px 4px; }
+    .small-pill { font-size: 16px; padding: 4px 14px; }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 30px; }
+    .flow .card { padding: 22px; font-size: 20px; line-height: 1.4; }
+    .flow b { font-size: 26px; color: var(--kalo); }
+    .flow p { margin-top: 8px; color: var(--muted); }
+    .mini { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; font-size: 17px; }
+  </style>
+</head>
+<body class="wide">
+  <main>
+    <div class="wrap">
+      <div class="frame" id="frame" role="img" aria-label="An animated walkthrough of running a review in Hui 360, start to finish. The full text is below.">
+        <div class="stage" id="stage" aria-hidden="true">
+
+          <section class="scene center" style="--s:0s; --d:5s">
+            <img class="pop" style="--t:.1s" src="/favicon.svg" width="130" height="130" alt="">
+            <div class="kicker in" style="--t:.6s; margin-top:30px">For the director</div>
+            <h1 class="in" style="--t:.8s; font-size:68px">A review, start to finish</h1>
+            <p class="lead in" style="--t:1.5s; margin-top:16px">Everything you do in Hui 360, in order.</p>
+          </section>
+
+          <section class="scene" style="--s:5s; --d:7s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">Once, before your first review</div>
+                <h2 class="in" style="--t:.3s">Add your people. Set your values.</h2>
+                <ul class="bul">
+                  <li class="in" style="--t:1.2s"><span class="dot"></span>Staff, interns, volunteers, board</li>
+                  <li class="in" style="--t:1.8s"><span class="dot"></span>Your values, in your words</li>
+                  <li class="in" style="--t:2.4s"><span class="dot"></span>Kuleana: who does what, who works with whom</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:.6s; font-size:22px">
+                <div class="trow t3 head"><span>Name</span><span>Group</span><span>Role</span></div>
+                <div class="trow t3 in" style="--t:1.2s"><span>Kainoa Akana</span><span>Staff</span><span>Staff</span></div>
+                <div class="trow t3 in" style="--t:1.5s"><span>Lei Kahale</span><span>Staff</span><span>Team lead</span></div>
+                <div class="trow t3 in" style="--t:1.8s"><span>Keoni Mahi</span><span>Intern</span><span>Staff</span></div>
+                <div class="trow t3 in" style="--t:2.1s"><span>Pua Kai</span><span>Board</span><span>Staff</span></div>
+                <div class="trow t3 in" style="--t:2.4s"><span>Malia Peralta</span><span>Staff</span><span>Director</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:12s; --d:9s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">1 · Set up</div>
+                <h2 class="in" style="--t:.3s">Set up a review, tab by tab.</h2>
+                <ul class="bul">
+                  <li class="in" style="--t:1.6s"><span class="dot"></span>People: who takes part</li>
+                  <li class="in" style="--t:2.4s"><span class="dot"></span>Questions: mahalo first, stories over ratings</li>
+                  <li class="in" style="--t:3.2s"><span class="dot"></span>Reviewers: press Auto fill, change anything</li>
+                  <li class="in" style="--t:4s"><span class="dot"></span>Optional: review the director, ask a partner</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:.6s">
+                <div class="tabs-demo">
+                  <span class="tab-on" style="--t:1.6s">People</span><span class="tab-on" style="--t:2.4s">Questions</span><span class="tab-on" style="--t:3.2s">Reviewers</span><span>Links</span>
+                </div>
+                <div class="grid" style="margin-top:22px">
+                  <span></span><span style="font-size:16px;color:var(--muted)">Lei</span><span style="font-size:16px;color:var(--muted)">Keoni</span><span style="font-size:16px;color:var(--muted)">Pua</span><span style="font-size:16px;color:var(--muted)">Kai</span>
+                  <span>Kainoa</span><span class="cell on pop" style="--t:3.4s"></span><span class="cell on pop" style="--t:3.6s"></span><span class="cell"></span><span class="cell"></span>
+                  <span>Lei</span><span class="cell"></span><span class="cell on pop" style="--t:3.8s"></span><span class="cell"></span><span class="cell on pop" style="--t:4s"></span>
+                  <span>Keoni</span><span class="cell"></span><span class="cell"></span><span class="cell on pop" style="--t:4.2s"></span><span class="cell on pop" style="--t:4.4s"></span>
+                </div>
+                <p class="in" style="--t:5s; margin-top:22px; font-size:20px; color:var(--kalo); font-weight:600">Everyone has 2 reviewers. Open the review.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:21s; --d:8s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">2 · Send links</div>
+                <h2 class="in" style="--t:.3s">Copy each message. Send it from your phone.</h2>
+                <p class="lead in" style="--t:1.4s; margin-top:10px">The app does not send texts or email unless you set that up. Each link is personal, so never forward one person's link to someone else.</p>
+              </div>
+              <div class="phone in" style="--t:.6s; justify-content:flex-end">
+                <div style="font-size:15px; color:var(--muted); text-align:center; margin-bottom:auto">Messages · Kainoa</div>
+                <div class="bubble pop" style="--t:2.2s">Aloha Kainoa, here is your link for Hoʻoilo 2026: your-hui.org/m/k7Qp… It is open until Friday, November 20. Mahalo!</div>
+                <div class="bubble them pop" style="--t:3.6s">Got it, mahalo!</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:29s; --d:8s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">3 · While it is open</div>
+                <h2 class="in" style="--t:.3s">Watch progress. Nudge gently.</h2>
+                <ul class="bul">
+                  <li class="in" style="--t:1.2s"><span class="dot"></span>Status only, never what anyone wrote</li>
+                  <li class="in" style="--t:1.8s"><span class="dot"></span>Today's nudges, one tap each</li>
+                  <li class="in" style="--t:2.4s"><span class="dot"></span>Early signals: counts, never names</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:.6s; font-size:22px">
+                <div class="trow"><span>Kainoa</span><span class="chip tint" style="--t:1.6s">done</span></div>
+                <div class="trow"><span>Lei</span><span class="chip tint" style="--t:2.4s">done</span></div>
+                <div class="trow"><span>Keoni</span><span class="chip" style="background:var(--warn-soft);color:var(--warn)">in progress</span><span class="pill small-pill pop" style="--t:3.2s">Nudge</span></div>
+                <div class="in" style="--t:4s; margin-top:22px; font-size:18px; color:var(--muted)">Early signals</div>
+                <div class="trow in" style="--t:4.2s; font-size:20px"><span>Burnout or exhaustion</span><b>4</b></div>
+                <div class="trow in" style="--t:4.4s; font-size:20px"><span>Unclear roles</span><b>1</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene center" style="--s:37s; --d:5s">
+            <div class="kicker in" style="--t:.1s">4 · Close it</div>
+            <h2 class="in" style="--t:.3s">Answers lock. The Letters tab opens.</h2>
+            <svg class="pop" style="--t:1.2s; margin-top:20px" width="110" height="110" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="var(--kalo)"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="var(--kalo)" stroke-width="2.2" fill="none"/></svg>
+            <p class="lead in" style="--t:2s; margin-top:20px">Only now can you read answers, shuffled, with no names.<br>Every read is logged.</p>
+          </section>
+
+          <section class="scene" style="--s:42s; --d:10s">
+            <div class="kicker in" style="--t:.1s">5 · Write each letter</div>
+            <h2 class="in" style="--t:.3s">Read. Draft. Make it yours. Share.</h2>
+            <div class="flow">
+              <div class="card in" style="--t:1.2s"><b>Raw</b><p>Every answer about Kainoa, shuffled. A quiet note marks a reviewer who runs generous.</p></div>
+              <div class="card in" style="--t:2.4s"><b>Draft</b><p>AI compiles a draft that summarizes what was sent. Every quote checked word for word.</p></div>
+              <div class="card in" style="--t:3.6s"><b>Your version</b><p>Edit it like any document. Highlight a line in Raw to add it as a quote.</p></div>
+              <div class="card in" style="--t:4.8s"><b>Share</b><p>Choose which parts Kainoa sees. Print or save a PDF.</p></div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:52s; --d:9s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">6 · Let them know</div>
+                <h2 class="in" style="--t:.3s">How Kainoa gets his letter</h2>
+                <ol class="steps">
+                  <li class="in" style="--t:1.2s">In Share, press Copy message to Kainoa</li>
+                  <li class="in" style="--t:2s">Text or email it to him yourself</li>
+                  <li class="in" style="--t:2.8s">He opens it and reads his letter</li>
+                  <li class="in" style="--t:3.6s">He can write a reflection back to you</li>
+                </ol>
+              </div>
+              <div class="phone in" style="--t:.6s">
+                <div style="font-size:15px; color:var(--muted)">Hui 360</div>
+                <div style="font-weight:700; font-size:24px">Aloha, Kainoa</div>
+                <div class="mini pop" style="--t:3s; border-color:var(--kalo)"><b>Your letter is ready</b><br>Read what your coworkers shared.<div class="btn" style="margin-top:10px; background:var(--kalo); color:#fff">Read my letter</div></div>
+                <div class="mini in" style="--t:4.4s">My reflection<div class="box" style="height:90px; margin-top:8px"><span class="type" style="--t:5s; --dur:1.4s">Mahalo for this. I want to</span></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:61s; --d:8s">
+            <div class="row2">
+              <div>
+                <div class="kicker in" style="--t:.1s">7 · Talk story</div>
+                <h2 class="in" style="--t:.3s">Sit down with each person.</h2>
+                <ul class="bul">
+                  <li class="in" style="--t:1.2s"><span class="dot"></span>Enter when you are free</li>
+                  <li class="in" style="--t:1.8s"><span class="dot"></span>Every meeting laid out, with calendar files</li>
+                  <li class="in" style="--t:2.4s"><span class="dot"></span>Prep notes: openers, a tension, a question</li>
+                  <li class="in" style="--t:3s"><span class="dot"></span>Together, set two or three goals</li>
+                </ul>
+              </div>
+              <div class="card in" style="--t:.6s; font-size:22px">
+                <div style="font-size:18px; color:var(--muted); margin-bottom:6px">Tuesday, November 24</div>
+                <div class="trow pop" style="--t:1.8s"><span>9:00</span><span>Kainoa</span></div>
+                <div class="trow pop" style="--t:2.1s"><span>10:00</span><span>Lei</span></div>
+                <div class="trow pop" style="--t:2.4s"><span>11:00</span><span>Keoni</span></div>
+                <p class="check pop" style="--t:3.4s; margin-top:16px"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>talk-story.ics downloaded</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:69s; --d:7s">
+            <div class="kicker in" style="--t:.1s">8 · The whole team</div>
+            <h2 class="in" style="--t:.3s">One report on the team. One page for your board.</h2>
+            <div class="flow" style="grid-template-columns:1fr 1fr">
+              <div class="card in" style="--t:1.2s"><b>Team report</b><p>What you do well, where you struggle, what people asked for. No names. Share it with staff in one click.</p></div>
+              <div class="card in" style="--t:2s"><b>Board report</b><p>Team health, growth, participation, and ideas for leadership. No names and no quotes. Print it.</p></div>
+            </div>
+          </section>
+
+          <section class="scene" style="--s:76s; --d:6s">
+            <div class="kicker in" style="--t:.1s">9 · Finish</div>
+            <h2 class="in" style="--t:.3s">Mark it published. Save a copy.</h2>
+            <ul class="bul">
+              <li class="in" style="--t:1.2s"><span class="dot"></span>Setup: Mark published</li>
+              <li class="in" style="--t:1.8s"><span class="dot"></span>Data: Export now, one file plus one per person</li>
+              <li class="in" style="--t:2.4s"><span class="dot"></span>All year: goals, mahalo, and feedback feed next year's letters</li>
+            </ul>
+          </section>
+
+          <section class="scene center last" style="--s:82s; --d:5s">
+            <img class="pop" style="--t:.2s" src="/favicon.svg" width="110" height="110" alt="">
+            <h2 class="in" style="--t:.6s; margin-top:24px">Every step is in the Admin guide.</h2>
+            <p class="lead in" style="--t:1.2s">Print it and tick the boxes as you go.</p>
+            <p class="in" style="--t:1.8s; margin-top:30px; font-size:22px; color:var(--muted)">Hui 360 · Free and open source · Courtesy Olin</p>
+          </section>
+
+        </div>
+      </div>
+      <div class="controls">
+        <button type="button" class="small secondary" id="play">Pause</button>
+        <button type="button" class="small quiet" id="replay">Replay</button>
+        <div class="progress-line" aria-hidden="true"><span></span></div>
+      </div>
+
+      <section class="after" style="max-width:44rem">
+        <h2>The same thing, in words</h2>
+        <p><strong>Once, before your first review:</strong> add everyone in People (staff, interns, volunteers, board), set your values, and fill in Kuleana.</p>
+        <p><strong>1. Set up:</strong> start a review. Its tabs walk you through People, Questions, and Reviewers. Press Auto fill, then change anything. Optionally include an upward review of the director, or ask a partner outside the organization one question.</p>
+        <p><strong>2. Send links:</strong> in Links, copy each person's message and send it from your phone. The app does not send texts or email unless you set that up.</p>
+        <p><strong>3. While it is open:</strong> Progress shows status only. Copy a nudge for anyone behind. Early signals show counts of themes like burnout, never names.</p>
+        <p><strong>4. Close it:</strong> answers lock and the Letters tab opens. Answers are shuffled, have no names, and every read is logged.</p>
+        <p><strong>5. Write each letter:</strong> read Raw, have AI compile a draft that summarizes what was sent, make it yours, and choose what to share.</p>
+        <p><strong>6. Let them know:</strong> in Share, press Copy message and send it. They read the letter on their phone and can write a reflection back.</p>
+        <p><strong>7. Talk story:</strong> enter when you are free, lay out the meetings, send calendar files, and use the prep notes. Set two or three goals together.</p>
+        <p><strong>8. The whole team:</strong> write the team report for staff and the board report for your board.</p>
+        <p><strong>9. Finish:</strong> mark the review published and export a copy from Data.</p>
+        <p><a href="/guide/">Admin guide</a> · <a href="/tour/">The one minute overview</a></p>
+      </section>
+    </div>
+  </main>
+  <script type="module">
+    import { initI18n, shell, registerSW } from '/assets/app.js';
+    const record = new URLSearchParams(location.search).has('record');
+    if (record) document.body.classList.add('record');
+    registerSW();
+    await initI18n();
+    if (!record) shell();
+
+    const stage = document.getElementById('stage');
+    const fit = () => (stage.style.transform = `scale(${document.getElementById('frame').clientWidth / 1280})`);
+    addEventListener('resize', fit);
+    fit();
+
+    const TOTAL = 87000;
+    const anims = () => document.getAnimations();
+    const btn = document.getElementById('play');
+    const setPlaying = (on) => {
+      for (const a of anims()) on ? a.play() : a.pause();
+      btn.textContent = on ? 'Pause' : 'Play';
+    };
+    const seek = (ms) => anims().forEach((a) => { a.pause(); a.currentTime = ms; });
+    window.seek = seek; // used to render the video frame by frame
+    btn.onclick = () => setPlaying(btn.textContent === 'Play');
+    document.getElementById('replay').onclick = () => { seek(0); setPlaying(true); };
+    // Loop, and start paused for anyone who prefers less motion.
+    const master = document.querySelector('.progress-line span').getAnimations()[0];
+    master.onfinish = () => { seek(0); setPlaying(true); };
+    if (record || matchMedia('(prefers-reduced-motion: reduce)').matches) setPlaying(false);
+  </script>
+</body>
+</html>

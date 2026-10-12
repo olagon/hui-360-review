@@ -163,7 +163,7 @@ async function home() {
   app.innerHTML = `${orgLogo()}
     <div class="row spread"><h1>Review cycles</h1>${moonToday()}</div>
     <div id="digest"></div>
-    <p class="muted small">New here? Add everyone in <a href="#/staff">People</a>, then start a review below. Each review walks you through the next step.
+    <p class="muted small">New here? Watch the <a href="/tour/admin/">90 second walkthrough</a> or read the <a href="/guide/">guide</a>. Add everyone in <a href="#/staff">People</a>, then start a review below. Each review walks you through the next step.
     To see what a finished review looks like, load the sample from <a href="#/data">Data</a>.</p>
     ${
       cycles.length
