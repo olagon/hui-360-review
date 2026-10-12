@@ -192,6 +192,13 @@ export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config
 // The niho ring: kapa's niho pattern turned into a circle that points in to one person.
 export const mark = (size = 22) => `<img class="mark" src="/favicon.svg" width="${size}" height="${size}" alt="">`;
 
+// An admin who is also on the People list opens their own reviews with one click, no link needed.
+export async function openMyReviews() {
+  const r = await fetch('/api/admin/as-staff', { method: 'POST', credentials: 'same-origin' });
+  if (!r.ok) return toast((await r.json().catch(() => ({}))).error || 'Could not open your reviews', 6000);
+  location.href = '/';
+}
+
 // Header with the language switch, and the footer every page carries.
 // Staff sign out: send anything waiting, then clear this phone so the next person sees nothing.
 export async function signOut() {
@@ -204,14 +211,19 @@ export async function signOut() {
     for (const k of Object.keys(localStorage)) if (k.startsWith('hui360_draft:')) localStorage.removeItem(k);
     indexedDB.deleteDatabase('hui360');
   } catch {}
-  location.href = '/';
+  // Someone who is also an admin signs out of both, so a shared computer is left clean.
+  location.href = (await adminStatus()).admin ? '/cdn-cgi/access/logout' : '/';
 }
 
-export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } = {}) {
+// Is this person signed in as an admin? Asked once per page, so staff pages can link back to admin.
+let adminP;
+export const adminStatus = () => (adminP ||= fetch('/api/admin-status', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({ admin: false })));
+
+export function shell({ nav = '', langSwitch = true, onLang, signedIn = false, home = '/' } = {}) {
   const lang = getLang();
   const header = document.createElement('header');
   header.className = 'top';
-  header.innerHTML = `<a class="brand" href="/">${mark()} <span>${esc(APP_NAME)}</span></a>
+  header.innerHTML = `<a class="brand" href="${home}">${mark()} <span>${esc(APP_NAME)}</span></a>
     <nav>${nav}${signedIn ? `<a href="#" id="signout">${esc(t('signout'))}</a>` : ''}${
       langSwitch && config.hawaiian
         ? `<select id="lang" aria-label="${esc(t('lang.label'))}" style="width:auto;min-height:36px;padding:.25rem .5rem;font-size:.95rem">
@@ -220,6 +232,12 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } 
         : ''
     }</nav>`;
   document.body.prepend(header);
+  // Admins browsing the staff side get a way back.
+  if (home === '/') {
+    adminStatus().then((s) => {
+      if (s.admin) $('nav', header).insertAdjacentHTML('afterbegin', `<a href="/admin/">${esc(t('nav.admin'))}</a>`);
+    });
+  }
   if (signedIn) {
     const sub = document.createElement('nav');
     sub.className = 'subnav';

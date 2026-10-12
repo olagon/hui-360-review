@@ -1,4 +1,4 @@
-import { api as rawApi, esc, md, copy, copyRich, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
+import { api as rawApi, esc, md, copy, copyRich, toast, openMyReviews, pressing, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 import { layoutMeetings, buildICS } from './ics.js';
 
@@ -40,10 +40,24 @@ const api = (path, opts = {}) => {
 };
 
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/settings">Settings</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
+shell({ langSwitch: false, home: '/admin/', nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/settings">Settings</a><a href="/guide/">Guide</a><span id="mine"></span><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout" id="adminout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
-api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
+// Who is signed in, and whether they are also on the People list with reviews of their own to write.
+const meP = api('/api/admin/me').catch(() => ({}));
+meP.then((r) => {
+  $('#who').textContent = r.email || '';
+  $('#mine').innerHTML = r.staff
+    ? `<a href="#" id="minelink" title="Your own self reflection and reviews, as ${esc(r.staff.name)}">My reviews${r.pending ? ` <span class="badge">${r.pending}</span>` : ''}</a>`
+    : '<a href="/" title="What staff see when they open the app">See the staff side</a>';
+  $('#minelink')?.addEventListener('click', (e) => (e.preventDefault(), openMyReviews()));
+});
+// Signing out of admin also signs out of the staff side, so a shared computer is left clean.
+$('#adminout').addEventListener('click', async (e) => {
+  e.preventDefault();
+  await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+  location.href = '/cdn-cgi/access/logout';
+});
 
 const debounce = (fn, ms = 700) => {
   let t;
@@ -256,6 +270,11 @@ async function home() {
       <button>Create cycle</button>
     </form>`;
   if (open) digest(open);
+  const me = await meP;
+  if (me.staff && me.pending) {
+    $('#digest').insertAdjacentHTML('beforebegin', `<div class="banner"><strong>You have ${me.pending} ${me.pending === 1 ? 'review' : 'reviews'} of your own to write</strong> in ${esc(open?.name || 'the open review')}, as ${esc(me.staff.name)}. <button type="button" class="small" id="minebanner">Open my reviews</button></div>`);
+    $('#minebanner').onclick = (e) => pressing(e.currentTarget, openMyReviews);
+  }
   for (const d of $$('#new input[type=date]')) d.after(Object.assign(document.createElement('small'), { className: 'muted' }));
   $('#new').oninput = () => $$('#new input[type=date]').forEach((d) => (d.nextElementSibling.textContent = moonName(d.value)));
   $('#new').onsubmit = async (e) => {

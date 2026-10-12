@@ -35,6 +35,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last year's pairs.
 - Open the cycle and email each person their link, or copy a ready-to-send message for anyone without email. The app never sends text messages.
 - Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
+- One sign in for directors who take part too: an admin whose email matches someone in People opens their own reviews from **My reviews** in admin, and gets back with **Admin** on the staff side.
 - **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
 - **Community voices:** a one question link for a partner, kupuna, or volunteer outside your organization. Single use, no account.
 - **Upward review:** a checkbox per cycle adds a review of the director and team leads.

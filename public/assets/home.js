@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config, pressing } from './app.js';
+import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config, pressing, adminStatus, openMyReviews, $ } from './app.js';
 import { startSync, on } from './idb.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 
@@ -53,7 +53,20 @@ function landing(e) {
     </form>` : `<p class="muted">${esc(t('landing.askDirector'))}</p>`}
     <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>
     ${adminSide(false)}
-    <p class="small muted" style="margin-top:2rem">${esc(t('landing.adminNote'))} <a href="/admin/">${esc(t('landing.admin'))}</a></p>`;
+    <section class="card" id="adminblock" style="margin-top:1.5rem">
+      <h2 style="margin-top:0">${esc(t('landing.adminTitle'))}</h2>
+      <p>${esc(t('landing.adminBody'))}</p>
+      <p style="margin-bottom:0"><a class="button" href="/admin/">${esc(t('landing.admin'))}</a></p>
+    </section>`;
+  // Already signed in as an admin: say so, and go straight there.
+  adminStatus().then((s) => {
+    if (!s.admin) return;
+    $('#adminblock').innerHTML = `<h2 style="margin-top:0">${esc(t('landing.adminIn'))}</h2><p class="small muted">${esc(s.email || '')}</p>
+      ${s.staff ? `<p>${esc(t('landing.adminAlsoStaff'))}</p>` : ''}
+      <p class="row" style="margin-bottom:0">${s.staff ? `<button type="button" id="mine">${esc(t('landing.myReviews'))}</button>` : ''}<a class="button ${s.staff ? 'secondary' : ''}" href="/admin/">${esc(t('landing.toAdmin'))}</a></p>`;
+    $('#mine')?.addEventListener('click', (e) => pressing(e.currentTarget, openMyReviews));
+    $('#adminblock').scrollIntoView({ block: 'nearest' });
+  });
   const req = document.getElementById('req');
   if (req) req.onsubmit = async (ev) => {
     ev.preventDefault();
@@ -133,4 +146,8 @@ function dashboard({ staff, cycle, assignments, summaries, team, asks }) {
   }
   html += `<p class="small muted" style="margin-top:2rem">${esc(t('dash.links'))} <a href="/me/">${esc(t('nav.me'))}</a></p>` + adminSide(true);
   app.innerHTML = html;
+  // Also an admin: a quiet way across, on top of the Admin link in the header.
+  adminStatus().then((s) => {
+    if (s.admin) app.insertAdjacentHTML('afterbegin', `<p class="banner info small no-print">${esc(t('dash.alsoAdmin'))} <a href="/admin/">${esc(t('landing.toAdmin'))}</a></p>`);
+  });
 }

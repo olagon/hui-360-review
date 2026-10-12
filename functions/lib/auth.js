@@ -19,11 +19,15 @@ async function accessKeys(team, force) {
   return jwks;
 }
 
-export async function verifyAccess(request, env) {
+// On admin paths Access adds the token as a header. Elsewhere on the site the browser still sends
+// Access's CF_Authorization cookie, so { cookie: true } lets a public page ask "is this an admin?".
+export async function verifyAccess(request, env, { cookie = false } = {}) {
   const host = new URL(request.url).hostname;
   if (env.DEV_ADMIN_EMAIL && (host === 'localhost' || host === '127.0.0.1')) return env.DEV_ADMIN_EMAIL;
 
-  const token = request.headers.get('Cf-Access-Jwt-Assertion');
+  const token =
+    request.headers.get('Cf-Access-Jwt-Assertion') ||
+    (cookie ? (request.headers.get('cookie') || '').match(/(?:^|;\s*)CF_Authorization=([\w-]+\.[\w-]+\.[\w-]+)/)?.[1] : null);
   if (!token || !env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN) throw new HttpError(401, 'Admin sign in required');
   const team = env.ACCESS_TEAM_DOMAIN.replace(/\/+$/, '');
   try {

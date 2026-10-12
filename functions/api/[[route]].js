@@ -4,11 +4,12 @@ import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 import * as y from '../lib/year-api.js';
 
-const PUBLIC = new Set(['/api/config', '/api/i18n/:lang', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
+const PUBLIC = new Set(['/api/config', '/api/admin-status', '/api/i18n/:lang', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
 
 const routes = [
   ['GET', '/api/config', s.config],
   ['GET', '/api/i18n/:lang', s.translationsFor],
+  ['GET', '/api/admin-status', s.adminStatus],
   ['GET', '/api/logo', s.logo],
   ['POST', '/api/logout', s.logout],
   ['GET', '/api/me', s.me],
@@ -38,6 +39,7 @@ const routes = [
   ['POST', '/api/cron/reminders', y.reminders],
 
   ['GET', '/api/admin/me', a.whoami],
+  ['POST', '/api/admin/as-staff', a.asStaff],
   ['GET', '/api/admin/staff', a.listStaff],
   ['POST', '/api/admin/staff', a.createStaff],
   ['PUT', '/api/admin/staff/:id', a.updateStaff],

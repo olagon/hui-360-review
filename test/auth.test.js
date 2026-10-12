@@ -60,3 +60,13 @@ test('staff session cookie round trips and rejects tampering', async () => {
   assert.equal(await sessionStaffId(r(cookie), { SESSION_SECRET: 'other' }), null);
   assert.equal(await sessionStaffId(r('hui360_s=42.1.abc'), env), null, 'expired');
 });
+
+test('a public page can recognize an admin from the Access cookie, and only when asked', async () => {
+  const cookieReq = (cookie) => new Request('https://huimau.actionsmatter.com/', { headers: { cookie } });
+  const good = await jwt({});
+  assert.equal(await verifyAccess(cookieReq(`other=1; CF_Authorization=${good}`), env, { cookie: true }), 'noeau@example.org');
+  await assert.rejects(() => verifyAccess(cookieReq(`CF_Authorization=${good}`), env), (e) => e.status === 401, 'admin paths still need the Access header');
+  const otherApp = await jwt({ aud: ['other'] });
+  await assert.rejects(() => verifyAccess(cookieReq(`CF_Authorization=${otherApp}`), env, { cookie: true }), (e) => e.status === 401);
+  await assert.rejects(() => verifyAccess(cookieReq('CF_Authorization=a.b.c'), env, { cookie: true }), (e) => e.status === 401);
+});

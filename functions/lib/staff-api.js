@@ -4,6 +4,7 @@ import { detectLanguage } from './summarize.js';
 import { transcribe, aiOn } from './ai.js';
 import { MAX_AUDIO_BYTES } from './config.js';
 import { channels } from './notify.js';
+import { verifyAccess } from './auth.js';
 
 const MINUTES = { story: 3, mahalo: 2, short: 1, scale: 0.5 };
 
@@ -31,6 +32,17 @@ const answersFor = (env, hash) =>
 export async function config({ env }) {
   const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian')").all();
   return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: (await channels(env)).email });
+}
+
+// Public: is the person looking at this page signed in as an admin? Only ever answers about themselves.
+export async function adminStatus({ env, request }) {
+  try {
+    const email = await verifyAccess(request, env, { cookie: true });
+    const me = await env.DB.prepare('SELECT id FROM staff WHERE active = 1 AND LOWER(email) = LOWER(?) LIMIT 1').bind(email).first();
+    return json({ admin: true, email, staff: !!me });
+  } catch {
+    return json({ admin: false });
+  }
 }
 
 // Public: screen text an admin translated in Settings, Translations. Read before anyone signs in.

@@ -1,6 +1,6 @@
 import { HttpError, json, body, audit } from './http.js';
 import { autoFill, assignmentHash } from './assign.js';
-import { linkFor, createLink } from './auth.js';
+import { linkFor, createLink, sessionCookie } from './auth.js';
 import { completer, aiOn, anthropicKey, sealKey, checkKey, logRun } from './ai.js';
 import { CLAUDE_MODEL, PRICES } from './config.js';
 import { draftSummary, stripIdentity, section, answersDraft } from './summarize.js';
@@ -76,7 +76,27 @@ const shuffle = (xs) => xs.map((x) => [Math.random(), x]).sort((a, b) => a[0] - 
 
 // ---------- who ----------
 
-export const whoami = ({ admin }) => json({ email: admin });
+// An admin whose sign in email matches an active person in People is the same person.
+// Cloudflare Access already proved they own that email, so they can open their own reviews without a link.
+// (Admins can already make a sign in link for anyone, so this adds no new power.)
+export async function staffForAdmin(env, email) {
+  if (!email) return null;
+  return one(env, 'SELECT id, name, preferred_name FROM staff WHERE active = 1 AND LOWER(email) = LOWER(?) ORDER BY id LIMIT 1', email);
+}
+
+export async function whoami({ env, admin }) {
+  const me = await staffForAdmin(env, admin);
+  const pending = me
+    ? (await one(env, "SELECT COUNT(*) AS n FROM assignments a JOIN cycles c ON c.id = a.cycle_id WHERE c.status = 'open' AND a.reviewer_id = ? AND a.status != 'done'", me.id)).n
+    : 0;
+  return json({ email: admin, staff: me ? { id: me.id, name: me.preferred_name || me.name } : null, pending });
+}
+
+export async function asStaff({ env, admin }) {
+  const me = await staffForAdmin(env, admin);
+  if (!me) throw new HttpError(404, `${admin} is not on the People list as an active person, so there is nothing to fill out.`);
+  return new Response(JSON.stringify({ ok: true }), { headers: { 'content-type': 'application/json', 'set-cookie': await sessionCookie(env, me.id), 'cache-control': 'no-store' } });
+}
 
 // ---------- staff ----------
 

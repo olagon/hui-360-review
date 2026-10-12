@@ -16,7 +16,6 @@
   "landing.newlink": "Lost your link? Type the email or phone number {director} has for you. We use it to find you, then email you a fresh link. We do not send texts.",
   "landing.offline": "We could not reach the server. Check your signal and try again.",
   "landing.tour": "Watch the 1 minute tour",
-  "landing.adminNote": "Running the review?",
   "landing.admin": "Admin sign in",
   "dash.hello": "Aloha, {name}",
   "dash.closes": "{cycle} is open until {date}.",
@@ -172,5 +171,13 @@
   "open.title": "See how reviews are run",
   "open.body": "Nothing about the admin side is hidden. Watch the same walkthrough {director} uses, or read the step by step guide: how reviewers are picked, what {director} can and cannot see, and how each letter is written.",
   "open.video": "Watch the admin walkthrough",
-  "open.guide": "Read the admin guide"
+  "open.guide": "Read the admin guide",
+  "landing.adminTitle": "Running the review?",
+  "landing.adminBody": "Admins sign in with their email. A one time code arrives by email, and you stay signed in for the day. Only people on the admin list can get in. Staff never need this: your own link is all you need.",
+  "landing.adminIn": "You are signed in as an admin.",
+  "landing.toAdmin": "Go to admin",
+  "nav.admin": "Admin",
+  "landing.adminAlsoStaff": "You are on the People list too, so you can open your own reviews without a link.",
+  "landing.myReviews": "Open my reviews",
+  "dash.alsoAdmin": "You are also an admin."
 }
