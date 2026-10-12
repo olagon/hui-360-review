@@ -1,5 +1,5 @@
 import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo } from './app.js';
-import { startSync } from './idb.js';
+import { startSync, on } from './idb.js';
 
 registerSW();
 await initI18n();
@@ -22,6 +22,13 @@ if (me && !localStorage.getItem('hui360_lang') && me.staff.lang !== getLang()) {
 shell({ onLang: me ? (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) : null });
 
 if (me) {
+  // Answers saved on the phone may reach the server after this page loads. Redraw when they do.
+  on(async (e) => {
+    if (e.type !== 'synced') return;
+    try {
+      dashboard(await api('/api/me'));
+    } catch {}
+  });
   startSync((n) => t('sync.pending', { n }));
   dashboard(me);
 } else {

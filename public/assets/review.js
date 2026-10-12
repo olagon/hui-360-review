@@ -1,5 +1,5 @@
 import { api, t, initI18n, shell, esc, getLang, registerSW, APP_NAME, $ } from './app.js';
-import { get, all, saveDraft, queueAudio, on, startSync, recovered } from './idb.js';
+import { get, all, saveDraft, queueAudio, on, startSync, recovered, flush } from './idb.js';
 
 registerSW();
 await initI18n();
@@ -163,9 +163,18 @@ async function toggleMic(q) {
 
 async function renderEnd() {
   current = null;
-  const home = `<p><a class="button" href="/">${esc(t('review.home'))}</a></p>`;
+  const home = `<p><a class="button" id="home" href="/">${esc(t('review.home'))}</a></p>`;
+  // Send the last answers before going back, so the list shows the right count.
+  const wire = () =>
+    $('#home')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.currentTarget.textContent = t('review.saving');
+      await flush();
+      location.href = '/';
+    });
   if (quick) {
     app.innerHTML = `<h1>${esc(t('review.doneTitle'))}</h1><p>${esc(t('review.quickDoneBody'))}</p>${home}`;
+    wire();
     return;
   }
   const missing = [];
@@ -178,6 +187,7 @@ async function renderEnd() {
   }
   if (assignment.open) await saveDraft({ key: `${aid}:finish`, assignment_id: aid, finish: true });
   app.innerHTML = `<h1>${esc(t('review.doneTitle'))}</h1><p>${esc(t('review.doneBody'))}</p>${home}`;
+  wire();
 }
 
 on((e) => {

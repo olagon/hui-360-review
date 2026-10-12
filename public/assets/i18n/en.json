@@ -66,6 +66,7 @@
   "review.doneBody": "Your answers are in. You can come back and change them until the review closes.",
   "review.quickDoneBody": "Quick version done. Come back for the rest when you have more time.",
   "review.home": "Back to my list",
+  "review.saving": "Saving your answers...",
   "review.closed": "This review is closed, so answers can no longer change.",
   "scale.1": "Rarely",
   "scale.2": "Sometimes",

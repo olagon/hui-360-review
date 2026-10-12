@@ -80,7 +80,7 @@ export async function pending() {
   return drafts.filter((d) => d.dirty).length + audio.length;
 }
 
-let running = false;
+let inflight = null;
 let backoff = 0;
 let timer;
 function soon(ms = 1500) {
@@ -90,10 +90,24 @@ function soon(ms = 1500) {
 
 const giveUp = (status) => status === 400 || status === 404 || status === 409 || status === 413;
 
-export async function sync() {
+// One sync at a time. Callers that need the result await the run in flight.
+export function sync() {
+  if (!navigator.onLine) return Promise.resolve();
+  return (inflight ||= run().finally(() => (inflight = null)));
+}
+
+// Push everything waiting, for up to `ms`. Used before leaving a page whose counts matter.
+export async function flush(ms = 4000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end && navigator.onLine && (await pending())) {
+    await sync();
+    if (await pending()) await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
+async function run() {
   await recovered;
-  if (running || !navigator.onLine) return;
-  running = true;
+  let sent = 0;
   emit({ type: 'syncing' });
   try {
     for (const a of await all('audio')) {
@@ -118,6 +132,7 @@ export async function sync() {
       const body = [before, out.transcript].filter(Boolean).join('\n\n');
       await put('drafts', { ...d, body, audio_key: out.key, transcript: out.transcript, language: out.language, dirty: true, v: Date.now() });
       await del('audio', a.key);
+      sent++;
       emit({ type: 'transcript', key, body, failed: !!out.error });
     }
 
@@ -147,6 +162,7 @@ export async function sync() {
         continue;
       }
       if (!res.ok) throw new Error(`answer ${res.status}`);
+      sent++;
       const cur = await get('drafts', d.key);
       if (d.finish) {
         await del('drafts', d.key);
@@ -159,11 +175,10 @@ export async function sync() {
   } catch (e) {
     if (e.auth) emit({ type: 'auth' });
     backoff = Math.min(60_000, (backoff || 1000) * 2);
-  } finally {
-    running = false;
   }
   const n = await pending();
   emit({ type: 'status', pending: n });
+  if (sent) emit({ type: 'synced' });
   if (n) soon(backoff || 3000);
 }
 
