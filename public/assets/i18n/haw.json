@@ -164,7 +164,11 @@
     "feedback.message",
     "feedback.copied",
     "landing.askDirector",
-    "feedback.emailed"
+    "feedback.emailed",
+    "open.title",
+    "open.body",
+    "open.video",
+    "open.guide"
   ],
   "lang.en": "ʻŌlelo Pelekānia",
   "lang.haw": "ʻŌlelo Hawaiʻi",

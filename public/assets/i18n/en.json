@@ -168,5 +168,9 @@
   "feedback.message": "Aloha {name}, I asked you a quick question in our review app. You can answer it on your page: {link}",
   "feedback.copied": "Asked. A message to let them know is copied, ready to paste.",
   "landing.askDirector": "Lost your link? Ask {director} for a fresh one.",
-  "feedback.emailed": "Asked. We emailed {name} a link to answer."
+  "feedback.emailed": "Asked. We emailed {name} a link to answer.",
+  "open.title": "See how reviews are run",
+  "open.body": "Nothing about the admin side is hidden. Watch the same walkthrough {director} uses, or read the step by step guide: how reviewers are picked, what {director} can and cannot see, and how each letter is written.",
+  "open.video": "Watch the admin walkthrough",
+  "open.guide": "Read the admin guide"
 }

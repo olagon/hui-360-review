@@ -52,6 +52,7 @@ function landing(e) {
       <p style="margin-bottom:0"><button>${esc(t('landing.requestButton'))}</button></p>
     </form>` : `<p class="muted">${esc(t('landing.askDirector'))}</p>`}
     <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>
+    ${adminSide(false)}
     <p class="small muted" style="margin-top:2rem">${esc(t('landing.adminNote'))} <a href="/admin/">${esc(t('landing.admin'))}</a></p>`;
   const req = document.getElementById('req');
   if (req) req.onsubmit = async (ev) => {
@@ -68,6 +69,15 @@ function landing(e) {
     });
     form.innerHTML = `<p style="margin:0">${esc(msg)}</p>`;
   };
+}
+
+// The admin side, open to everyone: how reviews are run, what the director sees and does.
+function adminSide(compact) {
+  return `<section class="card" style="margin-top:${compact ? '2rem' : '1.5rem'}">
+    <h2 style="margin-top:0">${esc(t('open.title'))}</h2>
+    <p>${esc(t('open.body'))}</p>
+    <p class="row" style="margin-bottom:0"><a class="button ${compact ? 'secondary' : ''}" href="/tour/admin/">${esc(t('open.video'))}</a><a class="button secondary" href="/guide/">${esc(t('open.guide'))}</a></p>
+  </section>`;
 }
 
 function moon() {
@@ -121,6 +131,6 @@ function dashboard({ staff, cycle, assignments, summaries, team, asks }) {
     html = html.replace('</h1>', `</h1><div class="card" style="border-color:var(--kalo)"><h2 style="margin-top:0">${esc(t('dash.letterTitle'))}</h2>
       <p>${esc(t('dash.letterBody'))}</p><p style="margin-bottom:0"><a class="button" href="/me/">${esc(t('dash.letterButton'))}</a></p></div>`);
   }
-  html += `<p class="small muted" style="margin-top:2rem">${esc(t('dash.links'))} <a href="/me/">${esc(t('nav.me'))}</a></p>`;
+  html += `<p class="small muted" style="margin-top:2rem">${esc(t('dash.links'))} <a href="/me/">${esc(t('nav.me'))}</a></p>` + adminSide(true);
   app.innerHTML = html;
 }
