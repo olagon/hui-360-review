@@ -47,10 +47,10 @@ test('signals parsing is forgiving and calibration needs two reviews', () => {
 });
 
 test('email goes only to people with Send email checked, in batches of 100', async () => {
-  const env = { TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', RESEND_FROM: 'Hui <a@b.org>' };
+  const env = { TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', EMAIL_FROM: 'Hui <a@b.org>' };
   assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
   assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 0 }), { channel: 'sms', to: '+1808' });
-  assert.equal(route({ RESEND_API_KEY: 'k', RESEND_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
+  assert.equal(route({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
   assert.equal(route({}, { phone: '1', email: 'x@y.org', send_email: 1 }), null);
   const calls = [];
   const real = globalThis.fetch;
@@ -61,6 +61,14 @@ test('email goes only to people with Send email checked, in batches of 100', asy
   globalThis.fetch = real;
   assert.match(calls[0][0], /Accounts\/AC1\/Messages\.json$/);
   assert.equal(new URLSearchParams(calls[0][1].body).get('To'), '+18085551234');
-  assert.deepEqual(JSON.parse(calls[1][1].body), { from: 'Hui <a@b.org>', to: ['x@y.org'], subject: 'Subject', text: 'hi', reply_to: 'director@b.org' });
+  assert.deepEqual(JSON.parse(calls[1][1].body), [{ from: 'Hui <a@b.org>', to: ['x@y.org'], subject: 'Subject', text: 'hi', reply_to: 'director@b.org' }]);
   assert.deepEqual(calls.slice(2).map(([url, init]) => [url.split('.com')[1], JSON.parse(init.body).length]), [['/emails/batch', 100], ['/emails/batch', 50]]);
+
+  // With the Cloudflare mailer bound, email goes through it instead of Resend.
+  const sent = [];
+  const cf = { EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => sent.push(...list) } };
+  assert.deepEqual(route(cf, { email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
+  await send(cf, 'x@y.org', 'hi', 'email', 'Subject', 'director@b.org');
+  assert.deepEqual(sent, [{ to: 'x@y.org', subject: 'Subject', text: 'hi', from: 'Hui <a@b.org>', replyTo: 'director@b.org' }]);
+  assert.equal(route({ MAILER: {} }, { email: 'x@y.org', send_email: 1 }), null, 'off until EMAIL_FROM is set');
 });

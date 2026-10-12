@@ -43,7 +43,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **kuleana map** you keep up to date, which Auto fill uses to pair coworkers.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
-- Email everyone their link, a nudge, or "your letter is ready" in one click, through a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional 7am reminder for anyone behind.
+- Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional 7am reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Data.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
 
@@ -67,7 +67,7 @@ Estimates from Cloudflare's and Anthropic's published prices as of October 2026,
 | Llama 3.3 70B on Workers AI (no key needed) | Drafting each person's letter | **About $0.005 a person**, usually inside the free daily allowance, so **$0** |
 | or Claude Haiku 5.5 (the default when you add an Anthropic key) | Drafting, with better writing | **About $0.002 to $0.005 a person**, under $0.25 a cycle |
 | or Claude Sonnet 5.5 (one line in `functions/lib/config.js`) | Drafting, richest letters | **About $0.05 to $0.10 a person**, $1 to $2 a cycle |
-| Resend (optional) | Emailing links, nudges, and letters | **$0** up to 3,000 emails a month |
+| Email (optional) | Emailing links, nudges, and letters | **$0**: included in Workers Paid, or Resend's free plan up to 3,000 a month |
 | Domain | Your web address | **$0** with your own domain or the free `pages.dev` address, about $10 a year otherwise |
 
 **Typical total: $0 to $1 a year.** Without an Anthropic key everything still works, drafts included, on Cloudflare's free allowance. Prefer to write every letter by hand? Use "Start a blank draft" and skip AI entirely.
@@ -140,30 +140,36 @@ Without email, the app sends nothing. Your director copies each link, nudge, and
 
 With email on, every one of those messages has an **Email everyone** button. It emails each person who has an address and **Send email** checked in People (checked by default), and tells the director how many it skipped so they can copy those few by hand. A staff member who loses their link can type their email or phone number on the home page, and the app emails them a fresh one. The phone number is only used to look them up.
 
-Email goes through [Resend](https://resend.com), free up to 3,000 emails a month (about 100 a day), which is plenty for a review. It takes about 15 minutes:
+There are two ways to send it.
 
-1. Make a free Resend account.
-2. In Resend, **Domains, Add domain**. Use a subdomain you control, like `review.your-org.org`. If your domain is on Cloudflare, let Resend add the DNS records for you, or copy them into Cloudflare DNS yourself. Wait for it to say Verified.
-3. In Resend, **API Keys, Create API key** with sending access. Then run this and paste the key when asked:
+**If your Cloudflare account is on Workers Paid ($5 a month), use Cloudflare Email Sending.** No other account needed. It is in beta as of October 2026, and new accounts start at 200 emails a day, which covers a review for a team of 20.
+1. In the dashboard, **Compute, Email Service, Email Sending, Onboard Domain**, and pick your domain. Cloudflare adds the DNS records. Wait until it says Configured.
+2. Deploy the mailer Worker. Pages Functions cannot hold Cloudflare's email binding, so this small Worker holds it, and the app calls it through a service binding:
+   ```bash
+   npx wrangler deploy -c workers/mailer/wrangler.toml
+   ```
+3. In `wrangler.toml`, set `EMAIL_FROM` under `[vars]` to an address on that domain, like `"Your Org <review@your-org.org>"`, keep the `[[services]]` block for `MAILER`, and deploy.
+
+**On Cloudflare's free plan, use [Resend](https://resend.com)**, free up to 3,000 emails a month.
+1. Make a free Resend account, then **Domains, Add domain** and add the DNS records it gives you. Wait for Verified.
+2. **API Keys, Create API key** with sending access, then run this and paste the key when asked:
    ```bash
    npx wrangler pages secret put RESEND_API_KEY --project-name hui-360
    ```
-4. In `wrangler.toml`, under `[vars]`, set the from address on your verified domain, for example `RESEND_FROM = "Your Org <review@review.your-org.org>"`, and deploy.
-5. In admin, **Data, Email**, put your director's address in **Replies go to**, so replies reach a person.
+3. In `wrangler.toml`, set `EMAIL_FROM` to an address on your verified domain, delete the `[[services]]` block for `MAILER`, and deploy.
 
-Cloudflare has its own email sending too, but as of October 2026 it is in beta and needs the $5 a month Workers Paid plan. Resend's free plan costs nothing.
+Either way, finish in admin, **Data, Email**: put your director's address in **Replies go to**, so replies reach a person.
 
 **Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and morning reminders go by text to people the app cannot email.
 
-**Morning reminders are optional.** To email a 7am reminder to anyone behind, without the director pressing anything, Pages needs a tiny scheduled Worker. Make one more random string and run:
+**Morning reminders are optional.** Pages cannot run on a schedule, so the mailer Worker also wakes the app at 7am Hawaiʻi time. Change `APP_URL` in `workers/mailer/wrangler.toml` to your address, deploy it (even on the free plan, where it only does this), make one more random string, and set it in both places:
 
 ```bash
 npx wrangler pages secret put CRON_SECRET --project-name hui-360
-npx wrangler deploy -c workers/reminders/wrangler.toml
-npx wrangler secret put CRON_SECRET -c workers/reminders/wrangler.toml
+npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
 ```
 
-Change `APP_URL` in `workers/reminders/wrangler.toml` to your address first. Then in admin, Data, Email, check the morning reminder box.
+Then in admin, Data, Email, check the morning reminder box.
 
 ### 7. Deploy
 

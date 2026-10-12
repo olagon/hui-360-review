@@ -1,0 +1,18 @@
+# Sends the app's email with Cloudflare Email Sending (Workers Paid plan).
+#   npx wrangler deploy -c workers/mailer/wrangler.toml
+# Then onboard your sending domain in the dashboard: Compute, Email Service, Email Sending.
+# Optional 7am reminders: set the same CRON_SECRET here and on the Pages project.
+#   npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
+name = "hui360-mailer"
+main = "index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false # only the app calls this, through its service binding
+
+[[send_email]]
+name = "EMAIL"
+
+[vars]
+APP_URL = "https://huimau.actionsmatter.com"
+
+[triggers]
+crons = ["0 17 * * *"] # 17:00 UTC is 7am in Hawaiʻi

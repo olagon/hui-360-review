@@ -10,6 +10,14 @@ ACCESS_TEAM_DOMAIN = "https://wispy-hall-957e.cloudflareaccess.com"
 ACCESS_AUD = "cf838f0723c46c9ff8b5d7c98bc66c30ffa17b500d6c2379f1750d9f9e98d8f4"
 CF_ACCOUNT_ID = "9d4206418d10ed67812b7e4ff70d098b"
 AI_GATEWAY_ID = "hui360"
+# Email: the from address on a domain onboarded in Email Sending (or verified in Resend). Leave it out to turn email off.
+EMAIL_FROM = "huiMAU <review@actionsmatter.com>"
+
+# Cloudflare Email Sending lives in a small Worker (workers/mailer), because Pages Functions
+# cannot hold a send_email binding. Remove this block if you use Resend instead.
+[[services]]
+binding = "MAILER"
+service = "hui360-mailer"
 
 [[d1_databases]]
 binding = "DB"

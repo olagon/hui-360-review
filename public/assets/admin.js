@@ -99,7 +99,7 @@ const moonToday = () => {
   const m = moonFor(hawaiiToday());
   return `<span class="moon small muted" title="Moon names follow one common count. Local practitioners may count differently.">${moonIcon(m.age)} ${esc(m.name)}</span>`;
 };
-// Email straight from the app once Resend is set up, to anyone with Send email checked in People. Otherwise copy.
+// Email straight from the app once email is set up, to anyone with Send email checked in People. Otherwise copy.
 let channelsP;
 const channels = () => (channelsP ||= api('/api/admin/channels').catch(() => ({})));
 const emails = (p) => !!(p.email && p.send_email);
@@ -1156,11 +1156,11 @@ async function data() {
     <div class="card">
       ${ch.email
         ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`
-        : `<p style="margin-top:0"><strong>Email is not set up yet</strong>, so you copy each link and nudge and send it yourself. Whoever set up the app can turn on email with a free Resend account (see the README).</p>`}
+        : `<p style="margin-top:0"><strong>Email is not set up yet</strong>, so you copy each link and nudge and send it yourself. Whoever set up the app can turn it on (see the README).</p>`}
       <label>Replies go to <input type="email" data-path="/api/admin/settings" data-f="reply_to" value="${esc(settings.reply_to || '')}" placeholder="you@your-org.org"></label>
       <p class="small muted">When someone replies to an email from the app, it goes to this address.</p>
       <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email ? '' : 'disabled'}> Each morning at 7am, email a gentle reminder to anyone still behind in the open review</label>
-      <p class="small muted">Needs the small reminders Worker from the README. Without it, use Today's nudges on the Cycles page.</p>
+      <p class="small muted">Needs a CRON_SECRET on the mailer Worker and the app (see the README). Without it, use Today's nudges on the Cycles page.</p>
     </div>
     <h2>Mahalo board</h2>
     <div class="card">

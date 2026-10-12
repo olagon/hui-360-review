@@ -236,7 +236,7 @@ Team view and board report use the same module with different templates. Early s
 
 Default is manual and fully on Cloudflare. The admin Cycles page computes who is behind in the open review each time it loads ("Today's nudges") with one tap copy of each nudge message. Noʻeau sends them himself from his phone. This works on day one with no outside account and needs no cron.
 
-As built: Pages cannot run cron triggers, so the optional 7am run lives in a tiny Worker, `workers/reminders`, that calls `POST /api/cron/reminders` with a shared `CRON_SECRET` header. Deploy it only when Twilio or Resend is set up. The app sends nothing unless admin picks text or email in Data, Reminders and messages. Resend also needs `RESEND_FROM` in `[vars]`.
+As built: email goes through Cloudflare Email Sending (Workers Paid, actionsmatter.com is onboarded, 200 a day quota). Pages Functions cannot hold a `send_email` binding, so a small Worker, `workers/mailer` (hui360-mailer, no workers.dev URL), holds it and the app calls `env.MAILER.send()` over a service binding. `EMAIL_FROM` in `[vars]` turns email on. Resend (`RESEND_API_KEY`) remains the fallback for orgs on the free plan. The same Worker runs the optional 7am cron, calling `POST /api/cron/reminders` with a shared `CRON_SECRET`, and does nothing until that secret is set.
 
 Optional, off by default, one secret each:
 - Text messages through Twilio. Secrets `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`. If present, the cron job sends nudges by text and the landing page can send magic links by text.
@@ -306,7 +306,7 @@ All three phases are built, except the Hawaiian i18n review pass, which needs a 
 - Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Team report tab and prints on its own.
-- Email (Olin's call, October 2026): Resend, because Cloudflare's own email sending is beta and needs Workers Paid. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. `reply_to` in settings routes replies to the director.
+- Email (Olin's call, October 2026): Cloudflare Email Sending through the mailer Worker, since Olin is on Workers Paid. Resend stays as the free plan fallback. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. `reply_to` in settings routes replies to the director.
 
 ## Setup walkthrough for Olin
 

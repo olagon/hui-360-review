@@ -846,7 +846,7 @@ async function toneTags(env, cycleId) {
   return Object.fromEntries(Object.entries(owner).map(([hash, o]) => [hash, byReviewer[o.reviewer] || null]).filter(([, v]) => v));
 }
 
-// ---------- optional sending (Twilio, Resend) ----------
+// ---------- optional sending (email, text) ----------
 
 export async function getChannels({ env }) {
   const n = await settings(env);
@@ -995,7 +995,7 @@ export async function loadSample({ env, admin }) {
   const names = await settings(env);
   const director = names.director_name || 'your director';
 
-  const person = async (name, preferred, email) => insert(env, 'staff', { name, preferred_name: preferred, email, team: 'Sample', active: 0 });
+  const person = async (name, preferred, email) => insert(env, 'staff', { name, preferred_name: preferred, email, team: 'Sample', active: 0, send_email: 0 }); // made up people are never emailed
   const kainoa = await person('Sample Kainoa', 'Kainoa', 'kainoa@sample.example');
   const lei = await person('Sample Lei', 'Lei', 'lei@sample.example');
   const keoni = await person('Sample Keoni', 'Keoni', 'keoni@sample.example');
