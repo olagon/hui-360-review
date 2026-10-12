@@ -1,4 +1,4 @@
-// Year round, for staff: goals, mahalo, feedback requests, the kuleana map, and
+// Year round, for staff: goals, mahalo, feedback requests, and
 // a lead's view of their team's letters. Plus the public pages: community voice,
 // asking for a fresh link, and the morning reminder run.
 import { HttpError, body, json, randomToken } from './http.js';
@@ -11,19 +11,10 @@ const text = (v, max = 4000) => String(v ?? '').trim().slice(0, max);
 const nameOf = (s) => s.preferred_name || s.name;
 const settings = async (env) => Object.fromEntries((await all(env, 'SELECT key, value FROM settings')).map((r) => [r.key, r.value]));
 
-// ---------- people and kuleana ----------
+// ---------- people ----------
 
 export async function people({ env, staff }) {
   return json({ people: await all(env, 'SELECT id, name, preferred_name, team FROM staff WHERE active = 1 AND id != ? ORDER BY name', staff.id) });
-}
-
-export async function kuleana({ env }) {
-  const staff = await all(
-    env,
-    `SELECT s.id, s.name, s.preferred_name, s.team, k.title, k.responsibilities, k.works_with
-     FROM staff s LEFT JOIN kuleana k ON k.staff_id = s.id WHERE s.active = 1 ORDER BY s.team, s.name`,
-  );
-  return json({ people: staff.map((s) => ({ ...s, works_with: JSON.parse(s.works_with || '[]') })) });
 }
 
 // ---------- goals (my huli) ----------
@@ -140,7 +131,7 @@ export async function askFeedback({ env, staff, request, url }) {
   if (email) {
     const link = await linkFor(env, url.origin, to.id, 0);
     // The ask is saved either way, and their home page shows it, so a failed email only means the asker copies a message.
-    emailed = await send(env, email, `Aloha ${nameOf(to)}, ${nameOf(staff)} asked for your feedback:\n\n"${prompt}"\n\nAnswer on your page, it takes a minute: ${link}\n\nMahalo!`, 'email', `${nameOf(staff)} asked for your feedback`, (await settings(env)).reply_to)
+    emailed = await send(env, email, `Aloha ${nameOf(to)}, ${nameOf(staff)} asked for your feedback:\n\n"${prompt}"\n\nAnswer on your page, it takes a minute: ${link}\n\nMahalo!`, 'email', `${nameOf(staff)} asked for your feedback`)
       .then(() => true, () => false);
   }
   return json({ id: r.meta.last_row_id, emailed });
@@ -223,7 +214,7 @@ export async function requestLink({ env, request, url, waitUntil }) {
     const link = await linkFor(env, url.origin, person.id, cycle?.id ?? 0);
     const what = cycle ? `your link for ${cycle.name}` : 'your link to your page, with your goals, mahalo, and letters';
     // Sent after the reply, so the answer and its timing are the same whether or not anyone matched.
-    waitUntil(send(env, to, `Aloha ${nameOf(person)}, here is ${what}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your link', n.reply_to).catch((e) => console.error('link not sent', e.message)));
+    waitUntil(send(env, to, `Aloha ${nameOf(person)}, here is ${what}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your link').catch((e) => console.error('link not sent', e.message)));
   }
   // Same answer either way, so nobody can test who is on staff.
   return json({ sent: true });
@@ -250,7 +241,7 @@ export async function reminders({ env, request, url }) {
     const link = await linkFor(env, url.origin, p.id, cycle.id);
     const until = cycle.closes_at ? ` until ${cycle.closes_at}` : '';
     try {
-      await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder', n.reply_to);
+      await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder');
     } catch (e) {
       console.error('reminder not sent', p.id, e.message); // one bad address never stops the rest
       continue;

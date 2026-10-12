@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config } from './app.js';
+import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config, pressing } from './app.js';
 import { startSync, on } from './idb.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 
@@ -58,12 +58,14 @@ function landing(e) {
     ev.preventDefault();
     const form = ev.target;
     let msg;
-    try {
-      const r = await api('/api/request-link', { method: 'POST', json: { contact: form.contact.value } });
-      msg = t(r.manual ? 'landing.requestManual' : 'landing.requestSent');
-    } catch (err) {
-      msg = err.message;
-    }
+    await pressing(form.querySelector('button'), async () => {
+      try {
+        const r = await api('/api/request-link', { method: 'POST', json: { contact: form.contact.value } });
+        msg = t(r.manual ? 'landing.requestManual' : 'landing.requestSent');
+      } catch (err) {
+        msg = err.message;
+      }
+    });
     form.innerHTML = `<p style="margin:0">${esc(msg)}</p>`;
   };
 }

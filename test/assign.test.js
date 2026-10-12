@@ -96,7 +96,7 @@ test('no table join recovers who wrote an unsigned response', async () => {
 
 test('autoFill gives everyone reviewers without self pairs or repeats', () => {
   const staffIds = [1, 2, 3, 4, 5, 6];
-  const added = autoFill({ staffIds, worksWith: { 1: [2] }, lastPairs: new Set(['3:4']), target: 2 });
+  const added = autoFill({ staffIds, lastPairs: new Set(['3:4']), target: 2 });
   const pairs = added.map((p) => `${p.reviewer}:${p.reviewee}`);
   assert.equal(new Set(pairs).size, pairs.length);
   for (const id of staffIds) {

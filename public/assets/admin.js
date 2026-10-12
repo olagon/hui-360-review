@@ -1,9 +1,45 @@
-import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
+import { api as rawApi, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 import { layoutMeetings, buildICS } from './ics.js';
 
+// Anything that sends, makes, or deletes something dims the page, shows a spinner with what it is doing,
+// and locks the page until it is done. Autosaves (PUT) stay quiet so typing is never blocked.
+// The veil waits a moment before showing, so quick actions do not flicker.
+const veil = Object.assign(document.createElement('div'), { className: 'veil', hidden: true });
+veil.innerHTML = '<div class="veil-box" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span class="veil-msg"></span></div>';
+document.body.append(veil);
+const veilMsg = veil.querySelector('.veil-msg');
+let busyCount = 0;
+const BUSY = [
+  [/\/(draft|prep)$/, 'Writing the draft. This can take a minute.'],
+  [/\/(email|send)$/, 'Sending email...'],
+  [/\/signals$/, 'Reading answers. This can take a minute.'],
+  [/\/export$/, 'Saving a copy of everything...'],
+  [/\/sample$/, 'Setting up the sample...'],
+  [/\/autofill$/, 'Choosing reviewers...'],
+];
+async function busy(promise, msg) {
+  busyCount++;
+  const show = setTimeout(() => {
+    veilMsg.textContent = msg;
+    veil.hidden = false;
+    document.activeElement?.blur?.();
+  }, 250);
+  try {
+    return await promise;
+  } finally {
+    clearTimeout(show);
+    if (!--busyCount) veil.hidden = true;
+  }
+}
+const api = (path, opts = {}) => {
+  const method = (opts.method || 'GET').toUpperCase();
+  if (method !== 'POST' && method !== 'DELETE') return rawApi(path, opts);
+  return busy(rawApi(path, opts), BUSY.find(([re]) => re.test(path))?.[1] || (method === 'DELETE' ? 'Removing...' : 'Working...'));
+};
+
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/kuleana">Kuleana</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
+shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
 api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
@@ -168,7 +204,7 @@ function bindFields(root = app) {
 
 // ---------------- router ----------------
 
-const views = { '': home, staff, values, data, cycle, person, kuleana };
+const views = { '': home, staff, values, data, cycle, person };
 async function route() {
   const [name, ...args] = location.hash.replace(/^#\/?/, '').split('/');
   app.innerHTML = '<p class="muted">Loading...</p>';
@@ -1037,7 +1073,7 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Uncheck it for anyone who would rather hear from you directly. Sign in link works any time of year, even with no review open, for My page, mahalo, and kuleana. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Uncheck it for anyone who would rather hear from you directly. Sign in link works any time of year, even with no review open, for My page and mahalo. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
     <div class="scroll"><table>
       <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th><th>Sign in link</th></tr>
       ${list.map(row).join('')}
@@ -1069,32 +1105,6 @@ async function staff() {
     toast(`Added ${lines.length} ${lines.length === 1 ? 'person' : 'people'}`);
     route();
   };
-}
-
-// ---------------- kuleana ----------------
-
-async function kuleana() {
-  const { people } = await api('/api/admin/kuleana');
-  app.innerHTML = `
-    <h1>Kuleana</h1>
-    <p>Each person's title, what they take care of, and who they work with most. Staff see this as the kuleana map, which helps new people find their way. Auto fill in Reviewers uses "works with" to pair people who know each other's work.</p>
-    <p class="small"><a href="/kuleana/" target="_blank" rel="noopener">See it the way staff do</a></p>
-    ${people.map((p) => `<details class="card" data-k="${p.id}">
-      <summary><strong>${esc(nameOf(p))}</strong> <span class="small muted">${esc(p.title || '')}</span></summary>
-      <label>Title <input name="title" value="${esc(p.title || '')}"></label>
-      <label>What they take care of <textarea name="responsibilities" rows="3">${esc(p.responsibilities || '')}</textarea></label>
-      <fieldset style="border:0;padding:0;margin:0"><legend class="small">Works with most</legend>
-        <div class="row">${people.filter((o) => o.id !== p.id).map((o) => `<label class="check" style="width:auto"><input type="checkbox" value="${o.id}" ${p.works_with.includes(o.id) ? 'checked' : ''}> ${esc(nameOf(o))}</label>`).join('')}</div>
-      </fieldset>
-    </details>`).join('')}`;
-  for (const d of $$('[data-k]')) {
-    d.onchange = () =>
-      save(`/api/admin/kuleana/${d.dataset.k}`, {
-        title: $('[name=title]', d).value,
-        responsibilities: $('[name=responsibilities]', d).value,
-        works_with: $$('input[type=checkbox]:checked', d).map((x) => Number(x.value)),
-      });
-  }
 }
 
 // ---------------- values ----------------
@@ -1172,8 +1182,9 @@ async function data() {
       ${ch.email
         ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`
         : `<p style="margin-top:0"><strong>Email is not set up yet</strong>, so you copy each link and nudge and send it yourself. Whoever set up the app can turn it on (see the README).</p>`}
-      <label>Replies go to <input type="email" data-path="/api/admin/settings" data-f="reply_to" value="${esc(settings.reply_to || '')}" placeholder="you@your-org.org"></label>
-      <p class="small muted">When someone replies to an email from the app, it goes to this address.</p>
+      <p class="small">${ch.reply_to
+        ? `When someone replies to an email from the app, it goes to <strong>${esc(ch.reply_to)}</strong>, the person marked Director in <a href="#/staff">People</a>.`
+        : `Mark someone as Director in <a href="#/staff">People</a>, with an email, so replies to the app's emails reach them.`}</p>
       <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email ? '' : 'disabled'}> Each morning at 7am, email a gentle reminder to anyone still behind in the open review</label>
       <p class="small muted">Needs a CRON_SECRET on the mailer Worker and the app (see the README). Without it, use Today's nudges on the Cycles page.</p>
     </div>

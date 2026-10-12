@@ -13,7 +13,7 @@ import prepUser from './prompts/prep-user.txt';
 import prepFix from './prompts/prep-fix.txt';
 import boardSystem from './prompts/board-system.txt';
 import { signalsPrompt, parseSignals, calibrate } from './signals.js';
-import { channels, route as via, send, sendEmails } from './notify.js';
+import { channels, directorEmail, route as via, send, sendEmails } from './notify.js';
 
 // Seed questions, used when a cycle has no earlier cycle to copy from.
 // prompt_haw is left empty on purpose: a fluent speaker should write those.
@@ -429,12 +429,11 @@ export async function autofill({ env, request, params }) {
     reviewer: a.reviewer_id,
     reviewee: a.reviewee_id,
   }));
-  const worksWith = Object.fromEntries((await all(env, 'SELECT staff_id, works_with FROM kuleana')).map((k) => [k.staff_id, JSON.parse(k.works_with || '[]')]));
   const prev = await one(env, "SELECT id FROM cycles WHERE id < ? AND status != 'draft' ORDER BY id DESC LIMIT 1", cycleId);
   const lastPairs = new Set(
     prev ? (await all(env, "SELECT reviewer_id, reviewee_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", prev.id)).map((a) => `${a.reviewer_id}:${a.reviewee_id}`) : [],
   );
-  const added = autoFill({ staffIds, existing, worksWith, lastPairs, target: Math.min(3, Math.max(1, Number(target))) });
+  const added = autoFill({ staffIds, existing, lastPairs, target: Math.min(3, Math.max(1, Number(target))) });
   if (added.length) {
     await env.DB.batch(
       added.map((p) => env.DB.prepare("INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) VALUES (?, ?, ?, 'peer')").bind(cycleId, p.reviewer, p.reviewee)),
@@ -789,26 +788,6 @@ export async function saveBoard({ env, request, params }) {
   return json({ ok: true });
 }
 
-// ---------- kuleana map ----------
-
-export async function getKuleana({ env }) {
-  const rows = await all(
-    env,
-    'SELECT s.id, s.name, s.preferred_name, s.team, k.title, k.responsibilities, k.works_with FROM staff s LEFT JOIN kuleana k ON k.staff_id = s.id WHERE s.active = 1 ORDER BY s.name',
-  );
-  return json({ people: rows.map((r) => ({ ...r, works_with: JSON.parse(r.works_with || '[]') })) });
-}
-
-export async function putKuleana({ env, request, params }) {
-  const b = await body(request);
-  const cur = (await one(env, 'SELECT * FROM kuleana WHERE staff_id = ?', Number(params.staff))) || {};
-  const works = Array.isArray(b.works_with) ? b.works_with.map(Number).filter(Boolean) : JSON.parse(cur.works_with || '[]');
-  await env.DB.prepare(
-    `INSERT INTO kuleana (staff_id, title, responsibilities, works_with) VALUES (?, ?, ?, ?)
-     ON CONFLICT (staff_id) DO UPDATE SET title = excluded.title, responsibilities = excluded.responsibilities, works_with = excluded.works_with`,
-  ).bind(Number(params.staff), b.title ?? cur.title ?? null, b.responsibilities ?? cur.responsibilities ?? null, JSON.stringify(works)).run();
-  return json({ ok: true });
-}
 
 // ---------- early signals and reviewer tone ----------
 
@@ -873,7 +852,7 @@ async function toneTags(env, cycleId) {
 
 export async function getChannels({ env }) {
   const n = await settings(env);
-  return json({ ...channels(env), reply_to: n.reply_to || '', auto: n.auto_remind === '1' });
+  return json({ ...channels(env), reply_to: await directorEmail(env), auto: n.auto_remind === '1' });
 }
 
 export async function sendMessage({ env, request, admin }) {
@@ -882,7 +861,7 @@ export async function sendMessage({ env, request, admin }) {
   if (!person) throw new HttpError(404, 'Not found');
   const to = via(env, person);
   if (!to) throw new HttpError(400, `${person.preferred_name || person.name} has no email, or Send email is unchecked in People.`);
-  await send(env, to.to, String(b.message || '').slice(0, 4000), to.channel, b.subject || 'A message from your review', (await settings(env)).reply_to);
+  await send(env, to.to, String(b.message || '').slice(0, 4000), to.channel, b.subject || 'A message from your review');
   await audit(env, admin, `send_${to.channel}`, `staff:${person.id}`);
   return json({ ok: true, channel: to.channel });
 }
@@ -901,7 +880,7 @@ export async function emailMany({ env, request, admin }) {
     if (p.email && p.send_email) out.push({ to: p.email, subject: String(m.subject || 'A message from your review').slice(0, 200), text: String(m.message || '').slice(0, 4000) });
     else skipped.push(p.preferred_name || p.name);
   }
-  await sendEmails(env, out, (await settings(env)).reply_to);
+  await sendEmails(env, out);
   await audit(env, admin, 'email_many', `${out.length} sent`);
   return json({ sent: out.length, skipped });
 }

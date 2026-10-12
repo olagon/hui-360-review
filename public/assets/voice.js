@@ -1,5 +1,5 @@
 // Community voice: one question about one person, from someone outside the Hui. No account.
-import { api, t, initI18n, shell, esc, orgLogo, $ } from './app.js';
+import { api, t, initI18n, shell, esc, orgLogo, pressing, $ } from './app.js';
 
 await initI18n();
 shell();
@@ -20,16 +20,15 @@ try {
       <input id="who" autocomplete="name">
       <p class="small muted">${esc(t('voice.help', vars))}</p>
       <p><button type="button" id="send">${esc(t('voice.send'))}</button></p>`;
-    $('#send').onclick = async () => {
-      $('#send').disabled = true;
-      try {
-        await api(`/api/voice/${encodeURIComponent(token)}`, { method: 'POST', json: { response: $('#answer').value, who: $('#who').value } });
-        done(t('voice.thanks', vars));
-      } catch (e) {
-        $('#send').disabled = false;
-        alert(e.message);
-      }
-    };
+    $('#send').onclick = () =>
+      pressing($('#send'), async () => {
+        try {
+          await api(`/api/voice/${encodeURIComponent(token)}`, { method: 'POST', json: { response: $('#answer').value, who: $('#who').value } });
+          done(t('voice.thanks', vars));
+        } catch (e) {
+          alert(e.message);
+        }
+      });
   }
 } catch (e) {
   done(e.message || t('error.load'));

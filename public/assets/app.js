@@ -107,6 +107,25 @@ export function md(src = '') {
   return out.join('\n');
 }
 
+// A pressed button shows a small spinner and stays locked until its work is done,
+// so a slow send never looks like nothing happened. Only that button locks, never typing.
+export async function pressing(button, work) {
+  if (!button || button.classList.contains('is-busy')) return work();
+  button.classList.add('is-busy');
+  const was = button.disabled;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    return await work();
+  } finally {
+    if (button.isConnected) {
+      button.classList.remove('is-busy');
+      button.disabled = was;
+      button.removeAttribute('aria-busy');
+    }
+  }
+}
+
 export function toast(msg, ms = 2500) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -176,7 +195,7 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } 
     sub.className = 'subnav';
     sub.setAttribute('aria-label', t('nav.label'));
     const here = location.pathname;
-    sub.innerHTML = [['/', 'nav.home'], ['/me/', 'nav.me'], ['/mahalo/', 'nav.mahalo'], ['/kuleana/', 'nav.kuleana']]
+    sub.innerHTML = [['/', 'nav.home'], ['/me/', 'nav.me'], ['/mahalo/', 'nav.mahalo']]
       .map(([h, k]) => `<a href="${h}" ${here === h ? 'aria-current="page"' : ''}>${esc(t(k))}</a>`)
       .join('');
     header.after(sub);

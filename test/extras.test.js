@@ -51,7 +51,8 @@ test('signals parsing is forgiving and calibration needs two reviews', () => {
 });
 
 test('email goes only to people with Send email checked, in batches of 100', async () => {
-  const env = { TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', EMAIL_FROM: 'Hui <a@b.org>' };
+  const DB = { prepare: () => ({ first: async () => ({ email: 'director@b.org' }) }) }; // the person marked Director
+  const env = { DB, TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', EMAIL_FROM: 'Hui <a@b.org>' };
   assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
   assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 0 }), { channel: 'sms', to: '+1808' });
   assert.equal(route({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
@@ -60,8 +61,8 @@ test('email goes only to people with Send email checked, in batches of 100', asy
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => (calls.push([url, init]), new Response('{}'));
   await send(env, '+18085551234', 'hi', 'sms');
-  await send(env, 'x@y.org', 'hi', 'email', 'Subject', 'director@b.org');
-  await sendEmails(env, Array.from({ length: 150 }, (_, i) => ({ to: `p${i}@y.org`, subject: 's', text: 't' })), 'director@b.org');
+  await send(env, 'x@y.org', 'hi', 'email', 'Subject');
+  await sendEmails(env, Array.from({ length: 150 }, (_, i) => ({ to: `p${i}@y.org`, subject: 's', text: 't' })));
   globalThis.fetch = real;
   assert.match(calls[0][0], /Accounts\/AC1\/Messages\.json$/);
   assert.equal(new URLSearchParams(calls[0][1].body).get('To'), '+18085551234');
@@ -70,9 +71,9 @@ test('email goes only to people with Send email checked, in batches of 100', asy
 
   // With the Cloudflare mailer bound, email goes through it instead of Resend.
   const sent = [];
-  const cf = { EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => sent.push(...list) } };
+  const cf = { DB, EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => sent.push(...list) } };
   assert.deepEqual(route(cf, { email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
-  await send(cf, 'x@y.org', 'hi', 'email', 'Subject', 'director@b.org');
+  await send(cf, 'x@y.org', 'hi', 'email', 'Subject');
   assert.deepEqual(sent, [{ to: 'x@y.org', subject: 'Subject', text: 'hi', from: 'Hui <a@b.org>', replyTo: 'director@b.org' }]);
   assert.equal(route({ MAILER: {} }, { email: 'x@y.org', send_email: 1 }), null, 'off until EMAIL_FROM is set');
 });

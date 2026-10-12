@@ -26,9 +26,15 @@ const resend = async (env, path, payload) => {
   });
   if (!res.ok) throw new HttpError(502, `Email not sent: ${(await res.text()).slice(0, 200)}`);
 };
+// Replies reach a person: whoever is marked Director in People.
+export async function directorEmail(env) {
+  const row = await env.DB?.prepare("SELECT email FROM staff WHERE role = 'admin' AND active = 1 AND TRIM(COALESCE(email, '')) != '' ORDER BY id LIMIT 1").first();
+  return row?.email || '';
+}
+
 const mail = (env, m, replyTo) => ({ from: env.EMAIL_FROM, to: [m.to], subject: m.subject, text: m.text, ...(replyTo ? { reply_to: replyTo } : {}) });
 
-export async function send(env, to, message, channel, subject = 'A message from your review', replyTo = '') {
+export async function send(env, to, message, channel, subject = 'A message from your review') {
   if (channel === 'sms') {
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_SID}/Messages.json`, {
       method: 'POST',
@@ -38,13 +44,14 @@ export async function send(env, to, message, channel, subject = 'A message from 
     if (!res.ok) throw new HttpError(502, `Text not sent (${res.status})`);
     return;
   }
-  if (channel === 'email') return sendEmails(env, [{ to, subject, text: message }], replyTo);
+  if (channel === 'email') return sendEmails(env, [{ to, subject, text: message }]);
   throw new HttpError(400, 'No way to send this message. Copy it and send it yourself.');
 }
 
 // Many emails in as few calls as possible. list: [{ to, subject, text }]
-export async function sendEmails(env, list, replyTo = '') {
+export async function sendEmails(env, list) {
   if (!list.length) return;
+  const replyTo = await directorEmail(env);
   if (env.MAILER) {
     try {
       await env.MAILER.send(list.map((m) => ({ ...m, from: env.EMAIL_FROM, replyTo })));

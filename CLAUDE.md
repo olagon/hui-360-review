@@ -158,7 +158,7 @@ Everything under /admin. Desktop first here but must still work on a phone.
 
 - Create cycle. Name, open date, close date, which values set to use.
 - Questions. Reuse from last cycle with one click. Edit prompts in both languages. Drag to reorder. Flag which are five minute questions. Link a question to a value if it is meant to surface that value.
-- Assignments. A grid with staff down the left and reviewers across the top. Tap a cell to assign. Show a count per person so Noʻeau can see at a glance everyone has 1 to 3 reviewers and nobody has zero. Include an "auto fill" button that suggests assignments based on the kuleana map (people who work together) and last year's pairs (avoid repeating the same pairs two years in a row). Noʻeau can override anything.
+- Assignments. A grid with staff down the left and reviewers across the top. Tap a cell to assign. Show a count per person so Noʻeau can see at a glance everyone has 1 to 3 reviewers and nobody has zero. Include an "auto fill" button that suggests assignments that spread the load evenly and avoid last year's pairs (do not repeat the same pairs two years in a row). Noʻeau can override anything.
 - Upward review. Checkbox per cycle to include an upward review of Noʻeau and any leads, with its own question set.
 - Community voices. For any staff member, generate one question links to send to outside people. Admin writes the one question. Links are single use and expire with the cycle.
 - Open the cycle. Generates all magic links. Shows a copy all button that produces one text message per person with their name and link, ready to paste into Messages, plus the option to send automatically if a reminder channel is configured.
@@ -188,7 +188,7 @@ Scheduling. A simple scheduler. Noʻeau enters available blocks, the app lays ou
 
 ### Kuleana map
 
-A page where admin maintains each person's title, main responsibilities, and who they work with most. Rendered as a simple force layout or a clean grid, your choice, readable on a phone. Staff can see it. New hires get a lot out of it.
+Dropped by Olin on 2026-10-12. At about 20 people who see each other every week, a map of who does what was one more thing for Noʻeau to keep up, for little gain. Do not rebuild it. The `kuleana` table stays in the schema and in exports so nothing entered is lost, and Auto fill no longer reads it.
 
 ### Values
 
@@ -293,20 +293,20 @@ Build in this order. Get Olin's sign off at the end of each phase before startin
 Auth (Access plus magic links), D1 schema, cycle setup, questions, assignments grid, staff answer flow with typing and voice and offline, completion dashboard, raw responses, AI draft summary with quote verification, edit and share, staff reflection, export. Values set and seed questions. Bilingual UI shell with English complete. Privacy page. This phase alone replaces the Google Form process.
 
 ### Phase 2, year round
-Personal page with goals and timeline, mahalo feed and board, feedback requests, kuleana map, talk story prep, scheduler with .ics, moon calendar, team view, reminders digest.
+Personal page with goals and timeline, mahalo feed and board, feedback requests, talk story prep, scheduler with .ics, moon calendar, team view, reminders digest.
 
 ### Phase 3, widen the circle
 Upward review, community voice links, early signals, reviewer calibration, board report, lead role, optional Twilio and Resend channels, Hawaiian i18n review pass, README for other nonprofits.
 
 All three phases are built, except the Hawaiian i18n review pass, which needs a fluent speaker. Notes on how a few pieces landed:
-- Staff pages: `/me/` (letters, huli goals, mahalo, feedback, timeline, and "My team" for leads), `/mahalo/`, `/kuleana/`, `/voice/?t=`. A small nav under the header links them.
+- Staff pages: `/me/` (letters, huli goals, mahalo, feedback, timeline, and "My team" for leads), `/mahalo/`, `/voice/?t=`. A small nav under the header links them.
 - Feedback requests do not send a link. The asker copies a message pointing the coworker to `/me/#feedback`, and the coworker's dashboard shows a card until they answer.
 - Community voice links work while the cycle is draft or open, answer once, and show in Raw with the optional "who".
-- Early signals run when a cycle closes and on demand from Progress. Reviewer tone comes from the same pass and needs 2 or more peer reviews per reviewer. It shows as a count at the top of Raw ("1 of the people who reviewed Kainoa tends to write more generously"), not as a tag on each answer: per answer tags let the admin line up one reviewer's answers across questions and people, which breaks the anonymity rule. Changed 2026-10-12 after review. Olin to confirm.
+- Early signals run when a cycle closes and on demand from Progress. Reviewer tone comes from the same pass and needs 2 or more peer reviews per reviewer. It shows as a count at the top of Raw ("1 of the people who reviewed Kainoa tends to write more generously"), not as a tag on each answer: per answer tags let the admin line up one reviewer's answers across questions and people, which breaks the anonymity rule. Changed 2026-10-12 after review, and Olin confirmed it.
 - Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Team report tab and prints on its own.
-- Email (Olin's call, October 2026): Cloudflare Email Sending through the mailer Worker, since Olin is on Workers Paid. Resend stays as the free plan fallback. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. `reply_to` in settings routes replies to the director.
+- Email (Olin's call, October 2026): Cloudflare Email Sending through the mailer Worker, since Olin is on Workers Paid. Resend stays as the free plan fallback. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. Replies go to the first active staff member with role admin (Director) who has an email. There is no setting for it.
 
 ## Setup walkthrough for Olin
 

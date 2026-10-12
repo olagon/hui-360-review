@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, md, fmtDate, registerSW, copy, toast, config, $, $$ } from './app.js';
+import { api, t, initI18n, shell, esc, md, fmtDate, registerSW, copy, toast, config, pressing, $, $$ } from './app.js';
 
 registerSW();
 await initI18n();
@@ -137,28 +137,31 @@ async function reload(keys) {
   scrollTo(0, y);
 }
 
-const act = (fn, done) => async (e) => {
+const act = (fn, done) => (e) => {
   e.preventDefault();
-  try {
-    await fn(e);
-    if (done) toast(done);
-  } catch (err) {
-    toast(err.message || t('error.generic'));
-  }
+  return pressing(e.currentTarget, async () => {
+    try {
+      await fn(e);
+      if (done) toast(done);
+    } catch (err) {
+      toast(err.message || t('error.generic'));
+    }
+  });
 };
 
 function wire() {
   for (const b of $$('[data-save]')) {
-    b.onclick = async () => {
-      const id = b.dataset.save;
-      const status = $(`[data-status="${id}"]`);
-      try {
-        await api(`/api/summaries/${id}/reflection`, { method: 'PUT', json: { body: $(`textarea[data-id="${id}"]`).value } });
-        status.textContent = t('me.saved');
-      } catch {
-        status.textContent = t('error.generic');
-      }
-    };
+    b.onclick = () =>
+      pressing(b, async () => {
+        const id = b.dataset.save;
+        const status = $(`[data-status="${id}"]`);
+        try {
+          await api(`/api/summaries/${id}/reflection`, { method: 'PUT', json: { body: $(`textarea[data-id="${id}"]`).value } });
+          status.textContent = t('me.saved');
+        } catch {
+          status.textContent = t('error.generic');
+        }
+      });
   }
   $('#goal-add').onclick = act(async () => {
     await api('/api/goals', { method: 'POST', json: { body: $('#goal-new').value } });
@@ -185,7 +188,8 @@ function wire() {
     await api(`/api/feedback/${id}`, { method: 'PUT', json: { response: $(`[data-answer="${id}"]`).value } });
     await reload(['feedback']);
   }, t('feedback.answered'));
-  $('#f-ask').onclick = async (e) => {
+  $('#f-ask').onclick = (e) => pressing(e.currentTarget, () => ask(e));
+  async function ask(e) {
     e.preventDefault();
     const to = data.people.find((p) => String(p.id) === $('#f-to').value);
     const asked = api('/api/feedback', { method: 'POST', json: { to_id: $('#f-to').value, prompt: $('#f-prompt').value } });
@@ -202,7 +206,7 @@ function wire() {
       }
     }
     await reload(['feedback']);
-  };
+  }
 }
 
 render();

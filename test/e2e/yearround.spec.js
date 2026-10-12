@@ -7,7 +7,6 @@ test('goals, mahalo, and feedback work between reviews', async ({ browser, reque
   const stamp = Date.now();
   const { id: aId } = await admin('/staff', 'POST', { name: `Year Asker ${stamp}`, team: 'Ops' });
   const { id: bId } = await admin('/staff', 'POST', { name: `Year Helper ${stamp}`, team: 'Ops' });
-  await admin(`/kuleana/${bId}`, 'PUT', { title: 'Field lead', responsibilities: 'Loʻi workdays', works_with: [aId] });
 
   const a = await (await browser.newContext({ viewport: { width: 375, height: 812 } })).newPage();
   await a.goto((await admin(`/staff/${aId}/link`, 'POST', {})).link);
@@ -29,8 +28,6 @@ test('goals, mahalo, and feedback work between reviews', async ({ browser, reque
 
   await a.goto('/mahalo/');
   await expect(a.locator('main')).toContainText(`Mahalo for the loʻi ${stamp}`);
-  await a.goto('/kuleana/');
-  await expect(a.locator('main')).toContainText('Loʻi workdays');
 
   // The coworker sees the ask on their home page and answers it.
   const b = await (await browser.newContext({ viewport: { width: 375, height: 812 } })).newPage();

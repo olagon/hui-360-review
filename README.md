@@ -28,11 +28,11 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - Every peer review starts with **mahalo**. Only the mahalo can be signed, and only if the writer chooses to. Everything else is anonymous, and the screen says so.
 - After the review, they read the summary written for them and can write a reflection back.
 - All year, on **My page**: their two or three goals (my huli), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed next year's letter.
-- A **mahalo board** of public thanks, and a **kuleana map** of who does what. No likes and no comments.
+- A **mahalo board** of public thanks. No likes and no comments.
 
 **For the director (admin)**
 - Add staff, set your values, create a cycle, and edit questions in both languages with drag to reorder.
-- Assign reviewers on a simple grid, or press **Auto fill** to pair people who work together and avoid repeating last year's pairs.
+- Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last year's pairs.
 - Open the cycle and copy one ready to send text message per person with their link.
 - Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
 - **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
@@ -41,7 +41,6 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it. A quiet note says when some of a person's reviewers run notably generous or critical, without ever saying which answers are theirs.
 - **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
 - A **team report** for staff and a one page **board report** with no names and no quotes.
-- A **kuleana map** you keep up to date, which Auto fill uses to pair coworkers.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
 - Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional 7am reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Data.
@@ -158,7 +157,7 @@ There are two ways to send it.
    ```
 3. In `wrangler.toml`, set `EMAIL_FROM` to an address on your verified domain, delete the `[[services]]` block for `MAILER`, and deploy.
 
-Either way, finish in admin, **Data, Email**: put your director's address in **Replies go to**, so replies reach a person.
+Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address.
 
 **Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and morning reminders go by text to people the app cannot email.
 
@@ -185,7 +184,6 @@ Open `https://<your domain>/admin/` and sign in.
 1. **Data, Settings:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice. Upload your logo there too (an animated SVG works); it shows on the staff and admin home pages.
 2. **Values:** replace the sample set (from Pukui's ʻŌlelo Noʻeau) with your own values. Each value has a name, an optional ʻōlelo noʻeau, and what it looks like in your organization. The AI measures summaries against these.
 3. **People:** add everyone, with a phone or email so you can send links.
-4. **Kuleana:** add each person's title, what they take care of, and who they work with most.
 
 ### 9. Run a practice cycle
 
