@@ -101,19 +101,22 @@ const moonToday = () => {
 };
 // Email straight from the app once email is set up, to anyone with Send email checked in People. Otherwise copy.
 let channelsP;
-const channels = () => (channelsP ||= api('/api/admin/channels').catch(() => ({})));
+let CH = {};
+const channels = () => (channelsP ||= api('/api/admin/channels').then((c) => (CH = c)).catch(() => ({})));
+channels(); // known before anyone taps, so a tap can decide email or copy without waiting
 const emails = (p) => !!(p.email && p.send_email);
-async function sendOrCopy(person, message, subject) {
-  const ch = await channels();
-  if ((ch.email && emails(person)) || (ch.sms && person.phone)) {
-    try {
-      const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: person.id, message, subject } });
-      return toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
-    } catch (e) {
-      toast(`${e.message} Copied instead.`, 5000);
-    }
+// message can be a promise. Deciding without awaiting keeps a copy inside the tap, which Safari requires.
+function sendOrCopy(person, message, subject) {
+  if ((CH.email && emails(person)) || (CH.sms && person.phone)) return sendNow(person, message, subject);
+  return copy(message);
+}
+async function sendNow(person, message, subject) {
+  try {
+    const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: person.id, message: await message, subject } });
+    toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
+  } catch (e) {
+    copy(message, `Not sent (${e.message}). Copied instead.`);
   }
-  copy(message);
 }
 // One button that emails a message to each person in the list who has Send email checked.
 // people: [{ id, name, email, send_email }], build(p) gives that person's message.
@@ -574,18 +577,15 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
     </table></div>
     <p class="row" id="nudgeall"></p>
     <div id="signals"></div>`;
+  const linksP = c.status === 'open' ? api(`/api/admin/cycles/${c.id}/links`) : null;
+  const linkOf = async (p) => (await linksP).people.find((x) => x.id === p.id).link;
   if (c.status === 'open') {
     const behind = rows.filter((r) => r.mine.some((a) => a.status !== 'done')).map((r) => r.s);
-    let linksP;
-    const linkOf = async (p) => (await (linksP ||= api(`/api/admin/cycles/${c.id}/links`))).people.find((x) => x.id === p.id).link;
     emailButton($('#nudgeall'), behind, 'Email a nudge to everyone behind', `A gentle reminder: ${c.name}`, async (p) => nudge({ ...p, link: await linkOf(p) }, c));
   }
   for (const b of $$('[data-nudge]', pane)) {
-    b.onclick = async () => {
-      const { people } = await api(`/api/admin/cycles/${c.id}/links`);
-      const p = people.find((x) => x.id === Number(b.dataset.nudge));
-      sendOrCopy(p, nudge(p, c), 'A gentle reminder');
-    };
+    const p = byId.get(Number(b.dataset.nudge));
+    b.onclick = () => sendOrCopy(p, linkOf(p).then((link) => nudge({ ...p, link }, c)), 'A gentle reminder');
   }
   if (c.status !== 'draft') signals(c, $('#signals'));
 }
@@ -635,8 +635,8 @@ async function voices({ cycle: c, members }, pane) {
     form.reviewee_id.onchange = () => (form.question.value = ask(members.find((m) => m.id === Number(form.reviewee_id.value))));
     form.onsubmit = async (e) => {
       e.preventDefault();
-      const { link } = await save(`/api/admin/cycles/${c.id}/voices`, { reviewee_id: Number(form.reviewee_id.value), question: form.question.value }, 'POST');
-      copy(`Aloha, ${config.director} at ${config.hui} would love one answer from you. It takes a few minutes: ${link} Mahalo!`);
+      const made = save(`/api/admin/cycles/${c.id}/voices`, { reviewee_id: Number(form.reviewee_id.value), question: form.question.value }, 'POST');
+      await copy(made.then(({ link }) => `Aloha, ${config.director} at ${config.hui} would love one answer from you. It takes a few minutes: ${link} Mahalo!`), 'Link made and copied');
       route();
     };
   }
@@ -823,8 +823,8 @@ function board(c, report, stats, pane) {
   // Print only this section: hide the rest of the page for the print.
   $('#bprint').onclick = () => {
     document.body.classList.add('print-board');
+    addEventListener('afterprint', () => document.body.classList.remove('print-board'), { once: true });
     print();
-    document.body.classList.remove('print-board');
   };
 }
 
@@ -842,10 +842,12 @@ async function person(cycleId, staffId, tab = 'raw') {
   const text = () => summary?.edited ?? summary?.draft ?? '';
 
   if (tab === 'raw') {
-    const { groups } = await api(`${base}/raw`);
+    const { groups, tones = {} } = await api(`${base}/raw`);
+    const toneNote = [tones.generous && `${tones.generous} ${tones.generous === 1 ? 'tends' : 'tend'} to write more generously than the group`, tones.critical && `${tones.critical} ${tones.critical === 1 ? 'tends' : 'tend'} to write more critically`].filter(Boolean);
     pane.innerHTML = `
       <p class="small muted">Opening this tab is logged. Answers are shuffled within each question, so position tells you nothing about who wrote them.
       Highlight any sentence and tap "Add as quote" to drop it into the draft.</p>
+      ${toneNote.length ? `<div class="banner info small">Only you see this. Of the people who reviewed ${esc(first(p))}, ${toneNote.join(', and ')}. Read with that in mind. To keep answers anonymous, it never says which answers are theirs.</div>` : ''}
       ${groups.length ? '' : '<p>No answers about this person.</p>'}
       ${groups
         .map(
@@ -853,12 +855,12 @@ async function person(cycleId, staffId, tab = 'raw') {
           ${g.responses
             .map(
               (r) => `<div class="card">
-              ${r.signed_name ? `<p class="small"><span class="chip done">Signed mahalo from ${esc(r.signed_name)}</span></p>` : ''}
-              ${r.tone ? `<p class="small muted" style="margin-top:0" title="Only you see this. It compares this reviewer's tone across their reviews with everyone else's.">This reviewer tends to be ${r.tone}</p>` : ''}
+              ${r.signed_name ? `<p class="small"><span class="chip done">${g.audience === 'mahalo' ? 'From' : 'Signed mahalo from'} ${esc(r.signed_name)}</span></p>` : ''}
               <div class="raw-body">${esc(r.body || '')}</div>
               ${r.audio_key ? `<audio controls preload="none" style="width:100%;margin-top:.5rem" src="/api/admin/file?key=${encodeURIComponent(r.audio_key)}"></audio>` : ''}
               ${r.language && r.language !== 'en' ? `<p class="small muted">Language: ${esc(r.language)}</p>` : ''}
               ${g.audience === 'community' ? `<p class="small muted" style="margin-bottom:0">From outside ${esc(config.hui)}${r.who ? `: ${esc(r.who)}` : ''}</p>` : ''}
+              ${g.audience === 'feedback' && r.who ? `<p class="small muted" style="margin-bottom:0">Answered by ${esc(r.who)}</p>` : ''}
             </div>`,
             )
             .join('')}`,
@@ -989,8 +991,8 @@ async function person(cycleId, staffId, tab = 'raw') {
   preview();
   $('#print').onclick = () => print();
   const fresh = async () => (await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} })).link;
-  $('#tell')?.addEventListener('click', async () => copy(letterMsg(p, cyc.name, await fresh())));
-  $('#emailtell')?.addEventListener('click', async () => sendOrCopy(p, letterMsg(p, cyc.name, await fresh()), `Your letter from ${cyc.name}`));
+  $('#tell')?.addEventListener('click', () => copy(fresh().then((link) => letterMsg(p, cyc.name, link))));
+  $('#emailtell')?.addEventListener('click', () => sendOrCopy(p, fresh().then((link) => letterMsg(p, cyc.name, link)), `Your letter from ${cyc.name}`));
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');
@@ -1044,11 +1046,13 @@ async function staff() {
   bindFields();
   // Their link works all year: in an open review it opens their list, otherwise their page.
   for (const b of $$('[data-link]')) {
-    b.onclick = async () => {
-      const s = list.find((x) => x.id === Number(b.dataset.link));
-      const { link } = await api(`/api/admin/staff/${s.id}/link`, { method: 'POST', json: {} });
-      sendOrCopy(s, `Aloha ${first(s)}, here is your link to ${APP_NAME}: ${link}\n\nIt opens your page, with your goals, mahalo, and letters. It is yours alone, so please do not forward it. Mahalo!`, `Your link to ${APP_NAME}`);
-    };
+    const s = list.find((x) => x.id === Number(b.dataset.link));
+    b.onclick = () =>
+      sendOrCopy(
+        s,
+        api(`/api/admin/staff/${s.id}/link`, { method: 'POST', json: {} }).then(({ link }) => `Aloha ${first(s)}, here is your link to ${APP_NAME}: ${link}\n\nIt opens your page, with your goals, mahalo, and letters. It is yours alone, so please do not forward it. Mahalo!`),
+        `Your link to ${APP_NAME}`,
+      );
   }
   $('#add').onsubmit = async (e) => {
     e.preventDefault();

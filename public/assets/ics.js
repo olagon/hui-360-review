@@ -36,5 +36,20 @@ export function buildICS(events, now = new Date()) {
     );
   }
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n') + '\r\n';
+  return lines.map(fold).join('\r\n') + '\r\n';
+}
+
+// Calendar lines are at most 75 bytes. Longer ones continue on the next line after a space.
+const bytes = (s) => new TextEncoder().encode(s).length;
+function fold(line) {
+  const out = [];
+  let cur = '';
+  for (const ch of line) {
+    if (bytes(cur + ch) > 74) {
+      out.push(cur);
+      cur = ' ';
+    }
+    cur += ch;
+  }
+  return [...out, cur].join('\r\n');
 }

@@ -13,14 +13,16 @@ export function signalsPrompt(texts) {
   return { system, user };
 }
 
+// Returns null when the reply is not one entry per answer, so nothing gets a made up label.
 export function parseSignals(text, count) {
   const m = String(text).match(/\[[\s\S]*\]/);
-  let arr = [];
+  let arr;
   try {
-    arr = JSON.parse(m ? m[0] : '[]');
+    arr = JSON.parse(m ? m[0] : 'null');
   } catch {}
-  return Array.from({ length: count }, (_, i) => {
-    const x = arr[i] || {};
+  if (!Array.isArray(arr) || arr.length !== count) return null;
+  return arr.map((y) => {
+    const x = y || {};
     const label = LABELS.includes(x.label) ? x.label : 'none';
     const tone = Math.max(-2, Math.min(2, Math.round(Number(x.tone) || 0)));
     return { label, tone };

@@ -9,6 +9,8 @@ import fixPrompt from './prompts/summary-fix.txt';
 import teamSystem from './prompts/team-system.txt';
 import teamUser from './prompts/team-user.txt';
 import prepSystem from './prompts/prep-system.txt';
+import prepUser from './prompts/prep-user.txt';
+import prepFix from './prompts/prep-fix.txt';
 import boardSystem from './prompts/board-system.txt';
 import { signalsPrompt, parseSignals, calibrate } from './signals.js';
 import { channels, route as via, send, sendEmails } from './notify.js';
@@ -489,7 +491,7 @@ export async function raw({ env, params, admin }) {
   for (const r of rows) {
     let g = groups.find((x) => x.question_id === r.question_id);
     if (!g) groups.push((g = { question_id: r.question_id, prompt: r.prompt_en, audience: r.audience, kind: r.question_kind, responses: [] }));
-    g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name, tone: tags[linkOf[r.id]] || null });
+    g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name });
   }
   const voices = await all(env, 'SELECT question, response, who FROM community_voices WHERE cycle_id = ? AND reviewee_id = ? AND response IS NOT NULL', cycle.id, Number(params.staff));
   for (const v of voices) {
@@ -497,9 +499,20 @@ export async function raw({ env, params, admin }) {
     if (!g) groups.push((g = { question_id: `voice:${groups.length}`, prompt: v.question, audience: 'community', kind: 'story', responses: [] }));
     g.responses.push({ id: null, body: v.response, who: v.who });
   }
+  // The year's mahalo and the feedback they asked for. The letter can quote these, so the director sees them too.
+  // Both carry names by design: a mahalo shows its sender unless sent without a name, and feedback is asked of a named coworker.
+  const staffId = Number(params.staff);
+  const mahalo = await all(env, "SELECT m.body, f.name, f.preferred_name FROM mahalo m LEFT JOIN staff f ON f.id = m.from_id WHERE m.to_id = ? AND m.created_at > datetime('now', '-1 year') ORDER BY m.id", staffId);
+  if (mahalo.length) groups.push({ question_id: 'mahalo', prompt: 'Mahalo sent during the year', audience: 'mahalo', kind: 'mahalo', responses: mahalo.map((m) => ({ id: null, body: m.body, signed_name: m.preferred_name || m.name || null })) });
+  const asks = await all(env, "SELECT f.id, f.prompt, f.response, s.name, s.preferred_name FROM feedback_requests f JOIN staff s ON s.id = f.to_id WHERE f.from_id = ? AND f.response IS NOT NULL AND f.created_at > datetime('now', '-1 year') ORDER BY f.id", staffId);
+  for (const f of asks) groups.push({ question_id: `ask:${f.id}`, prompt: `Feedback they asked for: ${f.prompt}`, audience: 'feedback', kind: 'story', responses: [{ id: null, body: f.response, who: f.preferred_name || f.name }] });
   // Shuffle within each question so position never lines up across questions.
   for (const g of groups) g.responses = shuffle(g.responses);
-  return json({ groups });
+  // Reviewer tone, as a count for this person only. A tag on each answer would let the admin
+  // line up one reviewer's answers across questions and people, which undoes the shuffle.
+  const tones = { generous: 0, critical: 0 };
+  for (const hash of new Set(Object.values(linkOf))) if (tags[hash]) tones[tags[hash]]++;
+  return json({ groups, tones });
 }
 
 export async function getSummary({ env, params }) {
@@ -605,7 +618,7 @@ export async function draftPrep({ env, params, admin }) {
       signers: {},
       lastYear: goals.length ? `Goals:\n${goals.map((g) => `- ${g.body} (${g.status})`).join('\n')}` : '',
     },
-    templates: { system: prepSystem, user: userPrompt, fix: fixPrompt },
+    templates: { system: prepSystem, user: prepUser, fix: prepFix },
     complete: completer(env),
   });
   await env.DB.prepare(
@@ -683,7 +696,7 @@ export async function draftTeam({ env, params, admin }) {
   );
   if (!rows.length) throw new HttpError(409, 'There are no answers in this review yet');
   const { responses } = stripIdentity(rows);
-  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ?', cycle.id))
+  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ? AND s.role != \'admin\'', cycle.id))
     .flatMap((s) => [s.name, s.preferred_name, s.name.split(' ')[0]])
     .filter(Boolean);
   const values = await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0);
@@ -739,7 +752,7 @@ export async function draftBoard({ env, params, admin }) {
     cycle.id,
   );
   if (!rows.length) throw new HttpError(409, 'There are no answers in this review yet');
-  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ?', cycle.id))
+  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ? AND s.role != \'admin\'', cycle.id))
     .flatMap((s) => [s.name, s.preferred_name, s.name.split(' ')[0]])
     .filter(Boolean);
   const n = await settings(env);
@@ -810,6 +823,7 @@ async function analyze(env, cycleId) {
     const batch = todo.slice(i, i + 20);
     const { system, user } = signalsPrompt(batch.map((r) => r.body));
     const out = parseSignals(await complete(system, user), batch.length);
+    if (!out) continue; // unreadable reply: leave these unchecked so the next run tries again
     await env.DB.batch(
       batch.map((r, k) => env.DB.prepare('INSERT OR REPLACE INTO response_signals (response_id, label, tone) VALUES (?, ?, ?)').bind(r.id, out[k].label, out[k].tone)),
     );
@@ -878,9 +892,7 @@ export async function sendMessage({ env, request, admin }) {
 export async function emailMany({ env, request, admin }) {
   if (!channels(env).email) throw new HttpError(400, 'Email is not set up yet. Copy the messages instead.');
   const messages = (await body(request)).messages || [];
-  const ids = messages.map((m) => Number(m.staff_id));
-  // ponytail: one IN list, fine up to D1's 100 bound values. Chunk it for bigger organizations.
-  const people = Object.fromEntries((await all(env, `SELECT * FROM staff WHERE id IN (${ids.map(() => '?').join(',') || 'NULL'})`, ...ids)).map((p) => [p.id, p]));
+  const people = Object.fromEntries((await all(env, 'SELECT * FROM staff')).map((p) => [p.id, p]));
   const out = [];
   const skipped = [];
   for (const m of messages) {

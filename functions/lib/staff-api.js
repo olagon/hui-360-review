@@ -129,8 +129,12 @@ export async function saveAnswer(env, staff, p) {
     const lang = detectLanguage(text) || p.language || null;
     const transcript = p.transcript ? String(p.transcript).slice(0, 20000) : null;
     if (existing) {
-      await env.DB.prepare('UPDATE responses SET body = ?, audio_key = ?, transcript = ?, language = ?, signed_name = ? WHERE id = ?')
-        .bind(text, audioKey, transcript, lang, signed, existing.id).run();
+      await env.DB.batch([
+        env.DB.prepare('UPDATE responses SET body = ?, audio_key = ?, transcript = ?, language = ?, signed_name = ? WHERE id = ?')
+          .bind(text, audioKey, transcript, lang, signed, existing.id),
+        // The words changed, so any early signal read from the old words is stale.
+        env.DB.prepare('DELETE FROM response_signals WHERE response_id = ?').bind(existing.id),
+      ]);
     } else {
       const id = crypto.randomUUID();
       await env.DB.batch([

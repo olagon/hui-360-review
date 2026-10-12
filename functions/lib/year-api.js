@@ -161,7 +161,7 @@ export async function teamLetters({ env, staff }) {
     env,
     `SELECT s.name, s.preferred_name, c.name AS cycle, m.shared_body, m.shared_at FROM summaries m
      JOIN staff s ON s.id = m.reviewee_id JOIN cycles c ON c.id = m.cycle_id
-     WHERE m.status = 'shared' AND s.team = ? AND s.id != ? AND s.active = 1 ORDER BY m.shared_at DESC`,
+     WHERE m.status = 'shared' AND s.team = ? AND s.id != ? AND s.role = 'staff' AND s.active = 1 ORDER BY m.shared_at DESC`,
     staff.team,
     staff.id,
   );
@@ -199,7 +199,7 @@ export async function answerVoice({ env, params, request }) {
 
 // ---------- asking for a fresh link from the landing page ----------
 
-export async function requestLink({ env, request, url }) {
+export async function requestLink({ env, request, url, waitUntil }) {
   const ip = request.headers.get('cf-connecting-ip') || 'local';
   const key = `rl:link:${ip}`;
   const count = Number((await env.KV.get(key)) || 0);
@@ -214,18 +214,22 @@ export async function requestLink({ env, request, url }) {
     (s) => (s.email && s.email.toLowerCase() === contact) || (digits.length >= 7 && (s.phone || '').replace(/\D/g, '').endsWith(digits.slice(-10))),
   );
   const to = person && emailOf(env, person);
-  if (to) {
+  // One email per person per 10 minutes, however many places ask for it.
+  const cool = person && `rl:to:${person.id}`;
+  if (to && !(await env.KV.get(cool))) {
+    await env.KV.put(cool, '1', { expirationTtl: 600 });
     // In a review, the link opens their list. Between reviews it still opens their page: goals, mahalo, letters.
     const cycle = await one(env, "SELECT c.* FROM cycles c JOIN cycle_people p ON p.cycle_id = c.id WHERE c.status = 'open' AND p.staff_id = ?", person.id);
     const link = await linkFor(env, url.origin, person.id, cycle?.id ?? 0);
     const what = cycle ? `your link for ${cycle.name}` : 'your link to your page, with your goals, mahalo, and letters';
-    await send(env, to, `Aloha ${nameOf(person)}, here is ${what}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your link', n.reply_to);
+    // Sent after the reply, so the answer and its timing are the same whether or not anyone matched.
+    waitUntil(send(env, to, `Aloha ${nameOf(person)}, here is ${what}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your link', n.reply_to).catch((e) => console.error('link not sent', e.message)));
   }
   // Same answer either way, so nobody can test who is on staff.
   return json({ sent: true });
 }
 
-// ---------- morning reminders, called by the small cron Worker in workers/reminders ----------
+// ---------- morning reminders, called at 7am by the cron in workers/mailer ----------
 
 export async function reminders({ env, request, url }) {
   if (!env.CRON_SECRET || request.headers.get('x-cron-secret') !== env.CRON_SECRET) throw new HttpError(401, 'Not allowed');
@@ -245,7 +249,12 @@ export async function reminders({ env, request, url }) {
     if (!via || (await env.KV.get(key))) continue;
     const link = await linkFor(env, url.origin, p.id, cycle.id);
     const until = cycle.closes_at ? ` until ${cycle.closes_at}` : '';
-    await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder', n.reply_to);
+    try {
+      await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder', n.reply_to);
+    } catch (e) {
+      console.error('reminder not sent', p.id, e.message); // one bad address never stops the rest
+      continue;
+    }
     await env.KV.put(key, '1', { expirationTtl: 172800 });
     sent++;
   }

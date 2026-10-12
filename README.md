@@ -38,7 +38,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
 - **Community voices:** a one question link for a partner, kupuna, or volunteer outside your organization. Single use, no account.
 - **Upward review:** a checkbox per cycle adds a review of the director and team leads.
-- After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it. A quiet tag marks reviewers who run notably generous or critical, so you read with that in mind.
+- After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it. A quiet note says when some of a person's reviewers run notably generous or critical, without ever saying which answers are theirs.
 - **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **kuleana map** you keep up to date, which Auto fill uses to pair coworkers.

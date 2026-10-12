@@ -302,7 +302,7 @@ All three phases are built, except the Hawaiian i18n review pass, which needs a 
 - Staff pages: `/me/` (letters, huli goals, mahalo, feedback, timeline, and "My team" for leads), `/mahalo/`, `/kuleana/`, `/voice/?t=`. A small nav under the header links them.
 - Feedback requests do not send a link. The asker copies a message pointing the coworker to `/me/#feedback`, and the coworker's dashboard shows a card until they answer.
 - Community voice links work while the cycle is draft or open, answer once, and show in Raw with the optional "who".
-- Early signals run when a cycle closes and on demand from Progress. Reviewer tone tags come from the same pass and need 2 or more peer reviews per reviewer.
+- Early signals run when a cycle closes and on demand from Progress. Reviewer tone comes from the same pass and needs 2 or more peer reviews per reviewer. It shows as a count at the top of Raw ("1 of the people who reviewed Kainoa tends to write more generously"), not as a tag on each answer: per answer tags let the admin line up one reviewer's answers across questions and people, which breaks the anonymity rule. Changed 2026-10-12 after review. Olin to confirm.
 - Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Team report tab and prints on its own.

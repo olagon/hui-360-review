@@ -116,17 +116,25 @@ export function toast(msg, ms = 2500) {
   setTimeout(() => el.remove(), ms);
 }
 
-export async function copy(text) {
+// Takes the text, or a promise of it. Safari only allows a copy during the tap itself, so when
+// the text needs a network call first, the promise goes to the clipboard right away.
+export async function copy(text, done = 'Copied') {
   try {
-    await navigator.clipboard.writeText(text);
+    if (typeof text !== 'string' && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': Promise.resolve(text).then((s) => new Blob([s], { type: 'text/plain' })) })]);
+    } else await navigator.clipboard.writeText(await text);
   } catch {
-    const ta = Object.assign(document.createElement('textarea'), { value: text });
-    document.body.append(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
+    try {
+      const ta = Object.assign(document.createElement('textarea'), { value: await text });
+      document.body.append(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    } catch (e) {
+      return toast(e.message || 'Could not copy', 4000);
+    }
   }
-  toast('Copied');
+  if (done) toast(done);
 }
 
 // The organization's own logo (set in admin, Data, Settings), if it has one.

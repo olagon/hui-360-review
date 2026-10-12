@@ -125,3 +125,57 @@ test('community voice links answer once and stop when the review closes', async 
   DB.raw.exec(`INSERT INTO community_voices (cycle_id, reviewee_id, token, question) VALUES (5, 22, 'tok2', 'Q'); UPDATE cycles SET status = 'closed'`);
   await assert.rejects(() => answerVoice({ env, params: { token: 'tok2' }, request: new Request('http://x', { method: 'POST', body: '{"response":"late"}' }) }), /closed/);
 });
+
+const fakeKV = () => {
+  const m = new Map();
+  return { get: async (k) => m.get(k) ?? null, put: async (k, v) => void m.set(k, v), map: m };
+};
+const post = (b, headers = {}) => new Request('http://x/api', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json', ...headers } });
+
+test('lost link: same answer every time, one email per person per 10 minutes, works between reviews', async () => {
+  const { requestLink } = await import('../functions/lib/year-api.js');
+  const DB = d1();
+  DB.raw.exec(`INSERT INTO staff (id, name, email, phone) VALUES (40, 'Lei Kahale', 'lei@example.org', '808-555-0123'), (41, 'No Email', NULL, '808-555-0199')`);
+  const sent = [];
+  let fail = false;
+  const env = { DB, KV: fakeKV(), EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => { if (fail) throw new Error('E_DELIVERY_FAILED'); sent.push(...list); } } };
+  const later = [];
+  const call = async (contact, ip = '1.1.1.1') => {
+    const res = await requestLink({ env, url: new URL('https://hui.example'), waitUntil: (p) => later.push(p), request: post({ contact }, { 'cf-connecting-ip': ip }) });
+    await Promise.all(later.splice(0));
+    return res.json();
+  };
+  assert.deepEqual(await call('LEI@example.org'), { sent: true });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /your page, with your goals/, 'no review open, so the link opens their page');
+  assert.match(sent[0].text, /https:\/\/hui\.example\/m\//);
+  assert.deepEqual(await call('8085550123', '2.2.2.2'), { sent: true });
+  assert.equal(sent.length, 1, 'cooldown holds across lookups and addresses');
+  assert.deepEqual(await call('nobody@example.org', '3.3.3.3'), { sent: true }, 'no match looks the same');
+  assert.deepEqual(await call('808-555-0199', '4.4.4.4'), { sent: true }, 'no email on file looks the same');
+  env.KV.map.clear();
+  fail = true;
+  assert.deepEqual(await call('lei@example.org', '5.5.5.5'), { sent: true }, 'a failed send looks the same');
+  assert.deepEqual(await (await requestLink({ env: { ...env, EMAIL_FROM: '' }, url: new URL('https://hui.example'), waitUntil: () => {}, request: post({ contact: 'x' }) })).json(), { manual: true });
+});
+
+test('morning reminders keep going past an address that fails', async () => {
+  const { reminders } = await import('../functions/lib/year-api.js');
+  const DB = d1();
+  DB.raw.exec(`
+    INSERT INTO settings (key, value) VALUES ('auto_remind', '1') ON CONFLICT (key) DO UPDATE SET value = '1';
+    INSERT INTO staff (id, name, email) VALUES (50, 'Bad Address', 'bad@example.org'), (51, 'Good Address', 'good@example.org');
+    INSERT INTO cycles (id, name, status) VALUES (9, 'Open now', 'open');
+    INSERT INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) VALUES (9, 50, 50, 'self'), (9, 51, 51, 'self');
+  `);
+  const sent = [];
+  const env = { DB, KV: fakeKV(), CRON_SECRET: 's', EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => { if (list[0].to.startsWith('bad')) throw new Error('E_RECIPIENT_SUPPRESSED'); sent.push(...list); } } };
+  const run = () => reminders({ env, url: new URL('https://hui.example'), request: post({}, { 'x-cron-secret': 's' }) }).then((r) => r.json());
+  const realError = console.error;
+  console.error = () => {};
+  assert.deepEqual(await run(), { sent: 1 });
+  assert.deepEqual(await run(), { sent: 0 }, 'once a day per person');
+  console.error = realError;
+  assert.deepEqual(sent.map((m) => m.to), ['good@example.org']);
+  await assert.rejects(() => reminders({ env, url: new URL('https://hui.example'), request: post({}, { 'x-cron-secret': 'wrong' }) }), /Not allowed/);
+});

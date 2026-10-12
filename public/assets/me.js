@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, md, fmtDate, registerSW, copy, toast, $, $$ } from './app.js';
+import { api, t, initI18n, shell, esc, md, fmtDate, registerSW, copy, toast, config, $, $$ } from './app.js';
 
 registerSW();
 await initI18n();
@@ -185,16 +185,24 @@ function wire() {
     await api(`/api/feedback/${id}`, { method: 'PUT', json: { response: $(`[data-answer="${id}"]`).value } });
     await reload(['feedback']);
   }, t('feedback.answered'));
-  $('#f-ask').onclick = act(async () => {
+  $('#f-ask').onclick = async (e) => {
+    e.preventDefault();
     const to = data.people.find((p) => String(p.id) === $('#f-to').value);
-    const r = await api('/api/feedback', { method: 'POST', json: { to_id: $('#f-to').value, prompt: $('#f-prompt').value } });
-    if (r.emailed) toast(t('feedback.emailed', { name: name(to) }));
+    const asked = api('/api/feedback', { method: 'POST', json: { to_id: $('#f-to').value, prompt: $('#f-prompt').value } });
+    const message = t('feedback.message', { name: to ? name(to) : '', link: `${location.origin}/me/#feedback` });
+    // Without email, copy during the tap (Safari needs that). With email, the app usually sends it.
+    if (!config.email) await copy(asked.then(() => message), t('feedback.copied'));
     else {
-      await copy(t('feedback.message', { name: name(to), link: `${location.origin}/me/#feedback` }));
-      toast(t('feedback.copied'));
+      try {
+        const r = await asked;
+        if (r.emailed) toast(t('feedback.emailed', { name: name(to) }));
+        else await copy(message, t('feedback.copied'));
+      } catch (err) {
+        return toast(err.message || t('error.generic'));
+      }
     }
     await reload(['feedback']);
-  });
+  };
 }
 
 render();

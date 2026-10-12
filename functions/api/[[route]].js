@@ -128,7 +128,7 @@ export async function onRequest(ctx) {
         : PUBLIC.has(pattern)
           ? {}
           : { staff: await requireStaff(request, env) };
-      return await handler({ ...ctx, url, params, ...extra });
+      return await handler({ ...ctx, waitUntil: (p) => ctx.waitUntil(p), url, params, ...extra });
     }
     return json({ error: 'Not found' }, 404);
   } catch (e) {

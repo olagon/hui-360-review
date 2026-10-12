@@ -28,15 +28,19 @@ test('talk story meetings fill the blocks in order and report who did not fit', 
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3);
   assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
   assert.match(ics, /DTSTART:\d{8}T\d{6}Z/);
+  const long = buildICS([{ title: 'Talk story', start: meetings[0].start, end: meetings[0].end, description: 'Kūkahi ʻōlelo '.repeat(20) }]);
+  for (const l of long.split('\r\n')) assert.ok(new TextEncoder().encode(l).length <= 75, `line too long: ${l}`);
+  assert.match(long.replace(/\r\n /g, ''), /DESCRIPTION:(Kūkahi ʻōlelo ){20}/);
 });
 
 test('signals parsing is forgiving and calibration needs two reviews', () => {
   assert.match(signalsPrompt(['a', 'b']).user, /^1\. a\n2\. b$/);
-  assert.deepEqual(parseSignals('Sure: [{"label":"burnout","tone":-3},{"label":"weird"}]', 3), [
+  assert.deepEqual(parseSignals('Sure: [{"label":"burnout","tone":-3},{"label":"weird"}]', 2), [
     { label: 'burnout', tone: -2 },
     { label: 'none', tone: 0 },
-    { label: 'none', tone: 0 },
   ]);
+  assert.equal(parseSignals('[{"label":"burnout"}]', 3), null, 'a short reply could line labels up with the wrong answers');
+  assert.equal(parseSignals('I cannot help with that.', 2), null);
   const rows = [
     { reviewer: 'kind', review: 1, tone: 2 }, { reviewer: 'kind', review: 2, tone: 2 },
     { reviewer: 'tough', review: 3, tone: -1 }, { reviewer: 'tough', review: 4, tone: -1 },
