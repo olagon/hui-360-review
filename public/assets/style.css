@@ -186,3 +186,4 @@ blockquote { border-left: 2px solid var(--kalo); margin: 1rem 0; padding: 0.25re
 @media print { body.print-board main > *:not(#pane), body.print-board #pane > *:not(#board), body.print-board header, body.print-board footer, body.print-board .subnav { display: none !important; } }
 @media print { body:not(.print-board) #board { display: none !important; } }
 textarea.short { min-height: 4.5rem; }
+@media (max-width: 600px) { #who { display: none; } }

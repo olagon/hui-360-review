@@ -5,3 +5,5 @@ HASH_PEPPER=dev-hash-pepper-change-me
 DEV_ADMIN_EMAIL=you@example.com
 # Optional. Without it, summaries use Llama on Workers AI.
 # ANTHROPIC_API_KEY=
+# Email is off locally. The mailer Worker only runs in production.
+EMAIL_FROM=

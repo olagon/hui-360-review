@@ -454,6 +454,15 @@ export async function links({ env, params, url }) {
   return json({ people });
 }
 
+// A sign in link for one person any time of year. In an open review it opens their list, otherwise their page.
+export async function staffLink({ env, params, url, admin }) {
+  const id = Number(params.id);
+  const cycle = await one(env, "SELECT c.id FROM cycles c JOIN cycle_people p ON p.cycle_id = c.id WHERE c.status = 'open' AND p.staff_id = ?", id);
+  const link = await linkFor(env, url.origin, id, cycle?.id ?? 0);
+  await audit(env, admin, 'link', `staff:${id}`);
+  return json({ link });
+}
+
 export async function newLink({ env, params, url, admin }) {
   const link = await createLink(env, url.origin, Number(params.staff), Number(params.id));
   await audit(env, admin, 'new_link', `cycle:${params.id} staff:${params.staff}`);

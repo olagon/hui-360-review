@@ -103,11 +103,11 @@ const moonToday = () => {
 let channelsP;
 const channels = () => (channelsP ||= api('/api/admin/channels').catch(() => ({})));
 const emails = (p) => !!(p.email && p.send_email);
-async function sendOrCopy(personId, message, subject) {
+async function sendOrCopy(person, message, subject) {
   const ch = await channels();
-  if (ch.email || ch.sms) {
+  if ((ch.email && emails(person)) || (ch.sms && person.phone)) {
     try {
-      const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: personId, message, subject } });
+      const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: person.id, message, subject } });
       return toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
     } catch (e) {
       toast(`${e.message} Copied instead.`, 5000);
@@ -231,7 +231,7 @@ async function digest(c) {
   emailButton($('#nudgeall'), behind, 'Email a nudge to everyone behind', `A gentle reminder: ${c.name}`, (p) => nudge(p, c));
   for (const b of $$('#digest [data-nudge]')) {
     const p = behind.find((x) => x.id === Number(b.dataset.nudge));
-    b.onclick = () => sendOrCopy(p.id, nudge(p, c), 'A gentle reminder');
+    b.onclick = () => sendOrCopy(p, nudge(p, c), 'A gentle reminder');
   }
 }
 const nudge = (p, c) => `Aloha ${first(p)}, a gentle reminder that ${c.name} is still open${c.closes_at ? ` until ${fmtDate(c.closes_at)}` : ''}. Even 5 minutes helps: ${p.link} Mahalo!`;
@@ -249,6 +249,7 @@ async function cycle(id, tab = 'setup') {
     ${nextStep(d)}
     <nav class="tabs">${TABS.map(([t, label]) => `<a href="#/cycle/${id}/${t}" class="${t === tab ? 'on' : ''}">${label}</a>`).join('')}</nav>
     <div id="pane"></div>`;
+  $('.tabs .on')?.scrollIntoView({ block: 'nearest', inline: 'center' }); // on a phone the tabs scroll sideways
   await { setup, people: participants, questions, assignments, links, voices, progress, letters, talks, team }[tab]?.(d, $('#pane'));
 }
 
@@ -537,7 +538,7 @@ async function links({ cycle: c }, pane) {
       const p = people.find((x) => x.id === Number(b.dataset.copy));
       if (!emails(p)) continue;
       b.insertAdjacentHTML('beforebegin', '<button class="small">Email</button>');
-      b.previousElementSibling.onclick = () => sendOrCopy(p.id, message(p, c), `Your link for ${c.name}`);
+      b.previousElementSibling.onclick = () => sendOrCopy(p, message(p, c), `Your link for ${c.name}`);
       b.className = 'small secondary';
     }
   }
@@ -557,6 +558,7 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
     .filter((r) => r.mine.length)
     .sort((a, b) => a.mine.filter((x) => x.status === 'done').length / a.mine.length - b.mine.filter((x) => x.status === 'done').length / b.mine.length);
   const done = as.filter((a) => a.status === 'done').length;
+  const ch = await channels();
   pane.innerHTML = `
     <p><strong>${done} of ${as.length}</strong> reviews done. Only status shows here, never answer counts, so nobody's answers can be matched to them.</p>
     <div class="scroll"><table>
@@ -566,7 +568,7 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
           ({ s, mine }) => `<tr><td>${esc(nameOf(s))}</td><td>${mine
             .map((a) => `<div>${chip(a.status)} ${a.kind === 'self' ? 'Self reflection' : esc(nameOf(byId.get(a.reviewee_id) || { name: '?' }))}</div>`)
             .join('')}</td>
-          <td>${mine.some((a) => a.status !== 'done') && c.status === 'open' ? `<button class="small secondary" data-nudge="${s.id}">Nudge</button>` : ''}</td></tr>`,
+          <td>${mine.some((a) => a.status !== 'done') && c.status === 'open' ? `<button class="small secondary" data-nudge="${s.id}">${ch.email && emails(s) ? 'Email nudge' : 'Copy nudge'}</button>` : ''}</td></tr>`,
         )
         .join('')}
     </table></div>
@@ -582,7 +584,7 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
     b.onclick = async () => {
       const { people } = await api(`/api/admin/cycles/${c.id}/links`);
       const p = people.find((x) => x.id === Number(b.dataset.nudge));
-      sendOrCopy(p.id, nudge(p, c), 'A gentle reminder');
+      sendOrCopy(p, nudge(p, c), 'A gentle reminder');
     };
   }
   if (c.status !== 'draft') signals(c, $('#signals'));
@@ -988,7 +990,7 @@ async function person(cycleId, staffId, tab = 'raw') {
   $('#print').onclick = () => print();
   const fresh = async () => (await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} })).link;
   $('#tell')?.addEventListener('click', async () => copy(letterMsg(p, cyc.name, await fresh())));
-  $('#emailtell')?.addEventListener('click', async () => sendOrCopy(p.id, letterMsg(p, cyc.name, await fresh()), `Your letter from ${cyc.name}`));
+  $('#emailtell')?.addEventListener('click', async () => sendOrCopy(p, letterMsg(p, cyc.name, await fresh()), `Your letter from ${cyc.name}`));
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');
@@ -999,7 +1001,7 @@ async function person(cycleId, staffId, tab = 'raw') {
 // ---------------- staff ----------------
 
 async function staff() {
-  const { staff: list } = await api('/api/admin/staff');
+  const [{ staff: list }, ch] = await Promise.all([api('/api/admin/staff'), channels()]);
   const row = (s) => {
     const p = `/api/admin/staff/${s.id}`;
     const inp = (f, type = 'text', extra = '') => `<input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}>`;
@@ -1009,7 +1011,8 @@ async function staff() {
       <td><select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></td>
       <td>${inp('start_date', 'date')}</td>
       <td><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''} aria-label="Send email to ${esc(nameOf(s))}"></td>
-      <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td></tr>`;
+      <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td>
+      <td>${s.active ? `<button class="small secondary" data-link="${s.id}" style="white-space:nowrap">${ch.email && emails(s) ? 'Email link' : 'Copy link'}</button>` : ''}</td></tr>`;
   };
   app.innerHTML = `
     <h1>People</h1>
@@ -1032,13 +1035,21 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Uncheck it for anyone who would rather hear from you directly. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Sign in link works any time of year, even with no review open, for My page, mahalo, and kuleana. Uncheck it for anyone who would rather hear from you directly. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
     <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th></tr>
+      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th><th>Sign in link</th></tr>
       ${list.map(row).join('')}
     </table></div>
     ${GROUPS}`;
   bindFields();
+  // Their link works all year: in an open review it opens their list, otherwise their page.
+  for (const b of $$('[data-link]')) {
+    b.onclick = async () => {
+      const s = list.find((x) => x.id === Number(b.dataset.link));
+      const { link } = await api(`/api/admin/staff/${s.id}/link`, { method: 'POST', json: {} });
+      sendOrCopy(s, `Aloha ${first(s)}, here is your link to ${APP_NAME}: ${link}\n\nIt opens your page, with your goals, mahalo, and letters. It is yours alone, so please do not forward it. Mahalo!`, `Your link to ${APP_NAME}`);
+    };
+  }
   $('#add').onsubmit = async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));

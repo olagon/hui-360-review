@@ -187,10 +187,14 @@ function wire() {
   }, t('feedback.answered'));
   $('#f-ask').onclick = act(async () => {
     const to = data.people.find((p) => String(p.id) === $('#f-to').value);
-    await api('/api/feedback', { method: 'POST', json: { to_id: $('#f-to').value, prompt: $('#f-prompt').value } });
-    await copy(t('feedback.message', { name: name(to), link: `${location.origin}/me/#feedback` }));
+    const r = await api('/api/feedback', { method: 'POST', json: { to_id: $('#f-to').value, prompt: $('#f-prompt').value } });
+    if (r.emailed) toast(t('feedback.emailed', { name: name(to) }));
+    else {
+      await copy(t('feedback.message', { name: name(to), link: `${location.origin}/me/#feedback` }));
+      toast(t('feedback.copied'));
+    }
     await reload(['feedback']);
-  }, t('feedback.copied'));
+  });
 }
 
 render();

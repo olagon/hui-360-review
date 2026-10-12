@@ -148,7 +148,7 @@
   "feedback.answer": "Send answer",
   "feedback.answered": "Mahalo. Your answer was sent.",
   "feedback.ask": "Ask a coworker for feedback",
-  "feedback.askHelp": "Ask about something specific, like a workday or a project. Their answer comes back here and helps your letter at the end of the year.",
+  "feedback.askHelp": "Ask about something specific, like a workday or a project. They get a note to answer, and their answer comes back here and helps your letter at the end of the year.",
   "feedback.placeholder": "How did Saturday's workday go from your side?",
   "feedback.askButton": "Ask",
   "feedback.copy": "Copy a message to let them know",
@@ -171,5 +171,6 @@
   "voice.help": "Your answer goes to {director} at {hui}. It is shared with {name} only as part of a letter about their year.",
   "feedback.message": "Aloha {name}, I asked you a quick question in our review app. You can answer it on your page: {link}",
   "feedback.copied": "Asked. A message to let them know is copied, ready to paste.",
-  "landing.askDirector": "Lost your link? Ask {director} for a fresh one."
+  "landing.askDirector": "Lost your link? Ask {director} for a fresh one.",
+  "feedback.emailed": "Asked. We emailed {name} a link to answer."
 }

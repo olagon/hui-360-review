@@ -166,7 +166,8 @@
     "voice.help",
     "feedback.message",
     "feedback.copied",
-    "landing.askDirector"
+    "landing.askDirector",
+    "feedback.emailed"
   ],
   "lang.en": "ʻŌlelo Pelekānia",
   "lang.haw": "ʻŌlelo Hawaiʻi",

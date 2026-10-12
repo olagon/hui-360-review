@@ -125,13 +125,25 @@ export async function feedback({ env, staff }) {
   return json({ asked: asked.map(map), forMe: forMe.map(map) });
 }
 
-export async function askFeedback({ env, staff, request }) {
+export async function askFeedback({ env, staff, request, url }) {
   const b = await body(request);
-  const to = await one(env, 'SELECT id FROM staff WHERE id = ? AND active = 1', Number(b.to_id));
+  const to = await one(env, 'SELECT * FROM staff WHERE id = ? AND active = 1', Number(b.to_id));
   if (!to || to.id === staff.id) throw new HttpError(400, 'Pick a coworker');
   if (!text(b.prompt)) throw new HttpError(400, 'Write your question first');
-  const r = await env.DB.prepare('INSERT INTO feedback_requests (from_id, to_id, prompt) VALUES (?, ?, ?)').bind(staff.id, to.id, text(b.prompt, 600)).run();
-  return json({ id: r.meta.last_row_id });
+  const today = await one(env, "SELECT COUNT(*) AS n FROM feedback_requests WHERE from_id = ? AND created_at > datetime('now', '-1 day')", staff.id);
+  if (today.n >= 10) throw new HttpError(429, 'That is a lot of asks for one day. Try again tomorrow.');
+  const prompt = text(b.prompt, 600);
+  const r = await env.DB.prepare('INSERT INTO feedback_requests (from_id, to_id, prompt) VALUES (?, ?, ?)').bind(staff.id, to.id, prompt).run();
+  // The coworker gets their own link by email when the app can send it. Otherwise the asker copies a message.
+  const email = emailOf(env, to);
+  let emailed = false;
+  if (email) {
+    const link = await linkFor(env, url.origin, to.id, 0);
+    // The ask is saved either way, and their home page shows it, so a failed email only means the asker copies a message.
+    emailed = await send(env, email, `Aloha ${nameOf(to)}, ${nameOf(staff)} asked for your feedback:\n\n"${prompt}"\n\nAnswer on your page, it takes a minute: ${link}\n\nMahalo!`, 'email', `${nameOf(staff)} asked for your feedback`, (await settings(env)).reply_to)
+      .then(() => true, () => false);
+  }
+  return json({ id: r.meta.last_row_id, emailed });
 }
 
 export async function answerFeedback({ env, staff, request, params }) {
@@ -201,11 +213,13 @@ export async function requestLink({ env, request, url }) {
   const person = (await all(env, 'SELECT * FROM staff WHERE active = 1')).find(
     (s) => (s.email && s.email.toLowerCase() === contact) || (digits.length >= 7 && (s.phone || '').replace(/\D/g, '').endsWith(digits.slice(-10))),
   );
-  const cycle = person && (await one(env, "SELECT c.* FROM cycles c JOIN cycle_people p ON p.cycle_id = c.id WHERE c.status = 'open' AND p.staff_id = ?", person.id));
   const to = person && emailOf(env, person);
-  if (cycle && to) {
-    const link = await linkFor(env, url.origin, person.id, cycle.id);
-    await send(env, to, `Aloha ${nameOf(person)}, here is your link for ${cycle.name}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your review link', n.reply_to);
+  if (to) {
+    // In a review, the link opens their list. Between reviews it still opens their page: goals, mahalo, letters.
+    const cycle = await one(env, "SELECT c.* FROM cycles c JOIN cycle_people p ON p.cycle_id = c.id WHERE c.status = 'open' AND p.staff_id = ?", person.id);
+    const link = await linkFor(env, url.origin, person.id, cycle?.id ?? 0);
+    const what = cycle ? `your link for ${cycle.name}` : 'your link to your page, with your goals, mahalo, and letters';
+    await send(env, to, `Aloha ${nameOf(person)}, here is ${what}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your link', n.reply_to);
   }
   // Same answer either way, so nobody can test who is on staff.
   return json({ sent: true });
