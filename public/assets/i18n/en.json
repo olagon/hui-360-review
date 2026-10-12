@@ -16,6 +16,8 @@
   "landing.newlink": "Need a fresh link? Ask {director} for a new one.",
   "landing.offline": "We could not reach the server. Check your signal and try again.",
   "landing.tour": "Watch the 1 minute tour",
+  "landing.adminNote": "Running the review?",
+  "landing.admin": "Admin sign in",
   "dash.hello": "Aloha, {name}",
   "dash.closes": "{cycle} is open until {date}.",
   "dash.none": "No review is open right now. Mahalo for checking in.",

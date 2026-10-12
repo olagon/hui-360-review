@@ -38,7 +38,8 @@ function landing(e) {
     <p>${esc(t('landing.body'))}</p>
     <p>${esc(t('landing.howto'))}</p>
     <p class="muted">${esc(t('landing.newlink'))}</p>
-    <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>`;
+    <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>
+    <p class="small muted" style="margin-top:2rem">${esc(t('landing.adminNote'))} <a href="/admin/">${esc(t('landing.admin'))}</a></p>`;
 }
 
 function card(a) {
