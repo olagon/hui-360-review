@@ -1075,45 +1075,95 @@ async function person(cycleId, staffId, tab = 'raw') {
 
 async function staff() {
   const [{ staff: list }, ch] = await Promise.all([api('/api/admin/staff'), channels()]);
-  const row = (s) => {
-    const p = `/api/admin/staff/${s.id}`;
-    const inp = (f, type = 'text', extra = '') => `<input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}>`;
-    return `<tr>
-      <td>${inp('name')}</td><td>${inp('preferred_name')}</td><td>${inp('email', 'email')}</td><td>${inp('phone', 'tel')}</td><td>${inp('team', 'text', 'list="groups"')}</td>
-      <td><select data-path="${p}" data-f="role">${[['staff', 'Staff'], ['lead', 'Team lead'], ['admin', 'Director']].map(([v, l]) => opt(v, l, s.role)).join('')}</select></td>
-      <td><select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></td>
-      <td>${inp('start_date', 'date')}</td>
-      <td><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''} aria-label="Send email to ${esc(nameOf(s))}"></td>
-      <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td>
-      <td>${s.active ? `<button class="small secondary" data-link="${s.id}" style="white-space:nowrap">${ch.email && emails(s) ? 'Email link' : 'Copy link'}</button>` : ''}</td></tr>`;
+  const ROLE = { staff: 'Staff', lead: 'Team lead', admin: 'Director' };
+  // One line to read at a glance. Built from the form, so it updates as you edit.
+  const line = (s) => {
+    const badges = [
+      s.role !== 'staff' && `<span class="badge">${ROLE[s.role]}</span>`,
+      !s.email ? '<span class="badge muted">No email</span>' : s.send_email ? '<span class="badge">Gets email</span>' : '<span class="badge muted">Email off</span>',
+      !s.active && '<span class="badge muted">Not active</span>',
+    ].filter(Boolean).join('');
+    return `<span class="pmain"><strong>${esc(s.name || 'New person')}</strong>${s.preferred_name ? ` <span class="muted">(${esc(s.preferred_name)})</span>` : ''}
+        <span class="small muted">${esc(s.team || 'No group')}</span></span>
+      <span class="pcontact small muted">${esc(s.email || s.phone || 'No email or phone yet')}</span>
+      <span class="pbadges">${badges}</span>
+      <span class="pedit small">Edit</span>`;
   };
+  const card = (s) => {
+    const p = `/api/admin/staff/${s.id}`;
+    const inp = (f, label, type = 'text', extra = '') => `<label>${label} <input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}></label>`;
+    return `<details class="person" data-id="${s.id}" data-search="${esc([s.name, s.preferred_name, s.email, s.phone, s.team].filter(Boolean).join(' ').toLowerCase())}">
+      <summary>${line(s)}</summary>
+      <div class="pform">
+        ${inp('name', 'Name')}${inp('preferred_name', 'Goes by')}${inp('email', 'Email', 'email')}${inp('phone', 'Phone', 'tel')}
+        ${inp('team', 'Group', 'text', 'list="groups" placeholder="Staff"')}
+        <label>Role <select data-path="${p}" data-f="role">${Object.entries(ROLE).map(([v, l]) => opt(v, l, s.role)).join('')}</select></label>
+        <label>Language <select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></label>
+        ${inp('start_date', 'Joined (optional)', 'date')}
+        <label class="check"><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''}> Send email</label>
+        <label class="check"><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''}> Active</label>
+        ${s.active ? `<div class="plink"><button type="button" class="small secondary" data-link="${s.id}">${ch.email && emails(s) ? 'Email their sign in link' : 'Copy their sign in link'}</button>
+          <span class="small muted">Works any time of year, for My page and mahalo.</span></div>` : ''}
+      </div>
+    </details>`;
+  };
+  const active = list.filter((s) => s.active);
+  const gone = list.filter((s) => !s.active);
   app.innerHTML = `
     <h1>People</h1>
-    <p>Everyone who writes or receives reviews goes here once: staff, interns, volunteers, board members. Each review then picks who takes part, in that review's People tab.</p>
-    <div class="row" style="align-items:stretch">
-      <form id="add" class="card" style="flex:1;min-width:18rem">
-        <h2 style="margin-top:0">Add one person</h2>
-        <label>Name <input name="name" required></label>
-        <div class="row"><label style="flex:1">Goes by <input name="preferred_name"></label><label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
-        <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
-        <label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>
-        <label class="check"><input type="checkbox" name="send_email" checked> Send email (their link, reminders, and when their letter is ready)</label>
-        <p><button>Add</button></p>
-      </form>
-      <form id="bulk" class="card" style="flex:1;min-width:18rem">
-        <h2 style="margin-top:0">Add many at once</h2>
-        <label>One person per line: name, then email or phone, then group</label>
-        <textarea name="lines" style="min-height:9rem" placeholder="Kainoa Akana, kainoa@example.org, Staff&#10;Lei Kahale, 808-555-0123, Intern"></textarea>
-        <p><button>Add everyone</button></p>
-      </form>
+    <p>Everyone who writes or receives reviews: staff, interns, volunteers, board members. Each review then picks who takes part, in its own People tab. Tap a person to edit. Changes save as you go.</p>
+    <div class="row" style="align-items:center">
+      <input type="search" id="find" placeholder="Find by name, email, or group" aria-label="Find a person" style="flex:1;min-width:14rem">
+      <button type="button" class="secondary" id="addtoggle">Add people</button>
     </div>
-    <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Settings). Uncheck it for anyone who would rather hear from you directly. Sign in link works any time of year, even with no review open, for My page and mahalo. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
-    <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th><th>Sign in link</th></tr>
-      ${list.map(row).join('')}
-    </table></div>
+    <div id="addbox" hidden>
+      <div class="row" style="align-items:stretch">
+        <form id="add" class="card" style="flex:1;min-width:18rem">
+          <h2 style="margin-top:0">Add one person</h2>
+          <label>Name <input name="name" required></label>
+          <div class="row"><label style="flex:1">Goes by <input name="preferred_name"></label><label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
+          <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
+          <label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>
+          <label class="check"><input type="checkbox" name="send_email" checked> Send email (their link, reminders, and when their letter is ready)</label>
+          <p><button>Add</button></p>
+        </form>
+        <form id="bulk" class="card" style="flex:1;min-width:18rem">
+          <h2 style="margin-top:0">Add many at once</h2>
+          <label>One person per line: name, then email or phone, then group</label>
+          <textarea name="lines" style="min-height:9rem" placeholder="Kainoa Akana, kainoa@example.org, Staff&#10;Lei Kahale, 808-555-0123, Intern"></textarea>
+          <p><button>Add everyone</button></p>
+        </form>
+      </div>
+    </div>
+    <h2>Everyone <span class="small muted" style="font-weight:400">${active.length} active</span></h2>
+    <div id="people">${active.map(card).join('') || '<p class="muted">Nobody yet. Press Add people.</p>'}</div>
+    ${gone.length ? `<details class="card" style="margin-top:1rem"><summary><strong>Not active</strong> <span class="small muted">${gone.length}, including anyone who left and the sample review's made up people</span></summary>${gone.map(card).join('')}</details>` : ''}
+    <details class="small" style="margin-top:1.5rem"><summary><strong>What each field means</strong></summary>
+      <ul class="plain" style="margin-top:.5rem">
+        <li><strong>Goes by.</strong> The name staff see and letters use.</li>
+        <li><strong>Group.</strong> Staff, Intern, Volunteer, Board, or a team name. A team lead reads the shared letters of everyone in their group.</li>
+        <li><strong>Role.</strong> Staff for most people. Team lead for someone who leads a group, who is reviewed by that group in an upward review. Director for you: staff review you in an upward review, and replies to the app's emails come to you.</li>
+        <li><strong>Language.</strong> The language their screens start in. They can switch any time.</li>
+        <li><strong>Joined.</strong> Optional, the date they started with your organization. To see who has started or finished a review, open that review's Progress tab.</li>
+        <li><strong>Send email.</strong> The app can email them their link, reminders, and when their letter is ready (once email is on in Settings). Uncheck it for anyone who would rather hear from you directly.</li>
+        <li><strong>Active.</strong> Uncheck it when someone leaves. Their past reviews stay, and new reviews leave them out.</li>
+        <li><strong>Sign in link.</strong> Works any time of year, even with no review open, for My page and mahalo.</li>
+      </ul>
+    </details>
     ${GROUPS}`;
+  // Keep each line in step with its form as fields change.
+  for (const d of $$('details.person')) {
+    d.addEventListener('change', () => {
+      const s = list.find((x) => x.id === Number(d.dataset.id));
+      for (const el of $$('[data-f]', d)) s[el.dataset.f] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
+      $('summary', d).innerHTML = line(s);
+    });
+  }
+  $('#find').oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const d of $$('details.person')) d.hidden = q && !d.dataset.search.includes(q);
+  };
+  $('#addtoggle').onclick = () => ($('#addbox').hidden = !$('#addbox').hidden);
   bindFields();
   // Their link works all year: in an open review it opens their list, otherwise their page.
   for (const b of $$('[data-link]')) {
