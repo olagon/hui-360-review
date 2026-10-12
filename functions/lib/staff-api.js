@@ -3,6 +3,7 @@ import { assignmentHash } from './assign.js';
 import { detectLanguage } from './summarize.js';
 import { transcribe } from './ai.js';
 import { MAX_AUDIO_BYTES } from './config.js';
+import { channels } from './notify.js';
 
 const MINUTES = { story: 3, mahalo: 2, short: 1, scale: 0.5 };
 
@@ -29,7 +30,7 @@ const answersFor = (env, hash) =>
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
   const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar')").all();
-  return json(Object.fromEntries(rows.results.map((r) => [r.key, r.value])));
+  return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: channels(env).email });
 }
 
 // Public: the organization's logo, uploaded by admin. Served as an image only, so an SVG

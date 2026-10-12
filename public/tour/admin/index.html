@@ -94,6 +94,12 @@
     .flow .card { padding: 22px; font-size: 20px; line-height: 1.4; }
     .flow b { font-size: 26px; color: var(--kalo); }
     .flow p { margin-top: 8px; color: var(--muted); }
+    .press { animation: press .5s ease calc(var(--s) + var(--t)) both; }
+    @keyframes press { 0% { background: #fff; color: var(--kalo) } 50% { transform: scale(.94) } 100% { background: var(--kalo); color: #fff; transform: none } }
+    .mail { font-size: 19px; line-height: 1.45; padding: 22px 26px; }
+    .mail-head { display: flex; justify-content: space-between; gap: 12px; font-size: 18px; margin-bottom: 8px; }
+    .mail-head span { color: var(--muted); }
+    .mail p { margin: 0; color: var(--ink); }
     .mini { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; font-size: 17px; }
   </style>
 </head>
@@ -116,7 +122,7 @@
                 <div class="kicker in" style="--t:.1s">Once, before your first review</div>
                 <h2 class="in" style="--t:.3s">Add your people. Set your values.</h2>
                 <ul class="bul">
-                  <li class="in" style="--t:1.2s"><span class="dot"></span>Staff, interns, volunteers, board</li>
+                  <li class="in" style="--t:1.2s"><span class="dot"></span>Staff, interns, volunteers, board, with their email</li>
                   <li class="in" style="--t:1.8s"><span class="dot"></span>Your values, in your words</li>
                   <li class="in" style="--t:2.4s"><span class="dot"></span>Kuleana: who does what, who works with whom</li>
                 </ul>
@@ -163,13 +169,19 @@
             <div class="row2">
               <div>
                 <div class="kicker in" style="--t:.1s">2 · Send links</div>
-                <h2 class="in" style="--t:.3s">Copy each message. Send it from your phone.</h2>
-                <p class="lead in" style="--t:1.4s; margin-top:10px">The app does not send texts or email unless you set that up. Each link is personal, so never forward one person's link to someone else.</p>
+                <h2 class="in" style="--t:.3s">Email everyone their link in one click.</h2>
+                <p class="lead in" style="--t:1.4s; margin-top:10px">Each person with Send email checked gets their own link. No email for someone? Copy their message and text it.</p>
               </div>
-              <div class="phone in" style="--t:.6s; justify-content:flex-end">
-                <div style="font-size:15px; color:var(--muted); text-align:center; margin-bottom:auto">Messages · Kainoa</div>
-                <div class="bubble pop" style="--t:2.2s">Aloha Kainoa, here is your link for Hoʻoilo 2026: your-hui.org/m/k7Qp… It is open until Friday, November 20. Mahalo!</div>
-                <div class="bubble them pop" style="--t:3.6s">Got it, mahalo!</div>
+              <div class="in" style="--t:.6s; display:grid; gap:18px">
+                <div class="card" style="font-size:20px">
+                  <span class="pill press" style="--t:1.8s; font-size:19px; padding:8px 20px">Email everyone their link (18)</span>
+                  <p class="check pop" style="--t:2.6s; margin-top:14px"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Emailed 18 people</p>
+                  <p class="in" style="--t:3s; margin-top:6px; font-size:17px; color:var(--muted)">2 without email. Copy theirs instead.</p>
+                </div>
+                <div class="card mail pop" style="--t:3.8s">
+                  <div class="mail-head"><b>Your link for Hoʻoilo 2026</b><span>huiMAU</span></div>
+                  <p>Aloha Kainoa, here is your link for Hoʻoilo 2026: your-hui.org/m/k7Qp… It is open until Friday, November 20. Mahalo!</p>
+                </div>
               </div>
             </div>
           </section>
@@ -181,14 +193,14 @@
                 <h2 class="in" style="--t:.3s">Watch progress. Nudge gently.</h2>
                 <ul class="bul">
                   <li class="in" style="--t:1.2s"><span class="dot"></span>Status only, never what anyone wrote</li>
-                  <li class="in" style="--t:1.8s"><span class="dot"></span>Today's nudges, one tap each</li>
+                  <li class="in" style="--t:1.8s"><span class="dot"></span>Email a nudge to everyone behind</li>
                   <li class="in" style="--t:2.4s"><span class="dot"></span>Early signals: counts, never names</li>
                 </ul>
               </div>
               <div class="card in" style="--t:.6s; font-size:22px">
                 <div class="trow"><span>Kainoa</span><span class="chip tint" style="--t:1.6s">done</span></div>
                 <div class="trow"><span>Lei</span><span class="chip tint" style="--t:2.4s">done</span></div>
-                <div class="trow"><span>Keoni</span><span class="chip" style="background:var(--warn-soft);color:var(--warn)">in progress</span><span class="pill small-pill pop" style="--t:3.2s">Nudge</span></div>
+                <div class="trow"><span>Keoni</span><span class="chip" style="background:var(--warn-soft);color:var(--warn)">in progress</span><span class="pill small-pill pop" style="--t:3.2s">Email nudge</span></div>
                 <div class="in" style="--t:4s; margin-top:22px; font-size:18px; color:var(--muted)">Early signals</div>
                 <div class="trow in" style="--t:4.2s; font-size:20px"><span>Burnout or exhaustion</span><b>4</b></div>
                 <div class="trow in" style="--t:4.4s; font-size:20px"><span>Unclear roles</span><b>1</b></div>
@@ -220,8 +232,8 @@
                 <div class="kicker in" style="--t:.1s">6 · Let them know</div>
                 <h2 class="in" style="--t:.3s">How Kainoa gets his letter</h2>
                 <ol class="steps">
-                  <li class="in" style="--t:1.2s">In Share, press Copy message to Kainoa</li>
-                  <li class="in" style="--t:2s">Text or email it to him yourself</li>
+                  <li class="in" style="--t:1.2s">In Share, press Email Kainoa</li>
+                  <li class="in" style="--t:2s">He gets an email with his own link</li>
                   <li class="in" style="--t:2.8s">He opens it and reads his letter</li>
                   <li class="in" style="--t:3.6s">He can write a reflection back to you</li>
                 </ol>
@@ -293,13 +305,13 @@
 
       <section class="after" style="max-width:44rem">
         <h2>The same thing, in words</h2>
-        <p><strong>Once, before your first review:</strong> add everyone in People (staff, interns, volunteers, board), set your values, and fill in Kuleana.</p>
+        <p><strong>Once, before your first review:</strong> add everyone in People (staff, interns, volunteers, board) with their email, set your values, and fill in Kuleana.</p>
         <p><strong>1. Set up:</strong> start a review. Its tabs walk you through People, Questions, and Reviewers. Press Auto fill, then change anything. Optionally include an upward review of the director, or ask a partner outside the organization one question.</p>
-        <p><strong>2. Send links:</strong> in Links, copy each person's message and send it from your phone. The app does not send texts or email unless you set that up.</p>
-        <p><strong>3. While it is open:</strong> Progress shows status only. Copy a nudge for anyone behind. Early signals show counts of themes like burnout, never names.</p>
+        <p><strong>2. Send links:</strong> in Links, press Email everyone their link. Each person with Send email checked gets their own link. For anyone without email, copy their message and text it.</p>
+        <p><strong>3. While it is open:</strong> Progress shows status only. Email a nudge to everyone behind in one click. Early signals show counts of themes like burnout, never names.</p>
         <p><strong>4. Close it:</strong> answers lock and the Letters tab opens. Answers are shuffled, have no names, and every read is logged.</p>
         <p><strong>5. Write each letter:</strong> read Raw, have AI compile a draft that summarizes what was sent, make it yours, and choose what to share.</p>
-        <p><strong>6. Let them know:</strong> in Share, press Copy message and send it. They read the letter on their phone and can write a reflection back.</p>
+        <p><strong>6. Let them know:</strong> in Share, press Email and their name. They get their own link, read the letter on their phone, and can write a reflection back.</p>
         <p><strong>7. Talk story:</strong> enter when you are free, lay out the meetings, send calendar files, and use the prep notes. Set two or three goals together.</p>
         <p><strong>8. The whole team:</strong> write the team report for staff and the board report for your board.</p>
         <p><strong>9. Finish:</strong> mark the review published and export a copy from Data.</p>

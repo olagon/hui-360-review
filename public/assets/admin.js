@@ -99,21 +99,44 @@ const moonToday = () => {
   const m = moonFor(hawaiiToday());
   return `<span class="moon small muted" title="Moon names follow one common count. Local practitioners may count differently.">${moonIcon(m.age)} ${esc(m.name)}</span>`;
 };
-// Text or email straight from the app, when Twilio or Resend is set up. Otherwise copy.
+// Email straight from the app once Resend is set up, to anyone with Send email checked in People. Otherwise copy.
 let channelsP;
 const channels = () => (channelsP ||= api('/api/admin/channels').catch(() => ({})));
+const emails = (p) => !!(p.email && p.send_email);
 async function sendOrCopy(personId, message, subject) {
   const ch = await channels();
-  if (ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email)) {
+  if (ch.email || ch.sms) {
     try {
       const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: personId, message, subject } });
       return toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
     } catch (e) {
-      toast(`${e.message} Copied instead.`, 4000);
+      toast(`${e.message} Copied instead.`, 5000);
     }
   }
   copy(message);
 }
+// One button that emails a message to each person in the list who has Send email checked.
+// people: [{ id, name, email, send_email }], build(p) gives that person's message.
+async function emailButton(el, people, label, subject, build) {
+  const ch = await channels();
+  const n = people.filter(emails).length;
+  if (!ch.email || !people.length) return;
+  el.innerHTML = `<button class="small">${esc(label)} (${n})</button>
+    ${n < people.length ? `<span class="small muted">${people.length - n} without an email or with Send email unchecked. Copy theirs instead.</span>` : ''}`;
+  $('button', el).onclick = async () => {
+    if (!n || !confirm(`Email ${n} ${n === 1 ? 'person' : 'people'} now?`)) return;
+    $('button', el).disabled = true;
+    try {
+      const msgs = await Promise.all(people.filter(emails).map(async (p) => ({ staff_id: p.id, subject, message: await build(p) })));
+      const r = await api('/api/admin/email', { method: 'POST', json: { messages: msgs } });
+      toast(`Emailed ${r.sent} ${r.sent === 1 ? 'person' : 'people'}.`, 4000);
+    } catch (e) {
+      toast(e.message, 6000);
+      $('button', el).disabled = false;
+    }
+  };
+}
+const letterMsg = (p, cycleName, link) => `Aloha ${first(p)}, your letter from ${cycleName} is ready. Open your link to read it, and write back if you like: ${link}\n\nMahalo, ${config.director}`;
 
 const opt = (value, label, selected) => `<option value="${esc(value)}" ${String(value) === String(selected ?? '') ? 'selected' : ''}>${esc(label)}</option>`;
 const chip = (status) => `<span class="chip ${status}">${esc(status.replace('_', ' '))}</span>`;
@@ -201,10 +224,11 @@ async function digest(c) {
   const behind = people.filter((p) => d.assignments.some((a) => a.reviewer_id === p.id && a.status !== 'done'));
   if (!behind.length) return;
   const ch = await channels();
-  const auto = ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email);
   $('#digest').innerHTML = `<div class="card"><h2 style="margin-top:0">Today's nudges</h2>
-    <p class="small muted">${behind.length} ${behind.length === 1 ? 'person has' : 'people have'} reviews left in ${esc(c.name)}. ${auto ? 'Reminders go out by themselves each morning at 7am.' : 'Copy each message and send it from your phone.'}</p>
-    ${behind.map((p) => `<div class="row spread list-item"><span>${esc(nameOf(p))} <span class="small muted">${d.assignments.filter((a) => a.reviewer_id === p.id && a.status !== 'done').length} left</span></span><button class="small secondary" data-nudge="${p.id}">${auto ? 'Send nudge' : 'Copy nudge'}</button></div>`).join('')}</div>`;
+    <p class="small muted">${behind.length} ${behind.length === 1 ? 'person has' : 'people have'} reviews left in ${esc(c.name)}. ${ch.email && ch.auto ? 'An email reminder goes out by itself each morning at 7am to anyone with Send email checked.' : ch.email ? 'Email them all at once, or send one at a time.' : 'Copy each message and send it from your phone.'}</p>
+    <p class="row" id="nudgeall"></p>
+    ${behind.map((p) => `<div class="row spread list-item"><span>${esc(nameOf(p))} <span class="small muted">${d.assignments.filter((a) => a.reviewer_id === p.id && a.status !== 'done').length} left</span></span><button class="small secondary" data-nudge="${p.id}">${ch.email && emails(p) ? 'Email nudge' : 'Copy nudge'}</button></div>`).join('')}</div>`;
+  emailButton($('#nudgeall'), behind, 'Email a nudge to everyone behind', `A gentle reminder: ${c.name}`, (p) => nudge(p, c));
   for (const b of $$('#digest [data-nudge]')) {
     const p = behind.find((x) => x.id === Number(b.dataset.nudge));
     b.onclick = () => sendOrCopy(p.id, nudge(p, c), 'A gentle reminder');
@@ -494,8 +518,9 @@ async function links({ cycle: c }, pane) {
   }
   const { people } = await api(`/api/admin/cycles/${c.id}/links`);
   pane.innerHTML = `
-    <p class="muted small">Each link is personal, works for 60 days, and can be opened again. Paste each message into Messages or email.</p>
-    <p><button id="all">Copy all messages</button></p>
+    <p class="muted small">Each link is personal, works for 60 days, and can be opened again. Email them from here, or copy each message into Messages or email.</p>
+    <p class="row" id="emailall"></p>
+    <p><button id="all" class="secondary">Copy all messages</button></p>
     ${people
       .map(
         (p) => `<div class="card"><div class="row spread"><strong>${esc(nameOf(p))}</strong><span class="small muted">${esc(p.phone || p.email || '')}</span></div>
@@ -506,10 +531,12 @@ async function links({ cycle: c }, pane) {
   $('#all').onclick = () => copy(people.map((p) => `${nameOf(p)}${p.phone ? ` (${p.phone})` : ''}\n${message(p, c)}`).join('\n\n'));
   for (const b of $$('[data-copy]', pane)) b.onclick = () => copy(message(people.find((p) => p.id === Number(b.dataset.copy)), c));
   const ch = await channels();
-  if (ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email)) {
+  emailButton($('#emailall'), people, 'Email everyone their link', `Your link for ${c.name}`, (p) => message(p, c));
+  if (ch.email) {
     for (const b of $$('[data-copy]', pane)) {
       const p = people.find((x) => x.id === Number(b.dataset.copy));
-      b.insertAdjacentHTML('beforebegin', `<button class="small" data-send="${p.id}">Send by ${ch.prefer === 'email' ? 'email' : 'text'}</button>`);
+      if (!emails(p)) continue;
+      b.insertAdjacentHTML('beforebegin', '<button class="small">Email</button>');
       b.previousElementSibling.onclick = () => sendOrCopy(p.id, message(p, c), `Your link for ${c.name}`);
       b.className = 'small secondary';
     }
@@ -543,7 +570,14 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
         )
         .join('')}
     </table></div>
+    <p class="row" id="nudgeall"></p>
     <div id="signals"></div>`;
+  if (c.status === 'open') {
+    const behind = rows.filter((r) => r.mine.some((a) => a.status !== 'done')).map((r) => r.s);
+    let linksP;
+    const linkOf = async (p) => (await (linksP ||= api(`/api/admin/cycles/${c.id}/links`))).people.find((x) => x.id === p.id).link;
+    emailButton($('#nudgeall'), behind, 'Email a nudge to everyone behind', `A gentle reminder: ${c.name}`, async (p) => nudge({ ...p, link: await linkOf(p) }, c));
+  }
   for (const b of $$('[data-nudge]', pane)) {
     b.onclick = async () => {
       const { people } = await api(`/api/admin/cycles/${c.id}/links`);
@@ -689,6 +723,7 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
         : '<div class="banner info">Letters open after you close the review in Setup. Until then, answers stay private to the people writing them.</div>'
     }
     ${c.name === 'Sample review (example)' ? '<div class="banner info">This is the sample review, with made up people. Remove it any time from Data.</div>' : '<p class="small muted">Want to see a finished letter first? Load the sample review from <a href="#/data">Data</a>.</p>'}
+    <p class="row no-print" id="letterall"></p>
     <div class="scroll"><table><tr><th>Person</th><th>Answers about them</th><th>Letter</th><th></th></tr>
     ${members
       .map(
@@ -697,6 +732,11 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
         <td>${closed && (responses[s.id] || sum.get(s.id)) ? `<a class="button small secondary" href="#/person/${c.id}/${s.id}">Open</a>` : ''}</td></tr>`,
       )
       .join('')}</table></div>`;
+  const shared = members.filter((m) => sum.get(m.id)?.status === 'shared');
+  if (shared.length && c.name !== 'Sample review (example)') {
+    const { people } = await api(`/api/admin/cycles/${c.id}/links`);
+    emailButton($('#letterall'), shared, 'Email everyone whose letter is shared', `Your letter from ${c.name}`, (p) => letterMsg(p, c.name, people.find((x) => x.id === p.id)?.link || location.origin));
+  }
 }
 
 async function team({ cycle: c }, pane) {
@@ -715,7 +755,7 @@ async function team({ cycle: c }, pane) {
     ${
       report?.draft || report?.edited
         ? `<div id="ted">${editorHtml(text, 'Team report')}</div>
-      ${report.shared_at ? `<div class="banner no-print">Shared ${esc(fmtDate(report.shared_at))}. Everyone in this review sees it on their home page. The app does not send messages, so you may want to let them know.</div>` : ''}
+      ${report.shared_at ? `<div class="banner no-print">Shared ${esc(fmtDate(report.shared_at))}. Everyone in this review sees it on their home page as What we learned together. Let them know it is there.</div><p class="row no-print" id="teamall"></p>` : ''}
       <p class="row no-print"><button id="tshare" class="${report.shared_at ? 'quiet' : ''}">${report.shared_at ? 'Stop sharing' : 'Share with everyone in this review'}</button>
         <button class="secondary" id="tprint">Print or save as PDF</button></p>`
         : ''
@@ -737,6 +777,11 @@ async function team({ cycle: c }, pane) {
     }
   };
   board(c, report, stats, pane);
+  if (report?.shared_at && $('#teamall')) {
+    const { people } = await api(`/api/admin/cycles/${c.id}/links`);
+    emailButton($('#teamall'), people, 'Email everyone that it is ready', `What we learned together: ${c.name}`, (p) =>
+      `Aloha ${first(p)}, ${config.director} shared what we learned together from ${c.name}, a report on our whole team with no names in it. Read it on your home page: ${p.link}\n\nMahalo!`);
+  }
   if (!report?.draft && !report?.edited) return;
   wireEditor($('#ted'), (edited) => api(`/api/admin/cycles/${c.id}/team`, { method: 'PUT', json: { edited } }));
   $('#tprint').onclick = () => print();
@@ -917,6 +962,8 @@ async function person(cycleId, staffId, tab = 'raw') {
     if (h || !parts.length) parts.push({ title: h ? h[1] : 'Opening', lines: [] });
     parts.at(-1).lines.push(line);
   }
+  const hasMail = (await channels()).email;
+  const canMail = hasMail && emails(p);
   pane.innerHTML = `
     <div class="no-print">
       ${summary.status === 'shared' ? `<div class="banner">Shared ${esc(fmtDate(summary.shared_at))}. ${esc(first(p))} can read it now. Sharing again replaces what they see.</div>` : ''}
@@ -929,8 +976,8 @@ async function person(cycleId, staffId, tab = 'raw') {
     ${
       summary.status === 'shared'
         ? `<div class="card no-print"><h2 style="margin-top:0">Let ${esc(first(p))} know</h2>
-           <p>The app does not send email or texts. Copy this message and send it to ${esc(first(p))} yourself. It has a fresh link that opens their letter.</p>
-           <p><button id="tell">Copy message to ${esc(first(p))}</button></p></div>`
+           <p>${canMail ? `Email ${esc(first(p))} a message with a fresh link that opens their letter, or copy it and send it yourself.` : `Copy this message and send it to ${esc(first(p))} yourself. It has a fresh link that opens their letter.${hasMail ? ` To email it from here, add an email for ${esc(first(p))} and check Send email in People.` : ''}`}</p>
+           <p class="row">${canMail ? `<button id="emailtell">Email ${esc(first(p))}</button>` : ''}<button id="tell" class="${canMail ? 'secondary' : ''}">Copy message to ${esc(first(p))}</button></p></div>`
         : ''
     }
     ${summary.reflection ? `<div class="no-print"><h2>${esc(first(p))}'s reflection</h2><div class="card raw-body">${esc(summary.reflection)}</div></div>` : ''}`;
@@ -939,10 +986,9 @@ async function person(cycleId, staffId, tab = 'raw') {
   for (const b of $$('[data-part]', pane)) b.onchange = preview;
   preview();
   $('#print').onclick = () => print();
-  $('#tell')?.addEventListener('click', async () => {
-    const { link } = await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} });
-    copy(`Aloha ${first(p)}, your letter from ${cyc.name} is ready. Open your link to read it, and write back if you like: ${link} Mahalo, ${config.director}`);
-  });
+  const fresh = async () => (await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} })).link;
+  $('#tell')?.addEventListener('click', async () => copy(letterMsg(p, cyc.name, await fresh())));
+  $('#emailtell')?.addEventListener('click', async () => sendOrCopy(p.id, letterMsg(p, cyc.name, await fresh()), `Your letter from ${cyc.name}`));
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');
@@ -962,6 +1008,7 @@ async function staff() {
       <td><select data-path="${p}" data-f="role">${[['staff', 'Staff'], ['lead', 'Team lead'], ['admin', 'Director']].map(([v, l]) => opt(v, l, s.role)).join('')}</select></td>
       <td><select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></td>
       <td>${inp('start_date', 'date')}</td>
+      <td><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''} aria-label="Send email to ${esc(nameOf(s))}"></td>
       <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td></tr>`;
   };
   app.innerHTML = `
@@ -974,6 +1021,7 @@ async function staff() {
         <div class="row"><label style="flex:1">Goes by <input name="preferred_name"></label><label style="flex:1">Group <input name="team" list="groups" placeholder="Staff"></label></div>
         <div class="row"><label style="flex:1">Email <input name="email" type="email"></label><label style="flex:1">Phone <input name="phone" type="tel"></label></div>
         <label>Language <select name="lang">${opt('en', 'English')}${opt('haw', 'Hawaiian')}${opt('both', 'Both')}</select></label>
+        <label class="check"><input type="checkbox" name="send_email" checked> Send email (their link, reminders, and when their letter is ready)</label>
         <p><button>Add</button></p>
       </form>
       <form id="bulk" class="card" style="flex:1;min-width:18rem">
@@ -984,16 +1032,17 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Send email means the app can email them their link, reminders, and when their letter is ready (once email is set up in Data). Uncheck it for anyone who would rather hear from you directly. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
     <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Active</th></tr>
+      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Send email</th><th>Active</th></tr>
       ${list.map(row).join('')}
     </table></div>
     ${GROUPS}`;
   bindFields();
   $('#add').onsubmit = async (e) => {
     e.preventDefault();
-    await save('/api/admin/staff', Object.fromEntries(new FormData(e.target)), 'POST');
+    const f = Object.fromEntries(new FormData(e.target));
+    await save('/api/admin/staff', { ...f, send_email: f.send_email ? 1 : 0 }, 'POST');
     route();
   };
   $('#bulk').onsubmit = async (e) => {
@@ -1103,15 +1152,15 @@ async function data() {
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
     </div>
-    <h2>Reminders and messages</h2>
+    <h2>Email</h2>
     <div class="card">
-      <p style="margin-top:0">By default the app sends nothing. You copy each link and nudge and send it yourself. To have the app text or email people, and send reminders by itself each morning, add a Twilio or Resend key (see the README).</p>
-      <p class="small">Text messages: <strong>${ch.sms ? 'set up' : 'not set up'}</strong> · Email: <strong>${ch.email ? 'set up' : 'not set up'}</strong></p>
-      <label>How to send <select data-path="/api/admin/settings" data-f="reminder_channel">
-        ${opt('manual', 'I copy and send each message myself', settings.reminder_channel || 'manual')}
-        ${ch.sms ? opt('sms', 'Text message, with a morning reminder for anyone behind', settings.reminder_channel) : ''}
-        ${ch.email ? opt('email', 'Email, with a morning reminder for anyone behind', settings.reminder_channel) : ''}
-      </select></label>
+      ${ch.email
+        ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`
+        : `<p style="margin-top:0"><strong>Email is not set up yet</strong>, so you copy each link and nudge and send it yourself. Whoever set up the app can turn on email with a free Resend account (see the README).</p>`}
+      <label>Replies go to <input type="email" data-path="/api/admin/settings" data-f="reply_to" value="${esc(settings.reply_to || '')}" placeholder="you@your-org.org"></label>
+      <p class="small muted">When someone replies to an email from the app, it goes to this address.</p>
+      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email ? '' : 'disabled'}> Each morning at 7am, email a gentle reminder to anyone still behind in the open review</label>
+      <p class="small muted">Needs the small reminders Worker from the README. Without it, use Today's nudges on the Cycles page.</p>
     </div>
     <h2>Mahalo board</h2>
     <div class="card">

@@ -11,7 +11,7 @@ import teamUser from './prompts/team-user.txt';
 import prepSystem from './prompts/prep-system.txt';
 import boardSystem from './prompts/board-system.txt';
 import { signalsPrompt, parseSignals, calibrate } from './signals.js';
-import { channels, route as via, send } from './notify.js';
+import { channels, route as via, send, sendEmails } from './notify.js';
 
 // Seed questions, used when a cycle has no earlier cycle to copy from.
 // prompt_haw is left empty on purpose: a fluent speaker should write those.
@@ -34,7 +34,7 @@ const DEFAULT_QUESTIONS = [
   ['upward', 'short', 0, 0, 'Is there something you need from leadership that you are not getting?'],
 ];
 
-const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang'];
+const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang', 'send_email'];
 const VALUE_FIELDS = ['name_haw', 'name_en', 'olelo_noeau', 'olelo_noeau_meaning', 'description', 'ord'];
 const QUESTION_FIELDS = ['prompt_en', 'prompt_haw', 'kind', 'required', 'five_min', 'value_id', 'audience'];
 const CYCLE_FIELDS = ['name', 'opens_at', 'closes_at', 'values_set_id', 'upward'];
@@ -214,7 +214,7 @@ export async function getCycle_({ env, params }) {
     all(env, 'SELECT * FROM questions WHERE cycle_id = ? ORDER BY audience, ord, id', cycle.id),
     all(
       env,
-      'SELECT id, name, preferred_name, email, phone, role, team, active FROM staff WHERE active = 1 OR id IN (SELECT staff_id FROM cycle_people WHERE cycle_id = ?) ORDER BY name',
+      'SELECT id, name, preferred_name, email, phone, role, team, active, send_email FROM staff WHERE active = 1 OR id IN (SELECT staff_id FROM cycle_people WHERE cycle_id = ?) ORDER BY name',
       cycle.id,
     ),
     all(env, 'SELECT id, reviewer_id, reviewee_id, kind, status FROM assignments WHERE cycle_id = ?', cycle.id),
@@ -447,7 +447,7 @@ export async function links({ env, params, url }) {
   const cycle = await getCycle(env, params.id);
   const people = await all(
     env,
-    'SELECT DISTINCT s.id, s.name, s.preferred_name, s.phone, s.email FROM staff s JOIN assignments a ON a.reviewer_id = s.id WHERE a.cycle_id = ? ORDER BY s.name',
+    'SELECT DISTINCT s.id, s.name, s.preferred_name, s.phone, s.email, s.send_email FROM staff s JOIN assignments a ON a.reviewer_id = s.id WHERE a.cycle_id = ? ORDER BY s.name',
     cycle.id,
   );
   for (const p of people) p.link = await linkFor(env, url.origin, p.id, cycle.id);
@@ -501,7 +501,7 @@ export async function getSummary({ env, params }) {
     Number(params.id),
     Number(params.staff),
   );
-  const person = await one(env, 'SELECT id, name, preferred_name, lang FROM staff WHERE id = ?', Number(params.staff));
+  const person = await one(env, 'SELECT id, name, preferred_name, lang, email, send_email FROM staff WHERE id = ?', Number(params.staff));
   const cycle = await one(env, 'SELECT id, name, status FROM cycles WHERE id = ?', Number(params.id));
   return json({ summary: s, person, cycle });
 }
@@ -850,19 +850,39 @@ async function toneTags(env, cycleId) {
 
 export async function getChannels({ env }) {
   const n = await settings(env);
-  return json({ ...channels(env), prefer: n.reminder_channel || 'manual' });
+  return json({ ...channels(env), reply_to: n.reply_to || '', auto: n.auto_remind === '1' });
 }
 
 export async function sendMessage({ env, request, admin }) {
   const b = await body(request);
   const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(b.staff_id));
   if (!person) throw new HttpError(404, 'Not found');
-  const n = await settings(env);
-  const to = via(env, person, n.reminder_channel === 'email' ? 'email' : 'sms');
-  if (!to) throw new HttpError(400, `No way to reach ${person.preferred_name || person.name}. Add a phone or email, or copy the message instead.`);
-  await send(env, to.to, String(b.message || '').slice(0, 1500), to.channel, b.subject || 'A message from your review');
+  const to = via(env, person);
+  if (!to) throw new HttpError(400, `${person.preferred_name || person.name} has no email, or Send email is unchecked in People.`);
+  await send(env, to.to, String(b.message || '').slice(0, 4000), to.channel, b.subject || 'A message from your review', (await settings(env)).reply_to);
   await audit(env, admin, `send_${to.channel}`, `staff:${person.id}`);
   return json({ ok: true, channel: to.channel });
+}
+
+// Email many people at once. Only people with an email and Send email checked get one.
+// The rest come back by name so the director can copy their messages instead.
+export async function emailMany({ env, request, admin }) {
+  if (!channels(env).email) throw new HttpError(400, 'Email is not set up yet. Copy the messages instead.');
+  const messages = (await body(request)).messages || [];
+  const ids = messages.map((m) => Number(m.staff_id));
+  // ponytail: one IN list, fine up to D1's 100 bound values. Chunk it for bigger organizations.
+  const people = Object.fromEntries((await all(env, `SELECT * FROM staff WHERE id IN (${ids.map(() => '?').join(',') || 'NULL'})`, ...ids)).map((p) => [p.id, p]));
+  const out = [];
+  const skipped = [];
+  for (const m of messages) {
+    const p = people[Number(m.staff_id)];
+    if (!p) continue;
+    if (p.email && p.send_email) out.push({ to: p.email, subject: String(m.subject || 'A message from your review').slice(0, 200), text: String(m.message || '').slice(0, 4000) });
+    else skipped.push(p.preferred_name || p.name);
+  }
+  await sendEmails(env, out, (await settings(env)).reply_to);
+  await audit(env, admin, 'email_many', `${out.length} sent`);
+  return json({ sent: out.length, skipped });
 }
 
 // ---------- mahalo board moderation ----------

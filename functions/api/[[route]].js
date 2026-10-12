@@ -79,6 +79,7 @@ const routes = [
   ['PUT', '/api/admin/kuleana/:staff', a.putKuleana],
   ['GET', '/api/admin/channels', a.getChannels],
   ['POST', '/api/admin/send', a.sendMessage],
+  ['POST', '/api/admin/email', a.emailMany],
   ['GET', '/api/admin/mahalo', a.listMahalo],
   ['DELETE', '/api/admin/mahalo/:id', a.removeMahalo],
   ['GET', '/api/admin/cycles/:id/links', a.links],

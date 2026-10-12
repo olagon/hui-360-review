@@ -43,7 +43,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **kuleana map** you keep up to date, which Auto fill uses to pair coworkers.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
-- Optional texts or emails through Twilio or Resend, with a reminder each morning for anyone behind. Off by default.
+- Email everyone their link, a nudge, or "your letter is ready" in one click, through a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional 7am reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Data.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
 
@@ -67,6 +67,7 @@ Estimates from Cloudflare's and Anthropic's published prices as of October 2026,
 | Llama 3.3 70B on Workers AI (no key needed) | Drafting each person's letter | **About $0.005 a person**, usually inside the free daily allowance, so **$0** |
 | or Claude Haiku 5.5 (the default when you add an Anthropic key) | Drafting, with better writing | **About $0.002 to $0.005 a person**, under $0.25 a cycle |
 | or Claude Sonnet 5.5 (one line in `functions/lib/config.js`) | Drafting, richest letters | **About $0.05 to $0.10 a person**, $1 to $2 a cycle |
+| Resend (optional) | Emailing links, nudges, and letters | **$0** up to 3,000 emails a month |
 | Domain | Your web address | **$0** with your own domain or the free `pages.dev` address, about $10 a year otherwise |
 
 **Typical total: $0 to $1 a year.** Without an Anthropic key everything still works, drafts included, on Cloudflare's free allowance. Prefer to write every letter by hand? Use "Start a blank draft" and skip AI entirely.
@@ -133,13 +134,28 @@ The app checks the Access token's signature on every admin request. It never tru
 - **Llama:** do nothing. Without an Anthropic key, drafts come from Llama on Workers AI.
 - With a key, drafts use Claude Haiku 5.5. For richer letters at about 20 times the cost, set `CLAUDE_MODEL` to `claude-sonnet-5-5` in `functions/lib/config.js`.
 
-### 6. Optional: texts and emails
+### 6. Recommended: email
 
-By default the app sends nothing. You copy each message and send it from your own phone. To let the app send links, nudges, and a 7am reminder for anyone behind:
+Without email, the app sends nothing. Your director copies each link, nudge, and "your letter is ready" message and sends it from their own phone. That works, but with 20 people it is a lot of pasting.
 
-- **Text messages, Twilio:** `npx wrangler pages secret put TWILIO_SID`, then `TWILIO_TOKEN` and `TWILIO_FROM` (your Twilio number), each with `--project-name hui-360`. Roughly $0.01 a text in the US.
-- **Email, Resend:** `npx wrangler pages secret put RESEND_API_KEY --project-name hui-360`, and set `RESEND_FROM` (an address on a domain you verified in Resend) under `[vars]` in `wrangler.toml`. Free up to 3,000 emails a month.
-- **Morning reminders:** Pages cannot run on a schedule, so a tiny Worker does it. Make one more random string and run:
+With email on, every one of those messages has an **Email everyone** button. It emails each person who has an address and **Send email** checked in People (checked by default), and tells the director how many it skipped so they can copy those few by hand. A staff member who loses their link can type their email or phone number on the home page, and the app emails them a fresh one. The phone number is only used to look them up.
+
+Email goes through [Resend](https://resend.com), free up to 3,000 emails a month (about 100 a day), which is plenty for a review. It takes about 15 minutes:
+
+1. Make a free Resend account.
+2. In Resend, **Domains, Add domain**. Use a subdomain you control, like `review.your-org.org`. If your domain is on Cloudflare, let Resend add the DNS records for you, or copy them into Cloudflare DNS yourself. Wait for it to say Verified.
+3. In Resend, **API Keys, Create API key** with sending access. Then run this and paste the key when asked:
+   ```bash
+   npx wrangler pages secret put RESEND_API_KEY --project-name hui-360
+   ```
+4. In `wrangler.toml`, under `[vars]`, set the from address on your verified domain, for example `RESEND_FROM = "Your Org <review@review.your-org.org>"`, and deploy.
+5. In admin, **Data, Email**, put your director's address in **Replies go to**, so replies reach a person.
+
+Cloudflare has its own email sending too, but as of October 2026 it is in beta and needs the $5 a month Workers Paid plan. Resend's free plan costs nothing.
+
+**Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and morning reminders go by text to people the app cannot email.
+
+**Morning reminders are optional.** To email a 7am reminder to anyone behind, without the director pressing anything, Pages needs a tiny scheduled Worker. Make one more random string and run:
 
 ```bash
 npx wrangler pages secret put CRON_SECRET --project-name hui-360
@@ -147,7 +163,7 @@ npx wrangler deploy -c workers/reminders/wrangler.toml
 npx wrangler secret put CRON_SECRET -c workers/reminders/wrangler.toml
 ```
 
-Change `APP_URL` in `workers/reminders/wrangler.toml` to your address first. Then in admin, Data, Reminders and messages, choose text or email.
+Change `APP_URL` in `workers/reminders/wrangler.toml` to your address first. Then in admin, Data, Email, check the morning reminder box.
 
 ### 7. Deploy
 

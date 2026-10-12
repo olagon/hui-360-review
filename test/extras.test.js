@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { moonFor, MOONS } from '../public/assets/moon.js';
 import { layoutMeetings, buildICS } from '../public/assets/ics.js';
 import { parseSignals, calibrate, signalsPrompt } from '../functions/lib/signals.js';
-import { route, send } from '../functions/lib/notify.js';
+import { route, send, sendEmails } from '../functions/lib/notify.js';
 
 test('moon calendar lands on known nights', () => {
   assert.equal(MOONS.length, 30);
@@ -46,18 +46,21 @@ test('signals parsing is forgiving and calibration needs two reviews', () => {
   assert.deepEqual(calibrate(rows), { kind: 'generous', tough: 'critical' });
 });
 
-test('sending routes by preference and builds the right requests', async () => {
+test('email goes only to people with Send email checked, in batches of 100', async () => {
   const env = { TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', RESEND_FROM: 'Hui <a@b.org>' };
-  assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org' }, 'email'), { channel: 'email', to: 'x@y.org' });
-  assert.deepEqual(route(env, { email: 'x@y.org' }, 'sms'), { channel: 'email', to: 'x@y.org' });
-  assert.equal(route({}, { phone: '1' }, 'sms'), null);
+  assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
+  assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 0 }), { channel: 'sms', to: '+1808' });
+  assert.equal(route({ RESEND_API_KEY: 'k', RESEND_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
+  assert.equal(route({}, { phone: '1', email: 'x@y.org', send_email: 1 }), null);
   const calls = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => (calls.push([url, init]), new Response('{}'));
   await send(env, '+18085551234', 'hi', 'sms');
-  await send(env, 'x@y.org', 'hi', 'email');
+  await send(env, 'x@y.org', 'hi', 'email', 'Subject', 'director@b.org');
+  await sendEmails(env, Array.from({ length: 150 }, (_, i) => ({ to: `p${i}@y.org`, subject: 's', text: 't' })), 'director@b.org');
   globalThis.fetch = real;
   assert.match(calls[0][0], /Accounts\/AC1\/Messages\.json$/);
   assert.equal(new URLSearchParams(calls[0][1].body).get('To'), '+18085551234');
-  assert.equal(JSON.parse(calls[1][1].body).to[0], 'x@y.org');
+  assert.deepEqual(JSON.parse(calls[1][1].body), { from: 'Hui <a@b.org>', to: ['x@y.org'], subject: 'Subject', text: 'hi', reply_to: 'director@b.org' });
+  assert.deepEqual(calls.slice(2).map(([url, init]) => [url.split('.com')[1], JSON.parse(init.body).length]), [['/emails/batch', 100], ['/emails/batch', 50]]);
 });

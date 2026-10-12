@@ -306,6 +306,7 @@ All three phases are built, except the Hawaiian i18n review pass, which needs a 
 - Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Team report tab and prints on its own.
+- Email (Olin's call, October 2026): Resend, because Cloudflare's own email sending is beta and needs Workers Paid. Each person has a Send email checkbox (on by default). Every staff message (links, nudges, letter ready, team report) has an Email everyone button that sends one Resend batch to people with an address and the box checked, and reports how many were skipped. Lost link requests look people up by email or phone and only ever send by email. `reply_to` in settings routes replies to the director.
 
 ## Setup walkthrough for Olin
 

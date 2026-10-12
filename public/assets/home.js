@@ -45,15 +45,16 @@ function landing(e) {
     ${e && e.status !== 401 ? `<div class="banner info">${esc(t('landing.offline'))}</div>` : ''}
     <p>${esc(t('landing.body'))}</p>
     <p>${esc(t('landing.howto'))}</p>
-    <form id="req" class="card">
+    ${config.email ? `<form id="req" class="card">
       <p style="margin-top:0">${esc(t('landing.newlink'))}</p>
       <label for="contact">${esc(t('landing.requestLabel'))}</label>
       <input id="contact" autocomplete="email" required>
       <p style="margin-bottom:0"><button>${esc(t('landing.requestButton'))}</button></p>
-    </form>
+    </form>` : `<p class="muted">${esc(t('landing.askDirector'))}</p>`}
     <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>
     <p class="small muted" style="margin-top:2rem">${esc(t('landing.adminNote'))} <a href="/admin/">${esc(t('landing.admin'))}</a></p>`;
-  document.getElementById('req').onsubmit = async (ev) => {
+  const req = document.getElementById('req');
+  if (req) req.onsubmit = async (ev) => {
     ev.preventDefault();
     const form = ev.target;
     let msg;

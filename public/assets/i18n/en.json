@@ -13,7 +13,7 @@
   "landing.body": "This is where {hui} does its yearly reflection. You write about your own year and about a few coworkers, then {director} reads it all and sits down with each person to talk story.",
   "landing.howto": "To get started, open the link {director} sent you by text or email. It brings you straight to your list.",
   "landing.expired": "That link has expired or is no longer active.",
-  "landing.newlink": "Lost your link? Type your phone number or email.",
+  "landing.newlink": "Lost your link? Type the email or phone number {director} has for you. We use it to find you, then email you a fresh link. We do not send texts.",
   "landing.offline": "We could not reach the server. Check your signal and try again.",
   "landing.tour": "Watch the 1 minute tour",
   "landing.adminNote": "Running the review?",
@@ -104,10 +104,10 @@
   "dash.asksBody": "A coworker asked how something went from your side. It takes a minute.",
   "dash.asksButton": "Answer now",
   "dash.links": "Your page has your letters, goals, and mahalo.",
-  "landing.requestLabel": "Your phone number or email",
-  "landing.requestButton": "Send me a fresh link",
-  "landing.requestSent": "If you are in an open review, a fresh link is on its way. If nothing arrives, ask {director}.",
-  "landing.requestManual": "Links are sent by {director}. Please ask them for a fresh one.",
+  "landing.requestLabel": "Your email or phone number",
+  "landing.requestButton": "Email me a fresh link",
+  "landing.requestSent": "If you are in an open review and have an email on file, a fresh link is on its way to your inbox. If nothing arrives in a few minutes, ask {director}.",
+  "landing.requestManual": "Please ask {director} for a fresh link.",
   "me.page": "My page",
   "me.letters": "Letters",
   "me.huli": "My huli",
@@ -170,5 +170,6 @@
   "voice.closed": "This review has closed. Mahalo for your time.",
   "voice.help": "Your answer goes to {director} at {hui}. It is shared with {name} only as part of a letter about their year.",
   "feedback.message": "Aloha {name}, I asked you a quick question in our review app. You can answer it on your page: {link}",
-  "feedback.copied": "Asked. A message to let them know is copied, ready to paste."
+  "feedback.copied": "Asked. A message to let them know is copied, ready to paste.",
+  "landing.askDirector": "Lost your link? Ask {director} for a fresh one."
 }

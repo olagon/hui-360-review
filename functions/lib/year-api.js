@@ -3,7 +3,7 @@
 // asking for a fresh link, and the morning reminder run.
 import { HttpError, body, json, randomToken } from './http.js';
 import { linkFor } from './auth.js';
-import { channels, route, send } from './notify.js';
+import { channels, emailOf, route, send } from './notify.js';
 
 const all = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).all().then((r) => r.results);
 const one = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).first();
@@ -194,18 +194,18 @@ export async function requestLink({ env, request, url }) {
   if (count >= 5) throw new HttpError(429, 'Too many tries. Please ask your director for a link.');
   await env.KV.put(key, String(count + 1), { expirationTtl: 3600 });
   const n = await settings(env);
-  const c = channels(env);
-  if (!c.sms && !c.email) return json({ manual: true });
+  // Lost links go out by email only. The phone number is just another way to find the person.
+  if (!channels(env).email) return json({ manual: true });
   const contact = text((await body(request)).contact, 200).toLowerCase();
   const digits = contact.replace(/\D/g, '');
   const person = (await all(env, 'SELECT * FROM staff WHERE active = 1')).find(
     (s) => (s.email && s.email.toLowerCase() === contact) || (digits.length >= 7 && (s.phone || '').replace(/\D/g, '').endsWith(digits.slice(-10))),
   );
   const cycle = person && (await one(env, "SELECT c.* FROM cycles c JOIN cycle_people p ON p.cycle_id = c.id WHERE c.status = 'open' AND p.staff_id = ?", person.id));
-  const via = person && route(env, person, n.reminder_channel);
-  if (cycle && via) {
+  const to = person && emailOf(env, person);
+  if (cycle && to) {
     const link = await linkFor(env, url.origin, person.id, cycle.id);
-    await send(env, via.to, `Aloha ${nameOf(person)}, here is your link for ${cycle.name}: ${link}`, via.channel, 'Your review link');
+    await send(env, to, `Aloha ${nameOf(person)}, here is your link for ${cycle.name}: ${link}\n\nIt is yours alone, so please do not forward it. Mahalo!`, 'email', 'Your review link', n.reply_to);
   }
   // Same answer either way, so nobody can test who is on staff.
   return json({ sent: true });
@@ -217,7 +217,7 @@ export async function reminders({ env, request, url }) {
   if (!env.CRON_SECRET || request.headers.get('x-cron-secret') !== env.CRON_SECRET) throw new HttpError(401, 'Not allowed');
   const n = await settings(env);
   const cycle = await one(env, "SELECT * FROM cycles WHERE status = 'open' ORDER BY id DESC LIMIT 1");
-  if (!cycle || n.reminder_channel === 'manual' || !n.reminder_channel) return json({ sent: 0 });
+  if (!cycle || n.auto_remind !== '1') return json({ sent: 0 });
   const behind = await all(
     env,
     `SELECT DISTINCT s.* FROM assignments a JOIN staff s ON s.id = a.reviewer_id WHERE a.cycle_id = ? AND a.status != 'done' AND s.active = 1`,
@@ -227,11 +227,11 @@ export async function reminders({ env, request, url }) {
   let sent = 0;
   for (const p of behind) {
     const key = `nudge:${cycle.id}:${p.id}:${today}`;
-    const via = route(env, p, n.reminder_channel);
+    const via = route(env, p);
     if (!via || (await env.KV.get(key))) continue;
     const link = await linkFor(env, url.origin, p.id, cycle.id);
     const until = cycle.closes_at ? ` until ${cycle.closes_at}` : '';
-    await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder');
+    await send(env, via.to, `Aloha ${nameOf(p)}, a gentle reminder that ${cycle.name} is open${until}. Even 5 minutes helps: ${link}`, via.channel, 'A gentle reminder', n.reply_to);
     await env.KV.put(key, '1', { expirationTtl: 172800 });
     sent++;
   }

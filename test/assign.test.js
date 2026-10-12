@@ -9,7 +9,7 @@ import { saveAnswer } from '../functions/lib/staff-api.js';
 function d1() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
-  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql', '0004_team_reports.sql', '0005_year_round.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql', '0004_team_reports.sql', '0005_year_round.sql', '0006_send_email.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     first: async () => db.prepare(sql).get(...args) ?? null,
