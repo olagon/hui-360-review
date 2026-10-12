@@ -32,13 +32,24 @@ export async function route(env, person) {
   return null;
 }
 
+// Plain words when the From address is the problem, which is the most common setup mistake.
+export function fromTrouble(message = '', from = '') {
+  if (/E_SENDER_DOMAIN_NOT_AVAILABLE|E_SENDER_NOT_VERIFIED|domain is not verified|not verified|validation_error.*from/i.test(message)) {
+    return `Email not sent: the From address (${from}) is not on a domain set up with the email service. Change it in Settings, Automated Emails, to an address on a domain that is set up, then send yourself a test email.`;
+  }
+  return '';
+}
+
 const resend = async (key, path, payload) => {
   const res = await fetch(`https://api.resend.com${path}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new HttpError(502, `Email not sent: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    const why = (await res.text()).slice(0, 200);
+    throw new HttpError(502, fromTrouble(why, payload[0]?.from || payload.from) || `Email not sent: ${why}`);
+  }
 };
 
 // Replies reach a person: whoever is marked Director in People.
@@ -73,7 +84,7 @@ export async function sendEmails(env, list) {
     try {
       await env.MAILER.send(list.map((m) => ({ ...m, from: setup.from, replyTo })));
     } catch (e) {
-      throw new HttpError(502, `Email not sent: ${e.message}`);
+      throw new HttpError(502, fromTrouble(e.message, setup.from) || `Email not sent: ${e.message}`);
     }
     return;
   }

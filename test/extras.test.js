@@ -106,3 +106,10 @@ test('a dead or empty Anthropic key gets plain words, not an error code', async 
   assert.match(keyTrouble({ status: 400, message: 'Your credit balance is too low to access the Anthropic API.' }), /out of credit/);
   assert.equal(keyTrouble({ status: 529, message: 'Overloaded' }), '', 'anything else gets the generic try again');
 });
+
+test('a From address on a domain the email service does not know gets plain words', async () => {
+  const { fromTrouble } = await import('../functions/lib/notify.js');
+  assert.match(fromTrouble('E_SENDER_DOMAIN_NOT_AVAILABLE: domain not onboarded', 'Hui <a@gmail.com>'), /not on a domain set up.*Settings, Automated Emails/);
+  assert.match(fromTrouble('{"statusCode":403,"message":"The gmail.com domain is not verified."}', 'a@gmail.com'), /a@gmail\.com/);
+  assert.equal(fromTrouble('E_RATE_LIMIT_EXCEEDED', 'a@b.org'), '');
+});

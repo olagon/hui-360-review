@@ -1243,6 +1243,7 @@ async function settingsPage() {
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
   const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
   const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
+  const fromDomain = (ch.from || '').match(/@([^>\s]+)/)?.[1] || '';
   app.innerHTML = `
     <h1>Settings</h1>
     <nav class="chips">${SECTIONS.map(([id, label]) => `<a href="#/settings/${id}">${label}</a>`).join('')}</nav>
@@ -1308,7 +1309,15 @@ async function settingsPage() {
         <label class="check"><input type="radio" name="eprov" value="resend" ${ch.provider === 'resend' ? 'checked' : ''}> <span><strong>Resend.</strong> Free for up to 3,000 emails a month (100 a day), plenty for a review. Needs a free Resend account and your domain verified there. Works on Cloudflare's free plan.</span></label>
       </fieldset>
       <label>From address <input id="efrom" value="${esc(ch.from || '')}" placeholder="Your org <review@your-domain.org>"></label>
-      <p class="small muted">Who emails come from. It has to be on a domain set up with the service you choose: onboarded in Cloudflare Email Sending, or verified in Resend.</p>
+      <div class="small muted">
+        <p style="margin:.25rem 0">Who emails come from. You can change it any time:</p>
+        <ul style="margin:.25rem 0 .5rem; padding-left:1.2rem">
+          <li><strong>The name</strong>, before the <code>&lt;</code>, can be anything, like <code>${esc(config.hui)}</code> or <code>${esc(config.director)} at ${esc(config.hui)}</code>.</li>
+          <li><strong>The address</strong> can be any name you like before the <code>@</code>, but after the <code>@</code> it has to be a domain set up with the service you choose: onboarded in Cloudflare Email Sending, or verified in Resend.${fromDomain ? ` Right now that is <strong>${esc(fromDomain)}</strong>, so any address ending in <code>@${esc(fromDomain)}</code> works.` : ''} An address on any other domain, like a Gmail address, will not send.</li>
+          <li>It does not need to be a real inbox. Replies go to the person marked Director in People.</li>
+        </ul>
+        <p style="margin:.25rem 0">After changing it, press Save and then Send me a test email.</p>
+      </div>
       <div id="resendbox" ${ch.provider === 'resend' ? '' : 'hidden'}>
         ${ch.resend?.source === 'secret'
           ? `<p class="small">A Resend key ending in ${esc(ch.resend.last4)} was set up by whoever installed the app, as a Cloudflare secret.</p>`
@@ -1401,7 +1410,7 @@ async function settingsPage() {
     try {
       await api('/api/admin/email-setup', { method: 'PUT', json: { provider: $('[name=eprov]:checked')?.value || 'off', from: $('#efrom').value, resend_key: $('#resendkey')?.value || '' } });
       await refreshChannels();
-      toast('Email settings saved.');
+      toast(`Email settings saved.${$('#efrom').value.trim() !== (ch.from || '') ? ' Press Send me a test email to check the new From address works.' : ''}`, 6000);
       route();
     } catch (err) {
       toast(err.message, 6000);
