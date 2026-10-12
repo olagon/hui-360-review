@@ -1177,7 +1177,7 @@ async function data() {
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
     </div>
-    <h2>Email</h2>
+    <h2>Automated Emails</h2>
     <div class="card">
       ${ch.email
         ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`

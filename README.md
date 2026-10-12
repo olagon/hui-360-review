@@ -168,7 +168,7 @@ npx wrangler pages secret put CRON_SECRET --project-name hui-360
 npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
 ```
 
-Then in admin, Data, Email, check the reminder box.
+Then in admin, Data, Automated Emails, check the reminder box.
 
 ### 7. Deploy
 
