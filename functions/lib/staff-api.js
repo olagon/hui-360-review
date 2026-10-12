@@ -30,7 +30,7 @@ const answersFor = (env, hash) =>
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
   const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai')").all();
-  return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: channels(env).email });
+  return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: (await channels(env)).email });
 }
 
 // Public: the organization's logo, uploaded by admin. Served as an image only, so an SVG

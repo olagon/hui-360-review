@@ -141,23 +141,17 @@ Without email, the app sends nothing. Your director copies each link, nudge, and
 
 With email on, every one of those messages has an **Email everyone** button. It emails each person who has an address and **Send email** checked in People (checked by default), and tells the director how many it skipped so they can copy those few by hand. A staff member who loses their link can type their email or phone number on the home page, and the app emails them a fresh one. The phone number is only used to look them up.
 
-There are two ways to send it.
+Your director picks how in **Settings, Automated Emails**: Off, Cloudflare, or Resend, plus the From address and a **Send me a test email** button.
 
-**If your Cloudflare account is on Workers Paid ($5 a month), use Cloudflare Email Sending.** No other account needed. It is in beta as of October 2026, and new accounts start at 200 emails a day, which covers a review for a team of 20.
+**Cloudflare Email Sending, if your Cloudflare account is on Workers Paid ($5 a month).** No other account. It is in beta as of October 2026, and new accounts start at 200 emails a day, which covers a review for a team of 20. One time setup:
 1. In the dashboard, **Compute, Email Service, Email Sending, Onboard Domain**, and pick your domain. Cloudflare adds the DNS records. Wait until it says Configured.
-2. Deploy the mailer Worker. Pages Functions cannot hold Cloudflare's email binding, so this small Worker holds it, and the app calls it through a service binding:
+2. Deploy the mailer Worker. Pages Functions cannot hold Cloudflare's email binding, so this small Worker holds it, and the app calls it through the `[[services]]` block for `MAILER` in `wrangler.toml`:
    ```bash
    npx wrangler deploy -c workers/mailer/wrangler.toml
    ```
-3. In `wrangler.toml`, set `EMAIL_FROM` under `[vars]` to an address on that domain, like `"Your Org <review@your-org.org>"`, keep the `[[services]]` block for `MAILER`, and deploy.
+3. In Settings, Automated Emails, pick Cloudflare and enter a From address on that domain.
 
-**On Cloudflare's free plan, use [Resend](https://resend.com)**, free up to 3,000 emails a month.
-1. Make a free Resend account, then **Domains, Add domain** and add the DNS records it gives you. Wait for Verified.
-2. **API Keys, Create API key** with sending access, then run this and paste the key when asked:
-   ```bash
-   npx wrangler pages secret put RESEND_API_KEY --project-name hui-360
-   ```
-3. In `wrangler.toml`, set `EMAIL_FROM` to an address on your verified domain, delete the `[[services]]` block for `MAILER`, and deploy.
+**Resend, free on any Cloudflare plan**, up to 3,000 emails a month. Nothing to deploy: Settings walks your director through it. They make a free Resend account, verify a subdomain like `mail.your-org.org`, create a sending key, and paste it in Settings, where it is encrypted and left out of exports. If you are not using the mailer Worker, delete the `[[services]]` block for `MAILER` from `wrangler.toml`.
 
 Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address.
 
@@ -202,7 +196,7 @@ Add three test people, create a cycle, open it, answer as each of them from thei
 7. **Nudge** from the Progress tab as the close date gets near.
 8. **Close it.** Answers lock, and the Letters tab opens.
 9. **Write the letters.** For each person, read every answer about them, let AI compile a draft that summarizes what was sent, write your final version, and share the parts you choose. Print or save any letter as a PDF.
-10. **Write the team report and the board report** in the Team report tab.
+10. **Write the team report and the board report** in the Reports tab. Print them, or copy them straight into a doc or an email.
 11. **Talk story.** Lay out the meetings in the Talk story tab and send calendar files. Open each person's Draft tab for talk story prep. They read their letter on their phone and can write a reflection back, then set their goals on My page.
 12. **Mark it published** once every letter is shared, and export a copy for your records.
 
@@ -237,4 +231,4 @@ Issues and pull requests are welcome, especially Hawaiian translations, accessib
 
 ## License
 
-[MIT](LICENSE). Courtesy [Olin Lagon](https://www.linkedin.com/in/olinlagon).
+[MIT](LICENSE). Stewarded by [Olin Lagon](https://www.linkedin.com/in/olinlagon).

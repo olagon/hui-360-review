@@ -126,7 +126,7 @@ export async function askFeedback({ env, staff, request, url }) {
   const prompt = text(b.prompt, 600);
   const r = await env.DB.prepare('INSERT INTO feedback_requests (from_id, to_id, prompt) VALUES (?, ?, ?)').bind(staff.id, to.id, prompt).run();
   // The coworker gets their own link by email when the app can send it. Otherwise the asker copies a message.
-  const email = emailOf(env, to);
+  const email = await emailOf(env, to);
   let emailed = false;
   if (email) {
     const link = await linkFor(env, url.origin, to.id, 0);
@@ -198,13 +198,13 @@ export async function requestLink({ env, request, url, waitUntil }) {
   await env.KV.put(key, String(count + 1), { expirationTtl: 3600 });
   const n = await settings(env);
   // Lost links go out by email only. The phone number is just another way to find the person.
-  if (!channels(env).email) return json({ manual: true });
+  if (!(await channels(env)).email) return json({ manual: true });
   const contact = text((await body(request)).contact, 200).toLowerCase();
   const digits = contact.replace(/\D/g, '');
   const person = (await all(env, 'SELECT * FROM staff WHERE active = 1')).find(
     (s) => (s.email && s.email.toLowerCase() === contact) || (digits.length >= 7 && (s.phone || '').replace(/\D/g, '').endsWith(digits.slice(-10))),
   );
-  const to = person && emailOf(env, person);
+  const to = person && (await emailOf(env, person));
   // One email per person per 10 minutes, however many places ask for it.
   const cool = person && `rl:to:${person.id}`;
   if (to && !(await env.KV.get(cool))) {
@@ -239,7 +239,7 @@ export async function reminders({ env, request, url }) {
   let sent = 0;
   for (const p of behind) {
     const key = `nudge:${cycle.id}:${p.id}:${today}`;
-    const via = route(env, p);
+    const via = await route(env, p);
     if (!via || (await env.KV.get(key))) continue;
     const link = await linkFor(env, url.origin, p.id, cycle.id);
     const until = cycle.closes_at ? ` until ${cycle.closes_at}` : '';

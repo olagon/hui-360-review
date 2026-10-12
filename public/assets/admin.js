@@ -1,4 +1,4 @@
-import { api as rawApi, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
+import { api as rawApi, esc, md, copy, copyRich, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 import { layoutMeetings, buildICS } from './ics.js';
 
@@ -13,6 +13,7 @@ let busyCount = 0;
 const BUSY = [
   [/\/(draft|prep)$/, 'Writing the draft. This can take a minute.'],
   [/\/(email|send)$/, 'Sending email...'],
+  [/\/email-test$/, 'Sending a test email...'],
   [/\/signals$/, 'Reading answers. This can take a minute.'],
   [/\/export$/, 'Saving a copy of everything...'],
   [/\/sample$/, 'Setting up the sample...'],
@@ -139,6 +140,7 @@ const moonToday = () => {
 let channelsP;
 let CH = {};
 const channels = () => (channelsP ||= api('/api/admin/channels').then((c) => (CH = c)).catch(() => ({})));
+const refreshChannels = () => ((channelsP = null), channels());
 channels(); // known before anyone taps, so a tap can decide email or copy without waiting
 const emails = (p) => !!(p.email && p.send_email);
 // message can be a promise. Deciding without awaiting keeps a copy inside the tap, which Safari requires.
@@ -176,6 +178,13 @@ async function emailButton(el, people, label, subject, build) {
   };
 }
 const letterMsg = (p, cycleName, link) => `Aloha ${first(p)}, your letter from ${cycleName} is ready. Open your link to read it, and write back if you like: ${link}\n\nMahalo, ${config.director}`;
+
+// Which model wrote something, and when, in plain words.
+const MODEL_LABEL = { 'claude-haiku-5-5': 'Claude Haiku 5.5', 'claude-sonnet-5-5': 'Claude Sonnet 5.5', '@cf/meta/llama-3.3-70b-instruct-fp8-fast': 'Llama 3.3', none: 'No AI' };
+const modelName = (id) => MODEL_LABEL[id] || id;
+const whenAt = (s) => new Date(`${s.replace(' ', 'T')}Z`).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const madeLabel = (run, what) =>
+  run ? `<p class="small muted made">${run.model === 'none' ? `${what} started from the answers, with no AI, ${esc(whenAt(run.at))}.` : `${what} written by ${esc(modelName(run.model))}, ${esc(whenAt(run.at))}.`} <a href="#/settings/ailog">AI log</a></p>` : '';
 
 const opt = (value, label, selected) => `<option value="${esc(value)}" ${String(value) === String(selected ?? '') ? 'selected' : ''}>${esc(label)}</option>`;
 const chip = (status) => `<span class="chip ${status}">${esc(status.replace('_', ' '))}</span>`;
@@ -275,7 +284,7 @@ async function digest(c) {
 }
 const nudge = (p, c) => `Aloha ${first(p)}, a gentle reminder that ${c.name} is still open${c.closes_at ? ` until ${fmtDate(c.closes_at)}` : ''}. Even 5 minutes helps: ${p.link} Mahalo!`;
 
-const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['voices', 'Community'], ['progress', 'Progress'], ['letters', 'Letters'], ['talks', 'Talk story'], ['team', 'Team report']];
+const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['voices', 'Community'], ['progress', 'Progress'], ['letters', 'Letters'], ['talks', 'Talk story'], ['team', 'Reports']];
 
 async function cycle(id, tab = 'setup') {
   const d = await api(`/api/admin/cycles/${id}`);
@@ -314,7 +323,7 @@ function nextStep({ cycle: c, members, assignments: as, summaries, responses }) 
     text += go('letters', 'Write letters');
   } else if (c.status === 'closed') {
     text = `${shared === 1 ? 'The letter is' : `All ${shared} letters are`} shared, and everyone can read theirs. Next, write the team report: one report on the whole team, with no names. Then mark the review published in Setup and save a copy from Settings, Your data.`;
-    text += go('team', 'Team report');
+    text += go('team', 'Reports');
   } else {
     text = `Finished. ${letterWord(shared)} shared. Everyone can read theirs. The team report and a copy of everything (Settings, Your data) are there any time.`;
     text += go('letters', 'See letters');
@@ -782,19 +791,21 @@ async function team({ cycle: c }, pane) {
     pane.innerHTML = '<div class="banner info">The team report opens after you close the review in Setup.</div>';
     return;
   }
-  const { report, stats } = await api(`/api/admin/cycles/${c.id}/team`);
+  const { report, stats, made = {} } = await api(`/api/admin/cycles/${c.id}/team`);
   const text = report ? report.edited ?? report.draft ?? '' : '';
   pane.innerHTML = `
-    <h2 class="print-only">Team report</h2>
+    <h2>Team report</h2>
     <p class="no-print">One report on the whole team: what you do well, where you struggle, what people asked of you, and ideas for next year. It never names anyone. Edit it, print it for your board, or share it with everyone in this review.</p>
     <p><strong>${stats.people}</strong> people took part. <strong>${stats.done} of ${stats.total}</strong> reviews finished (${stats.pct}%).</p>
     <div class="row no-print">${config.ai ? `<button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button>` : text ? '' : '<button id="toutline">Start from an outline</button>'}<span class="small muted" id="tstatus"></span></div>
     <div id="tnotes" class="no-print"></div>
+    ${report?.draft ? `<div class="no-print">${madeLabel(made.team, 'First draft')}</div>` : ''}
     ${
       report?.draft || report?.edited
         ? `<div id="ted">${editorHtml(text, 'Team report')}</div>
       ${report.shared_at ? `<div class="banner no-print">Shared ${esc(fmtDate(report.shared_at))}. Everyone in this review sees it on their home page as What we learned together. Let them know it is there.</div><p class="row no-print" id="teamall"></p>` : ''}
       <p class="row no-print"><button id="tshare" class="${report.shared_at ? 'quiet' : ''}">${report.shared_at ? 'Stop sharing' : 'Share with everyone in this review'}</button>
+        <button class="secondary" id="tcopy">Copy for a doc or email</button>
         <button class="secondary" id="tprint">Print or save as PDF</button></p>`
         : ''
     }`;
@@ -818,7 +829,7 @@ async function team({ cycle: c }, pane) {
       $('#tgen').disabled = false;
     }
   };
-  board(c, report, stats, pane);
+  board(c, report, stats, pane, made);
   if (report?.shared_at && $('#teamall')) {
     const { people } = await api(`/api/admin/cycles/${c.id}/links`);
     emailButton($('#teamall'), people, 'Email everyone that it is ready', `What we learned together: ${c.name}`, (p) =>
@@ -827,6 +838,8 @@ async function team({ cycle: c }, pane) {
   if (!report?.draft && !report?.edited) return;
   wireEditor($('#ted'), (edited) => api(`/api/admin/cycles/${c.id}/team`, { method: 'PUT', json: { edited } }));
   $('#tprint').onclick = () => print();
+  // Copies what is in the editor right now, so edits not yet saved come along too.
+  $('#tcopy').onclick = () => copyRich(htmlToText($('#ted .editor')), `${config.hui} team report: ${c.name}`);
   $('#tshare').onclick = async () => {
     const on = !report.shared_at;
     if (!confirm(on ? 'Share the team report with everyone in this review?' : 'Stop sharing the team report?')) return;
@@ -840,7 +853,7 @@ const TEAM_OUTLINE = '## What we do well\n\nWrite here.\n\n## Where we struggle\
 const BOARD_OUTLINE = '## Team health\n\nWrite here.\n\n## Growth\n\nWrite here.\n\n## Participation\n\n{facts}\n\n## Ideas for leadership\n\nWrite here.';
 
 // Board report: one page, anonymized, no quotes. Printed on its own.
-function board(c, report, stats, pane) {
+function board(c, report, stats, pane, made = {}) {
   const text = report ? report.board_edited ?? report.board_draft ?? '' : '';
   pane.insertAdjacentHTML('beforeend', `
     <section id="board">
@@ -848,7 +861,8 @@ function board(c, report, stats, pane) {
       <p class="no-print">One page for your board: team health, growth themes, participation, and one or two ideas for leadership. No quotes and no names, so nothing in it points to anyone.</p>
       <p class="print-only">${esc(config.hui)} · ${esc(c.name)} · ${stats.people} people took part, ${stats.pct}% of reviews finished.</p>
       <div class="row no-print">${config.ai ? `<button id="bgen" class="${text ? 'secondary' : ''}">${text ? 'Regenerate board report' : 'Write the board report'}</button>` : text ? '' : '<button id="boutline">Start from an outline</button>'}<span class="small muted" id="bstatus"></span></div>
-      ${text ? `<div id="bed">${editorHtml(text, 'Board report')}</div><p class="no-print"><button class="secondary" id="bprint">Print the board report</button></p>` : ''}
+      ${report?.board_draft ? `<div class="no-print">${madeLabel(made.board, 'First draft')}</div>` : ''}
+      ${text ? `<div id="bed">${editorHtml(text, 'Board report')}</div><p class="row no-print"><button class="secondary" id="bcopy">Copy for a doc or email</button><button class="secondary" id="bprint">Print the board report</button></p>` : ''}
     </section>`);
   $('#boutline')?.addEventListener('click', async () => {
     const facts = `${stats.people} people took part. ${stats.done} of ${stats.total} reviews were finished (${stats.pct}%).`;
@@ -869,6 +883,7 @@ function board(c, report, stats, pane) {
   };
   if (!text) return;
   wireEditor($('#bed'), (edited) => api(`/api/admin/cycles/${c.id}/board`, { method: 'PUT', json: { edited } }));
+  $('#bcopy').onclick = () => copyRich(htmlToText($('#bed .editor')), `${config.hui} board report: ${c.name}`);
   // Print only this section: hide the rest of the page for the print.
   $('#bprint').onclick = () => {
     document.body.classList.add('print-board');
@@ -881,7 +896,7 @@ function board(c, report, stats, pane) {
 
 async function person(cycleId, staffId, tab = 'raw') {
   const base = `/api/admin/cycles/${cycleId}/people/${staffId}`;
-  const { summary, person: p, cycle: cyc } = await api(`${base}/summary`);
+  const { summary, person: p, cycle: cyc, made = {} } = await api(`${base}/summary`);
   app.innerHTML = `
     <p class="small no-print"><a href="#/cycle/${cycleId}/letters">Back to letters</a></p>
     <h1 style="margin:.25rem 0">${esc(nameOf(p))}</h1>
@@ -950,6 +965,7 @@ async function person(cycleId, staffId, tab = 'raw') {
         <span class="small muted" id="genStatus">${config.ai ? '' : 'AI is off in Settings, so you write the letter from the answers.'}</span>
       </div>
       <div id="notes"></div>
+      ${summary && text().trim() ? madeLabel([made.letter, made.answers].filter(Boolean).sort((a, b) => (a.at < b.at ? 1 : -1))[0], 'First draft') : ''}
       ${
         summary
           ? `<p class="small muted">Edit it like any document. Your changes save as you type.${config.ai ? ' Quotes in an AI draft were checked word for word against the answers.' : ''}</p>
@@ -960,6 +976,7 @@ async function person(cycleId, staffId, tab = 'raw') {
       ${config.ai || summary?.talk_story_prep ? `<details class="card" id="prep" ${summary?.talk_story_prep ? 'open' : ''}>
         <summary><strong>Talk story prep</strong> <span class="small muted">Only you see this</span></summary>
         <p class="small muted">Openers, one thing to celebrate, one tension worth sitting with, one question to ask, and goals from last time, from the same answers as the letter.</p>
+        ${summary?.talk_story_prep ? madeLabel(made.prep, 'Prep') : ''}
         <div class="summary-doc" style="border:0;padding:0">${md(summary?.talk_story_prep || '')}</div>
         ${config.ai ? `<p style="margin-bottom:0"><button class="secondary small" id="prepgen">${summary?.talk_story_prep ? 'Write it again' : 'Write talk story prep'}</button> <span class="small muted" id="prepstatus"></span></p>` : ''}
       </details>` : ''}`;
@@ -1197,6 +1214,19 @@ const keyForm = (replacing) => `
   </form>
   <p class="small muted" style="margin-bottom:0">The key is encrypted before it is stored, never shown again (only its last four characters), and left out of every export. If it ever stops working (it expired, was deleted, or ran out of credit), drafts say so, and you paste a new one here or remove it to go back to Llama.</p>`;
 
+const KIND = { letter: 'Letter draft', prep: 'Talk story prep', team: 'Team report', board: 'Board report', signals: 'Early signals', answers: 'Letter from the answers' };
+const money = (n) => (n < 0.01 ? 'under a cent' : `$${n.toFixed(2)}`);
+const aiRows = (rows) =>
+  rows
+    .map(
+      (r) => `<tr><td style="white-space:nowrap">${esc(whenAt(r.created_at))}</td>
+        <td>${esc(KIND[r.kind] || r.kind)}${r.person ? ` for ${esc(r.person)}` : ''}${r.cycle ? `<br><span class="small muted">${esc(r.cycle)}</span>` : ''}</td>
+        <td>${esc(modelName(r.model))}</td>
+        <td class="small">${r.input_tokens != null ? `${r.input_tokens.toLocaleString()} in, ${(r.output_tokens || 0).toLocaleString()} out` : ''}</td>
+        <td class="small">${r.model === 'none' ? '' : r.cost ? money(r.cost) : 'free'}</td>
+        <td class="small">${r.ok ? 'Done' : `<span style="color:var(--warn)">Failed: ${esc(r.error || '')}</span>`}</td></tr>`,
+    )
+    .join('');
 const auditRows = (rows) => rows.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('');
 
 async function settingsPage() {
@@ -1211,7 +1241,8 @@ async function settingsPage() {
   const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
   const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
-  const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
   app.innerHTML = `
     <h1>Settings</h1>
     <nav class="chips">${SECTIONS.map(([id, label]) => `<a href="#/settings/${id}">${label}</a>`).join('')}</nav>
@@ -1258,11 +1289,45 @@ async function settingsPage() {
       ${key?.source === 'settings' ? `<details style="margin-top:.75rem"><summary>Replace with a new key</summary>${keyForm(true)}</details>` : ''}
     </div></section>
 
+    <section id="ailog"><h2>AI log</h2>
+    <p class="small muted">Every time AI wrote something: when, what for, which model, how much, and whether it worked. Never the words themselves. Letters started from the answers are listed too, as No AI.</p>
+    ${ailog.month.length ? `<p class="small"><strong>Last 30 days:</strong> ${ailog.month.map((m) => (m.model === 'none' ? `${m.runs} ${m.runs === 1 ? 'letter' : 'letters'} started from the answers` : `${m.runs} ${m.runs === 1 ? 'run' : 'runs'} on ${esc(modelName(m.model))}, ${m.cost ? `about ${money(m.cost)}` : 'free'}`)).join('. ')}.</p>` : ''}
+    <div class="scroll"><table id="ailogt"><tr><th>When</th><th>What</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Result</th></tr>${aiRows(ailog.runs)}</table></div>
+    ${ailog.more ? '<p><button class="secondary small" id="olderai">Show older</button></p>' : ''}
+    ${ailog.runs.length ? '' : '<p class="muted">Nothing yet.</p>'}
+    </section>
+
     <section id="email"><h2>Automated Emails</h2>
     <div class="card">
-      ${ch.email
-        ? `<p style="margin-top:0"><strong>Email is set up.</strong> Links, nudges, and letter messages can be emailed from the app to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.</p>`
-        : `<p style="margin-top:0"><strong>Email is not set up yet</strong>, so you copy each link and nudge and send it yourself. Whoever set up the app can turn it on (see the README).</p>`}
+      <p style="margin-top:0">${ch.email
+        ? `<strong>Email is on</strong>, sent by ${ch.provider === 'cloudflare' ? 'Cloudflare' : 'Resend'} from <strong>${esc(ch.from)}</strong>. Links, nudges, and letter messages go by email to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.`
+        : '<strong>Email is off</strong>, so you copy each link, nudge, and letter message and send it yourself.'}</p>
+      <fieldset style="border:0;padding:0;margin:0 0 .75rem"><legend><strong>How should the app send email?</strong></legend>
+        <label class="check"><input type="radio" name="eprov" value="off" ${ch.provider === 'off' ? 'checked' : ''}> <span><strong>Off.</strong> You copy each message and send it yourself, from your own phone or email.</span></label>
+        <label class="check"><input type="radio" name="eprov" value="cloudflare" ${ch.provider === 'cloudflare' ? 'checked' : ''} ${ch.mailer ? '' : 'disabled'}> <span><strong>Cloudflare Email Sending.</strong> Part of Cloudflare's Workers Paid plan, $5 a month, with no other account. ${ch.mailer ? 'Set up and ready on this app.' : 'Not available on this app yet. It needs the Workers Paid plan and the small mailer Worker (see the README).'}</span></label>
+        <label class="check"><input type="radio" name="eprov" value="resend" ${ch.provider === 'resend' ? 'checked' : ''}> <span><strong>Resend.</strong> Free for up to 3,000 emails a month (100 a day), plenty for a review. Needs a free Resend account and your domain verified there. Works on Cloudflare's free plan.</span></label>
+      </fieldset>
+      <label>From address <input id="efrom" value="${esc(ch.from || '')}" placeholder="Your org <review@your-domain.org>"></label>
+      <p class="small muted">Who emails come from. It has to be on a domain set up with the service you choose: onboarded in Cloudflare Email Sending, or verified in Resend.</p>
+      <div id="resendbox" ${ch.provider === 'resend' ? '' : 'hidden'}>
+        ${ch.resend?.source === 'secret'
+          ? `<p class="small">A Resend key ending in ${esc(ch.resend.last4)} was set up by whoever installed the app, as a Cloudflare secret.</p>`
+          : ch.resend
+            ? `<p class="row small"><span>Your Resend key ending in <strong>${esc(ch.resend.last4)}</strong> is saved.</span><button type="button" class="quiet small" id="noresend">Remove key</button></p>`
+            : ''}
+        ${ch.resend?.source === 'secret' ? '' : `<details ${ch.resend ? '' : 'open'}>
+          <summary><strong>How to set up Resend</strong> (about 15 minutes)</summary>
+          <ol class="small steps-plain">
+            <li>Sign up free at <a href="https://resend.com" target="_blank" rel="noopener">resend.com</a>, with your organization's email.</li>
+            <li>Open <strong>Domains</strong> and press <strong>Add domain</strong>. Use a subdomain you control, like <code>mail.your-org.org</code>, so your regular email is never affected. Resend shows a few DNS records. Add them where your domain is managed (if it is on Cloudflare, Resend can add them for you). Wait until the domain says <strong>Verified</strong>.</li>
+            <li>Open <strong>API Keys</strong> and press <strong>Create API key</strong>. Name it ${esc(APP_NAME)}. Permission: <strong>Sending access</strong>. Domain: the one you just added. Press Add, then copy the key. It starts with <code>re_</code> and is shown only once.</li>
+            <li>Paste it below, set the From address above to an address on that domain (like <code>review@mail.your-org.org</code>), press Save, then Send me a test email.</li>
+          </ol>
+        </details>
+        <label style="margin-top:.5rem">${ch.resend ? 'Replace with a new Resend key' : 'Resend API key'} <input type="password" id="resendkey" autocomplete="off" spellcheck="false" placeholder="re_..."></label>
+        <p class="small muted">Encrypted before it is stored, never shown again (only its last four characters), and left out of every export.</p>`}
+      </div>
+      <p class="row"><button type="button" id="esave">Save email settings</button><button type="button" class="secondary" id="etest" ${ch.email ? '' : 'disabled'}>Send me a test email</button></p>
       <p class="small">${ch.reply_to
         ? `When someone replies to an email from the app, it goes to <strong>${esc(ch.reply_to)}</strong>, the person marked Director in <a href="#/staff">People</a>.`
         : `Mark someone as Director in <a href="#/staff">People</a>, with an email, so replies to the app's emails reach them.`}</p>
@@ -1300,6 +1365,13 @@ async function settingsPage() {
     <p class="small muted">Every read of raw answers, every draft, share, export, AI switch, and delete. Newest first. The full log is also in every export.</p>
     <div class="scroll"><table id="audit"><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Target</th></tr>${auditRows(audit)}</table></div>
     ${more ? '<p><button class="secondary small" id="older">Show older</button></p>' : ''}</section>`;
+  let oldestAi = ailog.runs.at(-1)?.id;
+  $('#olderai')?.addEventListener('click', async () => {
+    const page = await api(`/api/admin/ai-runs?before=${oldestAi}`);
+    $('#ailogt').insertAdjacentHTML('beforeend', aiRows(page.runs));
+    oldestAi = page.runs.at(-1)?.id;
+    if (!page.more) $('#olderai').remove();
+  });
   let oldest = audit.at(-1)?.id;
   $('#older')?.addEventListener('click', async () => {
     const page = await api(`/api/admin/audit?before=${oldest}`);
@@ -1324,6 +1396,31 @@ async function settingsPage() {
     await save('/api/admin/anthropic-key', {}, 'DELETE');
     route();
   });
+  for (const r of $$('[name=eprov]')) r.onchange = () => ($('#resendbox').hidden = r.value !== 'resend' || !r.checked);
+  $('#esave').onclick = async () => {
+    try {
+      await api('/api/admin/email-setup', { method: 'PUT', json: { provider: $('[name=eprov]:checked')?.value || 'off', from: $('#efrom').value, resend_key: $('#resendkey')?.value || '' } });
+      await refreshChannels();
+      toast('Email settings saved.');
+      route();
+    } catch (err) {
+      toast(err.message, 6000);
+    }
+  };
+  $('#noresend')?.addEventListener('click', async () => {
+    if (!confirm('Remove the Resend key? Email stops until you add a new key or pick another way to send.')) return;
+    await api('/api/admin/email-setup', { method: 'PUT', json: { provider: ch.provider, remove_resend: true } });
+    await refreshChannels();
+    route();
+  });
+  $('#etest').onclick = async () => {
+    try {
+      const r = await api('/api/admin/email-test', { method: 'POST', json: {} });
+      toast(`Test email sent to ${r.to}. Check your inbox.`, 6000);
+    } catch (err) {
+      toast(err.message, 8000);
+    }
+  };
   $('#aitoggle').onchange = async (e) => {
     const on = e.target.checked;
     if (!confirm(on ? 'Turn AI on? Voice answers, letter drafts, reports, prep, and early signals come back.' : 'Turn AI off? Nothing will be sent to any AI model. Staff type their answers, and letters start from the answers.')) {

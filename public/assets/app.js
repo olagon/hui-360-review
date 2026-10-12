@@ -157,6 +157,31 @@ export async function copy(text, done = 'Copied') {
   if (done) toast(done);
 }
 
+// Copies formatted text for a doc or an email (headings, bold, quotes), with a clean
+// plain text copy alongside for places that take text only.
+export async function copyRich(markdown, title = '') {
+  const plain = (title ? `${title}\n\n` : '') + plainText(markdown);
+  const html = (title ? `<h2>${esc(title)}</h2>` : '') + md(markdown);
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) }),
+    ]);
+    toast('Copied. Paste it into a doc or an email.');
+  } catch {
+    copy(plain, 'Copied as plain text. Paste it into a doc or an email.');
+  }
+}
+
+// Letters and reports are stored as simple marked up text. This reads it as plain words.
+export function plainText(src = '') {
+  return src
+    .split('\n')
+    .map((l) => l.replace(/^#{1,4}\s+/, '').replace(/^>\s?/, '    ').replace(/^\s*[-*]\s+/, '• ').replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|[\s(])[*_](?!\s)(.+?)[*_](?=[\s).,;:!?]|$)/g, '$1$2'))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 // The organization's own logo (set in admin, Data, Settings), if it has one.
 export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config.logo}" alt="${esc(config.hui)}">` : '');
 
@@ -205,7 +230,7 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } 
   footer.className = 'foot';
   const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${esc(text)}</a>`;
   footer.innerHTML = `<div>${ext(REPO_URL, t('footer.openSource'))} · ${ext(`${REPO_URL}/blob/main/LICENSE`, t('footer.license'))}</div>
-    <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin'))}</div>
+    <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin Lagon'))}</div>
     <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>`;
   document.body.append(footer);
   $('#signout', header)?.addEventListener('click', (e) => {

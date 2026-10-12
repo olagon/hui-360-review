@@ -79,6 +79,8 @@ const routes = [
   ['POST', '/api/admin/cycles/:id/people/:staff/prep', a.draftPrep],
   ['GET', '/api/admin/channels', a.getChannels],
   ['POST', '/api/admin/send', a.sendMessage],
+  ['PUT', '/api/admin/email-setup', a.putEmailSetup],
+  ['POST', '/api/admin/email-test', a.emailTest],
   ['POST', '/api/admin/email', a.emailMany],
   ['GET', '/api/admin/mahalo', a.listMahalo],
   ['DELETE', '/api/admin/mahalo/:id', a.removeMahalo],
@@ -96,6 +98,7 @@ const routes = [
   ['POST', '/api/admin/export', a.exportAll],
   ['GET', '/api/admin/exports', a.listExports],
   ['GET', '/api/admin/audit', a.listAudit],
+  ['GET', '/api/admin/ai-runs', a.listAiRuns],
   ['POST', '/api/admin/sample', a.loadSample],
   ['DELETE', '/api/admin/sample', a.removeSample],
 ];

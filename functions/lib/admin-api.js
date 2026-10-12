@@ -1,8 +1,8 @@
 import { HttpError, json, body, audit } from './http.js';
 import { autoFill, assignmentHash } from './assign.js';
 import { linkFor, createLink } from './auth.js';
-import { completer, aiOn, anthropicKey, sealKey, checkKey } from './ai.js';
-import { CLAUDE_MODEL } from './config.js';
+import { completer, aiOn, anthropicKey, sealKey, checkKey, logRun } from './ai.js';
+import { CLAUDE_MODEL, PRICES } from './config.js';
 import { draftSummary, stripIdentity, section, answersDraft } from './summarize.js';
 import systemPrompt from './prompts/summary-system.txt';
 import userPrompt from './prompts/summary-user.txt';
@@ -14,7 +14,8 @@ import prepUser from './prompts/prep-user.txt';
 import prepFix from './prompts/prep-fix.txt';
 import boardSystem from './prompts/board-system.txt';
 import { signalsPrompt, parseSignals, calibrate } from './signals.js';
-import { channels, directorEmail, route as via, send, sendEmails } from './notify.js';
+import { channels, directorEmail, emailSetup, route as via, send, sendEmails } from './notify.js';
+import { seal } from './seal.js';
 
 // Seed questions, used when a cycle has no earlier cycle to copy from.
 // prompt_haw is left empty on purpose: a fluent speaker should write those.
@@ -96,7 +97,7 @@ export async function updateStaff({ env, request, params }) {
 
 // The stored Anthropic key never leaves the server. The page only learns where it came from and its last four characters.
 export async function getSettings({ env }) {
-  const { anthropic_key, anthropic_last4, ...rest } = await settings(env);
+  const { anthropic_key, anthropic_last4, resend_key, resend_last4, ...rest } = await settings(env); // pasted keys never leave the server
   const key = await anthropicKey(env);
   return json({
     ...rest,
@@ -131,6 +132,8 @@ export async function putSettings({ env, request, admin }) {
   const data = await body(request);
   delete data.anthropic_key; // only through putAnthropicKey, which checks and seals it
   delete data.anthropic_last4;
+  delete data.resend_key; // only through putEmailSetup, which seals it
+  delete data.resend_last4;
   if ('ai' in data) await audit(env, admin, data.ai === 'off' ? 'ai_off' : 'ai_on', 'settings');
   await env.DB.batch(
     Object.entries(data).map(([k, v]) =>
@@ -291,7 +294,7 @@ export async function setStatus({ env, request, params, admin, waitUntil }) {
     await syncUpward(env, cycle.id);
   }
   // Classify answers in the background once a review closes, for early signals and reviewer tone.
-  if (status === 'closed' && (await aiOn(env))) waitUntil?.(analyze(env, cycle.id).catch((e) => console.error('analyze', e)));
+  if (status === 'closed' && (await aiOn(env))) waitUntil?.(analyze(env, cycle.id, admin).catch((e) => console.error('analyze', e)));
   await env.DB.prepare(`UPDATE cycles SET status = ?${status === 'published' ? ", published_at = datetime('now')" : ''} WHERE id = ?`).bind(status, cycle.id).run();
   await audit(env, admin, `cycle_${status}`, `cycle:${cycle.id}`);
   return json({ ok: true });
@@ -555,6 +558,18 @@ async function rawGroups(env, cycle, staffId) {
   return { groups, linkOf };
 }
 
+// The newest successful run of each kind for one review (and one person), to label drafts.
+async function madeBy(env, cycleId, staffId, kinds) {
+  const rows = await all(
+    env,
+    `SELECT kind, model, created_at FROM ai_runs WHERE cycle_id = ? AND ${staffId ? 'staff_id = ?' : 'staff_id IS NULL'} AND ok = 1 AND kind IN (${kinds.map(() => '?').join(',')}) ORDER BY id DESC LIMIT 20`,
+    ...[cycleId, ...(staffId ? [staffId] : []), ...kinds],
+  ).catch(() => []);
+  const out = {};
+  for (const r of rows) out[r.kind] ||= { model: r.model, at: r.created_at };
+  return out;
+}
+
 export async function getSummary({ env, params }) {
   const s = await one(
     env,
@@ -565,7 +580,7 @@ export async function getSummary({ env, params }) {
   );
   const person = await one(env, 'SELECT id, name, preferred_name, lang, email, send_email FROM staff WHERE id = ?', Number(params.staff));
   const cycle = await one(env, 'SELECT id, name, status FROM cycles WHERE id = ?', Number(params.id));
-  return json({ summary: s, person, cycle });
+  return json({ summary: s, person, cycle, made: await madeBy(env, Number(params.id), Number(params.staff), ['letter', 'answers', 'prep']) });
 }
 
 export async function draft({ env, params, admin }) {
@@ -602,7 +617,7 @@ export async function draft({ env, params, admin }) {
   const { markdown, notes } = await draftSummary({
     input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear },
     templates: { system: systemPrompt, user: userPrompt, fix: fixPrompt },
-    complete: completer(env),
+    complete: completer(env, { kind: 'letter', cycle: cycle.id, staff: person.id, actor: admin }),
   });
   await env.DB.prepare(
     `INSERT INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, ?)
@@ -623,6 +638,7 @@ export async function blankSummary({ env, params, request, admin }) {
     const { groups } = await rawGroups(env, cycle, person.id);
     text = answersDraft(person.preferred_name || person.name, (await settings(env)).hui_name || 'the Hui', groups);
     await audit(env, admin, 'draft_from_answers', `cycle:${cycle.id} staff:${person.id}`);
+    await logRun(env, { kind: 'answers', cycle: cycle.id, staff: person.id, actor: admin, model: 'none' });
   }
   // Fills an empty draft (prep may have made the row already), never one with words in it.
   await env.DB.prepare(
@@ -675,7 +691,7 @@ export async function draftPrep({ env, params, admin }) {
       lastYear: goals.length ? `Goals:\n${goals.map((g) => `- ${g.body} (${g.status})`).join('\n')}` : '',
     },
     templates: { system: prepSystem, user: prepUser, fix: prepFix },
-    complete: completer(env),
+    complete: completer(env, { kind: 'prep', cycle: cycle.id, staff: person.id, actor: admin }),
   });
   await env.DB.prepare(
     `INSERT INTO summaries (cycle_id, reviewee_id, talk_story_prep) VALUES (?, ?, ?)
@@ -737,6 +753,7 @@ export async function getTeam({ env, params }) {
   return json({
     report: await one(env, 'SELECT * FROM team_reports WHERE cycle_id = ?', cycle.id),
     stats: await participation(env, cycle.id),
+    made: await madeBy(env, cycle.id, null, ['team', 'board']),
   });
 }
 
@@ -771,7 +788,7 @@ export async function draftTeam({ env, params, admin }) {
       facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished.`,
     },
     templates: { system: teamSystem, user: teamUser, fix: fixPrompt },
-    complete: completer(env),
+    complete: completer(env, { kind: 'team', cycle: cycle.id, actor: admin }),
   });
   await env.DB.prepare(
     `INSERT INTO team_reports (cycle_id, draft) VALUES (?, ?)
@@ -826,7 +843,7 @@ export async function draftBoard({ env, params, admin }) {
       facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished (${st.pct}%).`,
     },
     templates: { system: boardSystem, user: teamUser, fix: fixPrompt },
-    complete: completer(env),
+    complete: completer(env, { kind: 'board', cycle: cycle.id, actor: admin }),
   });
   // The board report never quotes anyone, so remove any quote the model slipped in.
   const clean = markdown.replace(/\s*["“][^"“”\n]{12,}["”]/g, '');
@@ -848,13 +865,13 @@ export async function saveBoard({ env, request, params }) {
 
 // ---------- early signals and reviewer tone ----------
 
-async function analyze(env, cycleId) {
+async function analyze(env, cycleId, actor = 'system') {
   const todo = await all(
     env,
     "SELECT r.id, r.body FROM responses r LEFT JOIN response_signals s ON s.response_id = r.id WHERE r.cycle_id = ? AND s.response_id IS NULL AND TRIM(COALESCE(r.body, '')) != '' LIMIT 400",
     cycleId,
   );
-  const complete = completer(env);
+  const complete = completer(env, { kind: 'signals', cycle: cycleId, actor });
   for (let i = 0; i < todo.length; i += 20) {
     const batch = todo.slice(i, i + 20);
     const { system, user } = signalsPrompt(batch.map((r) => r.body));
@@ -882,7 +899,7 @@ export const getSignals = async ({ env, params }) => json(await signalCounts(env
 
 export async function runSignals({ env, params, admin }) {
   const cycle = await getCycle(env, params.id);
-  await analyze(env, cycle.id);
+  await analyze(env, cycle.id, admin);
   await audit(env, admin, 'signals', `cycle:${cycle.id}`);
   return json(await signalCounts(env, cycle.id));
 }
@@ -909,14 +926,58 @@ async function toneTags(env, cycleId) {
 
 export async function getChannels({ env }) {
   const n = await settings(env);
-  return json({ ...channels(env), reply_to: await directorEmail(env), auto: n.auto_remind === '1', cron: !!env.CRON_SECRET });
+  const setup = await emailSetup(env);
+  const last4 = (await one(env, "SELECT value FROM settings WHERE key = 'resend_last4'"))?.value;
+  return json({
+    ...(await channels(env)),
+    reply_to: await directorEmail(env),
+    auto: n.auto_remind === '1',
+    cron: !!env.CRON_SECRET,
+    provider: setup.provider,
+    from: setup.from,
+    mailer: setup.mailer,
+    resend: setup.resendKey ? { source: env.RESEND_API_KEY ? 'secret' : 'settings', last4: env.RESEND_API_KEY ? env.RESEND_API_KEY.slice(-4) : last4 } : null,
+  });
+}
+
+// Settings, Automated Emails: which service sends, the from address, and a pasted Resend key (sealed).
+export async function putEmailSetup({ env, request, admin }) {
+  const b = await body(request);
+  if (!['off', 'cloudflare', 'resend'].includes(b.provider)) throw new HttpError(400, 'Pick how to send email');
+  const from = String(b.from ?? '').trim();
+  if (from && !/^([^<>@]+<)?[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>?$/.test(from)) throw new HttpError(400, 'The from address should look like huiMAU <review@your-domain.org>.');
+  const set = (k, v) => env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind(k, v);
+  const writes = [set('email_provider', b.provider)];
+  if (b.from !== undefined) writes.push(set('email_from', from));
+  const key = String(b.resend_key || '').trim();
+  if (key) {
+    if (!/^re_\w{10,}$/.test(key)) throw new HttpError(400, 'That does not look like a Resend API key. It starts with re_.');
+    writes.push(set('resend_key', await seal(env, key, 'resend-key')), set('resend_last4', key.slice(-4)));
+  }
+  if (b.remove_resend) writes.push(env.DB.prepare("DELETE FROM settings WHERE key IN ('resend_key', 'resend_last4')"));
+  await env.DB.batch(writes);
+  await audit(env, admin, 'email_setup', `${b.provider}${key ? ', new Resend key' : ''}${b.remove_resend ? ', Resend key removed' : ''}`);
+  return json({ ok: true, ...(await emailSetup(env)), resendKey: undefined });
+}
+
+// One test email to whoever is signed in, so they can see it arrives and how it looks.
+export async function emailTest({ env, admin }) {
+  if (!/@/.test(admin || '')) throw new HttpError(400, 'Your sign in has no email address to send to.');
+  const n = await settings(env);
+  await sendEmails(env, [{
+    to: admin,
+    subject: `A test from ${n.hui_name || 'your review app'}`,
+    text: `Aloha, this is a test email from ${n.hui_name || 'your review app'}. If you are reading this, email works.\n\nReplies go to ${(await directorEmail(env)) || 'nobody yet. Mark someone as Director, with an email, in People'}.\n\nMahalo!`,
+  }]);
+  await audit(env, admin, 'email_test', admin);
+  return json({ ok: true, to: admin });
 }
 
 export async function sendMessage({ env, request, admin }) {
   const b = await body(request);
   const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(b.staff_id));
   if (!person) throw new HttpError(404, 'Not found');
-  const to = via(env, person);
+  const to = await via(env, person);
   if (!to) throw new HttpError(400, `${person.preferred_name || person.name} has no email, or Send email is unchecked in People.`);
   await send(env, to.to, String(b.message || '').slice(0, 4000), to.channel, b.subject || 'A message from your review');
   await audit(env, admin, `send_${to.channel}`, `staff:${person.id}`);
@@ -926,7 +987,7 @@ export async function sendMessage({ env, request, admin }) {
 // Email many people at once. Only people with an email and Send email checked get one.
 // The rest come back by name so the director can copy their messages instead.
 export async function emailMany({ env, request, admin }) {
-  if (!channels(env).email) throw new HttpError(400, 'Email is not set up yet. Copy the messages instead.');
+  if (!(await channels(env)).email) throw new HttpError(400, 'Email is not set up yet. Copy the messages instead.');
   const messages = (await body(request)).messages || [];
   const people = Object.fromEntries((await all(env, 'SELECT * FROM staff')).map((p) => [p.id, p]));
   const out = [];
@@ -978,7 +1039,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
+  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit', 'ai_runs',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
@@ -1020,7 +1081,7 @@ export function exportMarkdown(data) {
 export async function exportAll({ env, admin }) {
   const data = {};
   for (const t of EXPORT_TABLES) data[t] = await all(env, `SELECT * FROM "${t}"`);
-  data.settings = data.settings.filter((s) => !s.key.startsWith('anthropic_')); // the key stays out of every export
+  data.settings = data.settings.filter((s) => !/^(anthropic|resend)_/.test(s.key)); // pasted keys stay out of every export
   const prefix = `exports/${new Date().toISOString().replace(/[:.]/g, '-')}/`;
   const files = {
     'hui360.json': JSON.stringify({ exported_at: new Date().toISOString(), note: 'response_link is left out on purpose so exports never carry the reviewer hash.', tables: data }, null, 2),
@@ -1036,6 +1097,24 @@ export async function exportAll({ env, admin }) {
 export async function listExports({ env }) {
   const page = await env.MEDIA.list({ prefix: 'exports/', limit: 1000 });
   return json({ files: page.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })) });
+}
+
+// The AI log, newest first, 25 at a time, with the estimated cost of each Claude call.
+export async function listAiRuns({ env, url }) {
+  const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
+  const rows = await all(
+    env,
+    `SELECT r.*, c.name AS cycle, s.name AS person, s.preferred_name FROM ai_runs r
+     LEFT JOIN cycles c ON c.id = r.cycle_id LEFT JOIN staff s ON s.id = r.staff_id WHERE r.id < ? ORDER BY r.id DESC LIMIT 26`,
+    before,
+  );
+  const cost = (r) => (PRICES[r.model] && r.input_tokens != null ? (r.input_tokens * PRICES[r.model][0] + (r.output_tokens || 0) * PRICES[r.model][1]) / 1e6 : 0);
+  const month = await all(env, "SELECT model, COUNT(*) AS runs, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens FROM ai_runs WHERE ok = 1 AND created_at > datetime('now', '-30 days') GROUP BY model");
+  return json({
+    runs: rows.slice(0, 25).map((r) => ({ ...r, person: r.preferred_name || r.person, cost: cost(r) })),
+    more: rows.length > 25,
+    month: month.map((m) => ({ model: m.model, runs: m.runs, cost: cost(m) })),
+  });
 }
 
 // Newest first, a page at a time. ?before=<id> gets the next older page. The full log is in every export.

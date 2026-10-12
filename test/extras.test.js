@@ -51,12 +51,14 @@ test('signals parsing is forgiving and calibration needs two reviews', () => {
 });
 
 test('email goes only to people with Send email checked, in batches of 100', async () => {
-  const DB = { prepare: () => ({ first: async () => ({ email: 'director@b.org' }) }) }; // the person marked Director
+  // Settings rows (none: email comes from the Cloudflare vars) and the person marked Director.
+  const fakeDB = (settings = []) => ({ prepare: () => ({ all: async () => ({ results: settings }), first: async () => ({ email: 'director@b.org' }) }) });
+  const DB = fakeDB();
   const env = { DB, TWILIO_SID: 'AC1', TWILIO_TOKEN: 't', TWILIO_FROM: '+18085550000', RESEND_API_KEY: 'k', EMAIL_FROM: 'Hui <a@b.org>' };
-  assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
-  assert.deepEqual(route(env, { phone: '+1808', email: 'x@y.org', send_email: 0 }), { channel: 'sms', to: '+1808' });
-  assert.equal(route({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
-  assert.equal(route({}, { phone: '1', email: 'x@y.org', send_email: 1 }), null);
+  assert.deepEqual(await route(env, { phone: '+1808', email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
+  assert.deepEqual(await route(env, { phone: '+1808', email: 'x@y.org', send_email: 0 }), { channel: 'sms', to: '+1808' });
+  assert.equal(await route({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.org' }, { email: 'x@y.org', send_email: 0 }), null);
+  assert.equal(await route({}, { phone: '1', email: 'x@y.org', send_email: 1 }), null);
   const calls = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => (calls.push([url, init]), new Response('{}'));
@@ -72,10 +74,16 @@ test('email goes only to people with Send email checked, in batches of 100', asy
   // With the Cloudflare mailer bound, email goes through it instead of Resend.
   const sent = [];
   const cf = { DB, EMAIL_FROM: 'Hui <a@b.org>', MAILER: { send: async (list) => sent.push(...list) } };
-  assert.deepEqual(route(cf, { email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
+  assert.deepEqual(await route(cf, { email: 'x@y.org', send_email: 1 }), { channel: 'email', to: 'x@y.org' });
   await send(cf, 'x@y.org', 'hi', 'email', 'Subject');
   assert.deepEqual(sent, [{ to: 'x@y.org', subject: 'Subject', text: 'hi', from: 'Hui <a@b.org>', replyTo: 'director@b.org' }]);
-  assert.equal(route({ MAILER: {} }, { email: 'x@y.org', send_email: 1 }), null, 'off until EMAIL_FROM is set');
+  assert.equal(await route({ MAILER: {} }, { email: 'x@y.org', send_email: 1 }), null, 'off until a from address is set');
+
+  // Chosen in Settings: Off wins over a bound mailer, and Cloudflare needs the mailer to be ready.
+  const off = { DB: fakeDB([{ key: 'email_provider', value: 'off' }]), MAILER: {}, EMAIL_FROM: 'a@b.org' };
+  assert.equal(await route(off, { email: 'x@y.org', send_email: 1 }), null);
+  const noMailer = { DB: fakeDB([{ key: 'email_provider', value: 'cloudflare' }, { key: 'email_from', value: 'a@b.org' }]) };
+  assert.equal(await route(noMailer, { email: 'x@y.org', send_email: 1 }), null, 'Cloudflare picked but the mailer Worker is not bound');
 });
 
 test('a pasted Anthropic key is sealed at rest and only opens with the same server secret', async () => {

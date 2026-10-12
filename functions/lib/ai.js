@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, LLAMA_MODEL, WHISPER_MODEL } from './config.js';
+export { CLAUDE_MODEL, LLAMA_MODEL };
 import { HttpError } from './http.js';
+import { seal, unseal } from './seal.js';
 
 // Settings, AI. When it is off, nothing about anyone is sent to any model.
 export async function aiOn(env) {
@@ -9,36 +11,39 @@ export async function aiOn(env) {
 }
 export const AI_OFF = 'AI is turned off in Settings, so start from the answers and write it yourself.';
 
-// Every model call goes through here, so the AI switch in Settings holds everywhere.
-export function completer(env) {
+// Every model call goes through here, so the AI switch in Settings holds everywhere,
+// and every call lands in the AI log: what it was for, which model, when, size, and result.
+// ctx: { kind, cycle, staff, actor }
+export function completer(env, ctx = {}) {
   return async (system, user) => {
     if (!(await aiOn(env))) throw new HttpError(409, AI_OFF);
-    return model(env, await anthropicKey(env))(system, user);
+    const key = await anthropicKey(env);
+    const run = { ...ctx, model: key ? CLAUDE_MODEL : LLAMA_MODEL, started: Date.now() };
+    try {
+      const { text, usage } = await model(env, key)(system, user);
+      await logRun(env, { ...run, ...usage, ok: 1 });
+      return text;
+    } catch (e) {
+      await logRun(env, { ...run, ok: 0, error: String(e.message || e).slice(0, 300) });
+      throw e;
+    }
   };
 }
 
-// ---------- the Anthropic key ----------
-// Either a Cloudflare secret (ANTHROPIC_API_KEY, set during setup) or pasted in Settings, AI.
-// A pasted key is sealed with AES-GCM under a key derived from SESSION_SECRET before it is stored,
-// so the database, a backup, or an export never holds it in the clear.
-const sealer = async (env) =>
-  crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${env.SESSION_SECRET}:anthropic-key`)), 'AES-GCM', false, ['encrypt', 'decrypt']);
-const b64 = (u8) => btoa(String.fromCharCode(...u8));
-const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-
-export async function sealKey(env, plain) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await sealer(env), new TextEncoder().encode(plain)));
-  return `${b64(iv)}.${b64(ct)}`;
-}
-export async function openKey(env, sealed) {
+export async function logRun(env, r) {
   try {
-    const [iv, ct] = sealed.split('.').map(unb64);
-    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await sealer(env), ct));
-  } catch {
-    return ''; // SESSION_SECRET changed: the key has to be pasted again
+    await env.DB.prepare(
+      'INSERT INTO ai_runs (actor, kind, cycle_id, staff_id, model, input_tokens, output_tokens, ms, ok, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(r.actor ?? null, r.kind || 'other', r.cycle ?? null, r.staff ?? null, r.model, r.input ?? null, r.output ?? null, r.started ? Date.now() - r.started : null, r.ok ?? 1, r.error ?? null).run();
+  } catch (e) {
+    console.error('ai log', e.message); // the log never stops a draft
   }
 }
+
+// ---------- the Anthropic key ----------
+// Either a Cloudflare secret (ANTHROPIC_API_KEY, set during setup) or pasted in Settings, AI, and sealed (seal.js).
+export const sealKey = (env, plain) => seal(env, plain, 'anthropic-key');
+export const openKey = (env, sealed) => unseal(env, sealed, 'anthropic-key');
 export async function anthropicKey(env) {
   if (env.ANTHROPIC_API_KEY) return env.ANTHROPIC_API_KEY;
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'anthropic_key'").first();
@@ -76,7 +81,10 @@ function model(env, key) {
         throw new HttpError(502, keyTrouble(e) || `Claude did not answer (${e.status || e.message}). Try again in a minute.`);
       }
       if (msg.stop_reason === 'refusal') throw new HttpError(502, 'The model declined to write this draft. Try again or write it by hand.');
-      return msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      return {
+        text: msg.content.filter((b) => b.type === 'text').map((b) => b.text).join(''),
+        usage: { input: msg.usage?.input_tokens, output: msg.usage?.output_tokens },
+      };
     };
   }
   return async (system, user) => {
@@ -88,7 +96,10 @@ function model(env, key) {
       max_tokens: 3000,
     }, env.AI_GATEWAY_ID ? { gateway: { id: env.AI_GATEWAY_ID } } : undefined);
     // Workers AI hands back JSON replies already parsed. Callers always get text.
-    return typeof out.response === 'string' ? out.response : JSON.stringify(out.response ?? '');
+    return {
+      text: typeof out.response === 'string' ? out.response : JSON.stringify(out.response ?? ''),
+      usage: { input: out.usage?.prompt_tokens, output: out.usage?.completion_tokens },
+    };
   };
 }
 
