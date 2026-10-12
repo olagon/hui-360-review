@@ -264,7 +264,7 @@ async function digest(c) {
   if (!behind.length) return;
   const ch = await channels();
   $('#digest').innerHTML = `<div class="card"><h2 style="margin-top:0">Today's nudges</h2>
-    <p class="small muted">${behind.length} ${behind.length === 1 ? 'person has' : 'people have'} reviews left in ${esc(c.name)}. ${ch.email && ch.auto ? 'An email reminder goes out by itself each morning at 7am to anyone with Send email checked.' : ch.email ? 'Email them all at once, or send one at a time.' : 'Copy each message and send it from your phone.'}</p>
+    <p class="small muted">${behind.length} ${behind.length === 1 ? 'person has' : 'people have'} reviews left in ${esc(c.name)}. ${ch.email && ch.auto ? 'An email reminder goes out by itself on Monday and Friday mornings to anyone with Send email checked.' : ch.email ? 'Email them all at once, or send one at a time.' : 'Copy each message and send it from your phone.'}</p>
     <p class="row" id="nudgeall"></p>
     ${behind.map((p) => `<div class="row spread list-item"><span>${esc(nameOf(p))} <span class="small muted">${d.assignments.filter((a) => a.reviewer_id === p.id && a.status !== 'done').length} left</span></span><button class="small secondary" data-nudge="${p.id}">${ch.email && emails(p) ? 'Email nudge' : 'Copy nudge'}</button></div>`).join('')}</div>`;
   emailButton($('#nudgeall'), behind, 'Email a nudge to everyone behind', `A gentle reminder: ${c.name}`, (p) => nudge(p, c));
@@ -1185,8 +1185,10 @@ async function data() {
       <p class="small">${ch.reply_to
         ? `When someone replies to an email from the app, it goes to <strong>${esc(ch.reply_to)}</strong>, the person marked Director in <a href="#/staff">People</a>.`
         : `Mark someone as Director in <a href="#/staff">People</a>, with an email, so replies to the app's emails reach them.`}</p>
-      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email ? '' : 'disabled'}> Each morning at 7am, email a gentle reminder to anyone still behind in the open review</label>
-      <p class="small muted">Needs a CRON_SECRET on the mailer Worker and the app (see the README). Without it, use Today's nudges on the Cycles page.</p>
+      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am, to anyone still behind</label>
+      <p class="small muted">${ch.email && ch.cron
+        ? 'Off unless checked. Each person behind gets one short reminder with their link, twice a week, until they finish or the review closes. Only people with Send email checked.'
+        : 'Not set up for this app yet, so use Today\'s nudges on the Cycles page instead.'}</p>
     </div>
     <h2>Mahalo board</h2>
     <div class="card">

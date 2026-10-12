@@ -220,7 +220,7 @@ export async function requestLink({ env, request, url, waitUntil }) {
   return json({ sent: true });
 }
 
-// ---------- morning reminders, called at 7am by the cron in workers/mailer ----------
+// ---------- reminders, called Monday and Friday at 7am by the cron in workers/mailer ----------
 
 export async function reminders({ env, request, url }) {
   if (!env.CRON_SECRET || request.headers.get('x-cron-secret') !== env.CRON_SECRET) throw new HttpError(401, 'Not allowed');

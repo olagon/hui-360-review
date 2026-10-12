@@ -852,7 +852,7 @@ async function toneTags(env, cycleId) {
 
 export async function getChannels({ env }) {
   const n = await settings(env);
-  return json({ ...channels(env), reply_to: await directorEmail(env), auto: n.auto_remind === '1' });
+  return json({ ...channels(env), reply_to: await directorEmail(env), auto: n.auto_remind === '1', cron: !!env.CRON_SECRET });
 }
 
 export async function sendMessage({ env, request, admin }) {

@@ -61,7 +61,7 @@ The app is called Hui 360, a generic name chosen by Olin (it replaced the workin
 - R2 bucket named `hui360-media` for voice recordings and exports (R2 names cannot use underscores)
 - Workers AI binding `AI`
 - KV namespace `hui360_kv` for magic link tokens and rate limits
-- Cron trigger daily at 17:00 UTC (7am Hawaiʻi) for reminders and digests
+- Cron trigger Mondays and Fridays at 17:00 UTC (7am Hawaiʻi) for reminders (Olin's call: daily was too much)
 - Secrets: `SESSION_SECRET`, `HASH_PEPPER`, and the optional ones listed under Reminders
 
 ### Auth
@@ -236,7 +236,7 @@ Team view and board report use the same module with different templates. Early s
 
 Default is manual and fully on Cloudflare. The admin Cycles page computes who is behind in the open review each time it loads ("Today's nudges") with one tap copy of each nudge message. Noʻeau sends them himself from his phone. This works on day one with no outside account and needs no cron.
 
-As built: email goes through Cloudflare Email Sending (Workers Paid, actionsmatter.com is onboarded, 200 a day quota). Pages Functions cannot hold a `send_email` binding, so a small Worker, `workers/mailer` (hui360-mailer, no workers.dev URL), holds it and the app calls `env.MAILER.send()` over a service binding. `EMAIL_FROM` in `[vars]` turns email on. Resend (`RESEND_API_KEY`) remains the fallback for orgs on the free plan. The same Worker runs the optional 7am cron, calling `POST /api/cron/reminders` with a shared `CRON_SECRET`, and does nothing until that secret is set.
+As built: email goes through Cloudflare Email Sending (Workers Paid, actionsmatter.com is onboarded, 200 a day quota). Pages Functions cannot hold a `send_email` binding, so a small Worker, `workers/mailer` (hui360-mailer, no workers.dev URL), holds it and the app calls `env.MAILER.send()` over a service binding. `EMAIL_FROM` in `[vars]` turns email on. Resend (`RESEND_API_KEY`) remains the fallback for orgs on the free plan. The same Worker runs the optional Monday and Friday 7am cron, calling `POST /api/cron/reminders` with a shared `CRON_SECRET`, and does nothing until that secret is set.
 
 Optional, off by default, one secret each:
 - Text messages through Twilio. Secrets `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`. If present, the cron job sends nudges by text and the landing page can send magic links by text.

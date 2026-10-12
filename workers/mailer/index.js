@@ -1,6 +1,6 @@
 // The app's mail room. Pages Functions cannot hold Cloudflare's send_email binding,
 // so the app reaches this Worker through a service binding (MAILER) and calls send().
-// It also wakes the app at 7am Hawaiʻi time for the optional morning reminders.
+// It also wakes the app on Monday and Friday mornings, 7am Hawaiʻi time, for the optional reminders.
 import { WorkerEntrypoint } from 'cloudflare:workers';
 
 export default class Mailer extends WorkerEntrypoint {

@@ -42,7 +42,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
-- Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional 7am reminder for anyone behind.
+- Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional Monday and Friday reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Data.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
 
@@ -159,16 +159,16 @@ There are two ways to send it.
 
 Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address.
 
-**Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and morning reminders go by text to people the app cannot email.
+**Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and reminders go by text to people the app cannot email.
 
-**Morning reminders are optional.** Pages cannot run on a schedule, so the mailer Worker also wakes the app at 7am Hawaiʻi time. Change `APP_URL` in `workers/mailer/wrangler.toml` to your address, deploy it (even on the free plan, where it only does this), make one more random string, and set it in both places:
+**Twice weekly reminders are optional.** Pages cannot run on a schedule, so the mailer Worker also wakes the app on Mondays and Fridays at 7am Hawaiʻi time (change `crons` in its `wrangler.toml` for a different rhythm). Change `APP_URL` in `workers/mailer/wrangler.toml` to your address, deploy it (even on the free plan, where it only does this), make one more random string, and set it in both places:
 
 ```bash
 npx wrangler pages secret put CRON_SECRET --project-name hui-360
 npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
 ```
 
-Then in admin, Data, Email, check the morning reminder box.
+Then in admin, Data, Email, check the reminder box.
 
 ### 7. Deploy
 
