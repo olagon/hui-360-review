@@ -145,13 +145,13 @@ channels(); // known before anyone taps, so a tap can decide email or copy witho
 const emails = (p) => !!(p.email && p.send_email);
 // message can be a promise. Deciding without awaiting keeps a copy inside the tap, which Safari requires.
 function sendOrCopy(person, message, subject) {
-  if ((CH.email && emails(person)) || (CH.sms && person.phone)) return sendNow(person, message, subject);
+  if (CH.email && emails(person)) return sendNow(person, message, subject);
   return copy(message);
 }
 async function sendNow(person, message, subject) {
   try {
     const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: person.id, message: await message, subject } });
-    toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
+    toast('Sent by email');
   } catch (e) {
     copy(message, `Not sent (${e.message}). Copied instead.`);
   }
@@ -566,9 +566,9 @@ async function links({ cycle: c }, pane) {
     return;
   }
   const [{ people }, ch] = await Promise.all([api(`/api/admin/cycles/${c.id}/links`), channels()]);
-  // Show where this person's message will go: their email when the app emails them, otherwise the phone or email to send it to yourself.
+  // Show where this person's message will go: their email when the app emails them, otherwise where to send it yourself. The app never texts.
   const reach = (p) =>
-    ch.email && emails(p) ? `Emails to ${p.email}` : p.phone ? `Copy and text to ${p.phone}` : p.email ? `Copy and email to ${p.email}` : 'No email or phone yet';
+    ch.email && emails(p) ? `Emails to ${p.email}` : p.phone ? `Copy it and text it yourself to ${p.phone}` : p.email ? `Copy it and email it yourself to ${p.email}` : 'No email or phone yet';
   pane.innerHTML = `
     <p class="muted small">Each link is personal, works for 60 days, and can be opened again. Email them from here, or copy each message into Messages or email.</p>
     <p class="row" id="emailall"></p>

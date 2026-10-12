@@ -1,9 +1,8 @@
-// Optional sending, chosen in Settings, Automated Emails.
-//   Email: 'cloudflare': Cloudflare Email Sending through the hui360-mailer Worker (MAILER service binding).
-//            Needs the Workers Paid plan ($5 a month).
-//          'resend': Resend, free up to 3,000 emails a month. Its key is pasted in Settings and sealed.
-//          'off': the director copies each message and sends it.
-//   Text:  TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM
+// Email, chosen in Settings, Automated Emails. The app never sends text messages.
+//   'cloudflare': Cloudflare Email Sending through the hui360-mailer Worker (MAILER service binding).
+//                 Needs the Workers Paid plan ($5 a month).
+//   'resend':     Resend, free up to 3,000 emails a month. Its key is pasted in Settings and sealed.
+//   'off':        the director copies each message and sends it from their own phone or email.
 // Older setups that only set EMAIL_FROM and RESEND_API_KEY or MAILER as Cloudflare vars keep working.
 import { HttpError } from './http.js';
 import { unseal } from './seal.js';
@@ -18,18 +17,13 @@ export async function emailSetup(env) {
   return { provider, from, resendKey, ready, mailer: !!env.MAILER };
 }
 
-export const channels = async (env) => ({
-  sms: !!(env.TWILIO_SID && env.TWILIO_TOKEN && env.TWILIO_FROM),
-  email: (await emailSetup(env)).ready,
-});
+export const channels = async (env) => ({ email: (await emailSetup(env)).ready });
 
-// Email goes only to people with an address and Send email checked in People. Text is the fallback when Twilio is set up.
+// Email goes only to people with an address and Send email checked in People. Everyone else gets a copied message.
 export const emailOf = async (env, person) => ((await channels(env)).email && person.email && person.send_email ? person.email : null);
 export async function route(env, person) {
   const email = await emailOf(env, person);
-  if (email) return { channel: 'email', to: email };
-  if ((await channels(env)).sms && person.phone) return { channel: 'sms', to: person.phone };
-  return null;
+  return email ? { channel: 'email', to: email } : null;
 }
 
 // Plain words when the From address is the problem, which is the most common setup mistake.
@@ -61,15 +55,6 @@ export async function directorEmail(env) {
 const mail = (from, m, replyTo) => ({ from, to: [m.to], subject: m.subject, text: m.text, ...(replyTo ? { reply_to: replyTo } : {}) });
 
 export async function send(env, to, message, channel, subject = 'A message from your review') {
-  if (channel === 'sms') {
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_SID}/Messages.json`, {
-      method: 'POST',
-      headers: { authorization: `Basic ${btoa(`${env.TWILIO_SID}:${env.TWILIO_TOKEN}`)}`, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ To: to, From: env.TWILIO_FROM, Body: message }),
-    });
-    if (!res.ok) throw new HttpError(502, `Text not sent (${res.status})`);
-    return;
-  }
   if (channel === 'email') return sendEmails(env, [{ to, subject, text: message }]);
   throw new HttpError(400, 'No way to send this message. Copy it and send it yourself.');
 }

@@ -33,7 +33,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 **For the director (admin)**
 - Add staff, set your values, create a cycle, and edit questions in both languages with drag to reorder.
 - Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last year's pairs.
-- Open the cycle and copy one ready to send text message per person with their link.
+- Open the cycle and email each person their link, or copy a ready-to-send message for anyone without email. The app never sends text messages.
 - Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
 - **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
 - **Community voices:** a one question link for a partner, kupuna, or volunteer outside your organization. Single use, no account.
@@ -42,7 +42,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
 - A **team report** for staff and a one page **board report** with no names and no quotes.
 - A **lead** role: someone marked lead reads the shared letters of their own team.
-- Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. Optional texts through Twilio, and an optional Monday and Friday reminder for anyone behind.
+- Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. The app never sends text messages: anyone without email gets a message the director copies and sends from their own phone. Plus an optional Monday and Friday email reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Settings.
 - **AI is optional.** One switch in Settings. With it on: voice answers, AI first drafts of letters and reports, talk story prep, and early signals. With it off: staff type, letters start from the answers word for word, reports start from an outline, and nothing is sent to any AI model. Everything else works the same.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
@@ -154,8 +154,6 @@ Your director picks how in **Settings, Automated Emails**: Off, Cloudflare, or R
 **Resend, free on any Cloudflare plan**, up to 3,000 emails a month. Nothing to deploy: Settings walks your director through it. They make a free Resend account, verify a subdomain like `mail.your-org.org`, create a sending key, and paste it in Settings, where it is encrypted and left out of exports. If you are not using the mailer Worker, delete the `[[services]]` block for `MAILER` from `wrangler.toml`.
 
 Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address.
-
-**Texts are optional.** With Twilio (`TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` as Pages secrets, about $0.01 a text), single messages and reminders go by text to people the app cannot email.
 
 **Twice weekly reminders are optional.** Pages cannot run on a schedule, so the mailer Worker also wakes the app on Mondays and Fridays at 7am Hawaiʻi time (change `crons` in its `wrangler.toml` for a different rhythm). Change `APP_URL` in `workers/mailer/wrangler.toml` to your address, deploy it (even on the free plan, where it only does this), make one more random string, and set it in both places:
 

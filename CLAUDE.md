@@ -239,7 +239,7 @@ Default is manual and fully on Cloudflare. The admin Cycles page computes who is
 As built: email goes through Cloudflare Email Sending (Workers Paid, actionsmatter.com is onboarded, 200 a day quota). Pages Functions cannot hold a `send_email` binding, so a small Worker, `workers/mailer` (hui360-mailer, no workers.dev URL), holds it and the app calls `env.MAILER.send()` over a service binding. `EMAIL_FROM` in `[vars]` turns email on. Resend (`RESEND_API_KEY`) remains the fallback for orgs on the free plan. The same Worker runs the optional Monday and Friday 7am cron, calling `POST /api/cron/reminders` with a shared `CRON_SECRET`, and does nothing until that secret is set.
 
 Optional, off by default, one secret each:
-- Text messages through Twilio. Secrets `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`. If present, the cron job sends nudges by text and the landing page can send magic links by text.
+- Text messages through Twilio. Dropped by Olin on 2026-10-12: the app never sends texts, and no screen or doc should suggest it can. US carriers require business texting registration (10DLC), which is not worth it here. The director can still copy a message and text it from his own phone.
 - Email through Resend. Secret `RESEND_API_KEY`. Same behavior by email.
 
 Keep the sending code behind one interface `functions/lib/notify.js` with `send(to, message, channel)` so adding a channel later is one file.
@@ -296,7 +296,7 @@ Auth (Access plus magic links), D1 schema, cycle setup, questions, assignments g
 Personal page with goals and timeline, mahalo feed and board, feedback requests, talk story prep, scheduler with .ics, moon calendar, team view, reminders digest.
 
 ### Phase 3, widen the circle
-Upward review, community voice links, early signals, reviewer calibration, board report, lead role, optional Twilio and Resend channels, Hawaiian i18n review pass, README for other nonprofits.
+Upward review, community voice links, early signals, reviewer calibration, board report, lead role, optional Resend channel (Twilio dropped), Hawaiian i18n review pass, README for other nonprofits.
 
 All three phases are built, except the Hawaiian i18n review pass, which needs a fluent speaker. Notes on how a few pieces landed:
 - Staff pages: `/me/` (letters, huli goals, mahalo, feedback, timeline, and "My team" for leads), `/mahalo/`, `/voice/?t=`. A small nav under the header links them.

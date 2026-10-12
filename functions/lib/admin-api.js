@@ -922,7 +922,7 @@ async function toneTags(env, cycleId) {
   return Object.fromEntries(Object.entries(owner).map(([hash, o]) => [hash, byReviewer[o.reviewer] || null]).filter(([, v]) => v));
 }
 
-// ---------- optional sending (email, text) ----------
+// ---------- optional sending (email only, the app never texts) ----------
 
 export async function getChannels({ env }) {
   const n = await settings(env);
