@@ -1,5 +1,6 @@
-import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo } from './app.js';
+import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config } from './app.js';
 import { startSync, on } from './idb.js';
+import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 
 registerSW();
 await initI18n();
@@ -44,9 +45,32 @@ function landing(e) {
     ${e && e.status !== 401 ? `<div class="banner info">${esc(t('landing.offline'))}</div>` : ''}
     <p>${esc(t('landing.body'))}</p>
     <p>${esc(t('landing.howto'))}</p>
-    <p class="muted">${esc(t('landing.newlink'))}</p>
+    <form id="req" class="card">
+      <p style="margin-top:0">${esc(t('landing.newlink'))}</p>
+      <label for="contact">${esc(t('landing.requestLabel'))}</label>
+      <input id="contact" autocomplete="email" required>
+      <p style="margin-bottom:0"><button>${esc(t('landing.requestButton'))}</button></p>
+    </form>
     <p class="row"><a class="button secondary" href="/how/">${esc(t('footer.how'))}</a><a class="button secondary" href="/tour/">${esc(t('landing.tour'))}</a></p>
     <p class="small muted" style="margin-top:2rem">${esc(t('landing.adminNote'))} <a href="/admin/">${esc(t('landing.admin'))}</a></p>`;
+  document.getElementById('req').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    let msg;
+    try {
+      const r = await api('/api/request-link', { method: 'POST', json: { contact: form.contact.value } });
+      msg = t(r.manual ? 'landing.requestManual' : 'landing.requestSent');
+    } catch (err) {
+      msg = err.message;
+    }
+    form.innerHTML = `<p style="margin:0">${esc(msg)}</p>`;
+  };
+}
+
+function moon() {
+  if (!config.moon) return '';
+  const m = moonFor(hawaiiToday());
+  return ` <span class="moon" title="${esc(t('moon.note'))}">${moonIcon(m.age)} ${esc(t('moon.tonight', { name: m.name }))}</span>`;
 }
 
 function card(a) {
@@ -71,13 +95,13 @@ function card(a) {
   </div>`;
 }
 
-function dashboard({ staff, cycle, assignments, summaries, team }) {
+function dashboard({ staff, cycle, assignments, summaries, team, asks }) {
   let html = `${orgLogo()}<h1>${esc(t('dash.hello', { name: staff.name }))}</h1>`;
   if (!navigator.onLine) html += `<div class="banner info">${esc(t('dash.offline'))}</div>`;
   if (!cycle) {
-    html += `<p>${esc(t('dash.none'))}</p>`;
+    html += `<p>${esc(t('dash.none'))}</p>${config.moon ? `<p class="small muted">${moon()}</p>` : ''}`;
   } else {
-    html += `<div class="banner">${esc(t('dash.closes', { cycle: cycle.name, date: fmtDate(cycle.closes_at) }))}</div>`;
+    html += `<div class="banner">${esc(t('dash.closes', { cycle: cycle.name, date: fmtDate(cycle.closes_at) }))}${moon()}</div>`;
     const quick = assignments.find((a) => a.status !== 'done' && a.quick_answered < a.quick_total);
     if (quick) html += `<p><a class="button secondary" href="/review/?a=${quick.id}&quick=1">${esc(t('dash.quick'))}</a></p>`;
     html += assignments.map(card).join('');
@@ -86,9 +110,14 @@ function dashboard({ staff, cycle, assignments, summaries, team }) {
     html = html.replace('</h1>', `</h1><div class="card"><h2 style="margin-top:0">${esc(t('dash.teamTitle'))}</h2>
       <p>${esc(t('dash.teamBody'))}</p><p style="margin-bottom:0"><a class="button secondary" href="/me/#team">${esc(t('dash.teamButton'))}</a></p></div>`);
   }
+  if (asks) {
+    html = html.replace('</h1>', `</h1><div class="card" style="border-color:var(--kalo)"><h2 style="margin-top:0">${esc(t('dash.asksTitle'))}</h2>
+      <p>${esc(t('dash.asksBody'))}</p><p style="margin-bottom:0"><a class="button" href="/me/#feedback">${esc(t('dash.asksButton'))}</a></p></div>`);
+  }
   if (summaries) {
     html = html.replace('</h1>', `</h1><div class="card" style="border-color:var(--kalo)"><h2 style="margin-top:0">${esc(t('dash.letterTitle'))}</h2>
       <p>${esc(t('dash.letterBody'))}</p><p style="margin-bottom:0"><a class="button" href="/me/">${esc(t('dash.letterButton'))}</a></p></div>`);
   }
+  html += `<p class="small muted" style="margin-top:2rem">${esc(t('dash.links'))} <a href="/me/">${esc(t('nav.me'))}</a></p>`;
   app.innerHTML = html;
 }

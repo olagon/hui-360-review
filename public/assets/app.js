@@ -21,13 +21,14 @@ export function setLang(lang) {
 
 let strings = {};
 // Names set by admin (Data, Settings), so every Hui sees its own: {hui} and {director} in any string.
-export const config = { hui: 'the Hui', director: 'your director', logo: '' };
+export const config = { hui: 'the Hui', director: 'your director', logo: '', moon: true };
 export async function initI18n() {
   const get = (url) => fetch(url).then((r) => r.json()).catch(() => ({}));
   const [en, c] = await Promise.all([get('/assets/i18n/en.json'), get('/api/config')]);
   if (c.hui_name) config.hui = c.hui_name;
   if (c.director_name) config.director = c.director_name;
   if (c.logo_v) config.logo = `/api/logo?v=${c.logo_v}`;
+  config.moon = c.moon_calendar !== 'off';
   strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')) };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
 }
@@ -93,7 +94,7 @@ export function md(src = '') {
     } else if ((m = line.match(/^>\s?(.*)/))) {
       if (!quote) flush();
       (quote ||= []).push(m[1]);
-    } else if ((m = line.match(/^\s*[-*]\s+(.*)/))) {
+    } else if ((m = line.match(/^\s*(?:[-*]|\d+[.)])\s+(.*)/))) {
       if (!list) flush();
       (list ||= []).push(m[1]);
     } else {
@@ -161,6 +162,16 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false } 
         : ''
     }</nav>`;
   document.body.prepend(header);
+  if (signedIn) {
+    const sub = document.createElement('nav');
+    sub.className = 'subnav';
+    sub.setAttribute('aria-label', t('nav.label'));
+    const here = location.pathname;
+    sub.innerHTML = [['/', 'nav.home'], ['/me/', 'nav.me'], ['/mahalo/', 'nav.mahalo'], ['/kuleana/', 'nav.kuleana']]
+      .map(([h, k]) => `<a href="${h}" ${here === h ? 'aria-current="page"' : ''}>${esc(t(k))}</a>`)
+      .join('');
+    header.after(sub);
+  }
   const footer = document.createElement('footer');
   footer.className = 'foot';
   const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${esc(text)}</a>`;

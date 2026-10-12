@@ -8,6 +8,10 @@ import userPrompt from './prompts/summary-user.txt';
 import fixPrompt from './prompts/summary-fix.txt';
 import teamSystem from './prompts/team-system.txt';
 import teamUser from './prompts/team-user.txt';
+import prepSystem from './prompts/prep-system.txt';
+import boardSystem from './prompts/board-system.txt';
+import { signalsPrompt, parseSignals, calibrate } from './signals.js';
+import { channels, route as via, send } from './notify.js';
 
 // Seed questions, used when a cycle has no earlier cycle to copy from.
 // prompt_haw is left empty on purpose: a fluent speaker should write those.
@@ -33,7 +37,7 @@ const DEFAULT_QUESTIONS = [
 const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang'];
 const VALUE_FIELDS = ['name_haw', 'name_en', 'olelo_noeau', 'olelo_noeau_meaning', 'description', 'ord'];
 const QUESTION_FIELDS = ['prompt_en', 'prompt_haw', 'kind', 'required', 'five_min', 'value_id', 'audience'];
-const CYCLE_FIELDS = ['name', 'opens_at', 'closes_at', 'values_set_id'];
+const CYCLE_FIELDS = ['name', 'opens_at', 'closes_at', 'values_set_id', 'upward'];
 
 const all = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).all().then((r) => r.results);
 const one = (env, sql, ...args) => env.DB.prepare(sql).bind(...args).first();
@@ -233,10 +237,11 @@ export async function updateCycle({ env, request, params }) {
   const data = pick(await body(request), CYCLE_FIELDS);
   await update(env, 'cycles', params.id, data);
   if (data.values_set_id !== undefined) await relinkValues(env, Number(params.id));
+  if (data.upward !== undefined) await syncUpward(env, Number(params.id));
   return json({ ok: true });
 }
 
-export async function setStatus({ env, request, params, admin }) {
+export async function setStatus({ env, request, params, admin, waitUntil }) {
   const cycle = await getCycle(env, params.id);
   const { status } = await body(request);
   if (!['draft', 'open', 'closed', 'published'].includes(status)) throw new HttpError(400, 'Unknown status');
@@ -246,7 +251,10 @@ export async function setStatus({ env, request, params, admin }) {
     await env.DB.prepare(
       "INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind) SELECT cycle_id, staff_id, staff_id, 'self' FROM cycle_people WHERE cycle_id = ?",
     ).bind(cycle.id).run();
+    await syncUpward(env, cycle.id);
   }
+  // Classify answers in the background once a review closes, for early signals and reviewer tone.
+  if (status === 'closed') waitUntil?.(analyze(env, cycle.id).catch((e) => console.error('analyze', e)));
   await env.DB.prepare(`UPDATE cycles SET status = ?${status === 'published' ? ", published_at = datetime('now')" : ''} WHERE id = ?`).bind(status, cycle.id).run();
   await audit(env, admin, `cycle_${status}`, `cycle:${cycle.id}`);
   return json({ ok: true });
@@ -265,6 +273,7 @@ async function purgeCycle(env, id) {
   await env.DB.batch(
     [
       'DELETE FROM response_link WHERE response_id IN (SELECT id FROM responses WHERE cycle_id = ?)',
+      'DELETE FROM response_signals WHERE response_id IN (SELECT id FROM responses WHERE cycle_id = ?)',
       'DELETE FROM responses WHERE cycle_id = ?',
       'DELETE FROM employee_reflection WHERE summary_id IN (SELECT id FROM summaries WHERE cycle_id = ?)',
       'DELETE FROM summaries WHERE cycle_id = ?',
@@ -346,6 +355,24 @@ export async function reuseQuestions({ env, params }) {
   return json({ from: await copyQuestions(env, cycle.id) });
 }
 
+// ---------- upward reviews: everyone reviews the director, and their own team's lead ----------
+
+async function syncUpward(env, cycleId) {
+  const c = await getCycle(env, cycleId);
+  if (!c.upward) {
+    await env.DB.prepare("DELETE FROM assignments WHERE cycle_id = ? AND kind = 'upward' AND status = 'not_started'").bind(c.id).run();
+    return;
+  }
+  if (c.status === 'draft' || c.status === 'open') {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind)
+       SELECT ?, r.id, l.id, 'upward' FROM cycle_people pr JOIN staff r ON r.id = pr.staff_id
+       JOIN cycle_people pl ON pl.cycle_id = pr.cycle_id JOIN staff l ON l.id = pl.staff_id
+       WHERE pr.cycle_id = ? AND r.id != l.id AND (l.role = 'admin' OR (l.role = 'lead' AND l.team IS NOT NULL AND l.team = r.team))`,
+    ).bind(c.id, c.id).run();
+  }
+}
+
 // ---------- who is in a review ----------
 
 export async function setParticipant({ env, request, params }) {
@@ -371,6 +398,7 @@ export async function setParticipant({ env, request, params }) {
       env.DB.prepare('DELETE FROM cycle_people WHERE cycle_id = ? AND staff_id = ?').bind(cycle.id, sid),
     ]);
   }
+  await syncUpward(env, cycle.id);
   return json({ ok: true });
 }
 
@@ -446,11 +474,19 @@ export async function raw({ env, params, admin }) {
     Number(params.staff),
   );
   await audit(env, admin, 'read_raw', `cycle:${cycle.id} staff:${params.staff}`);
+  const tags = await toneTags(env, cycle.id);
+  const linkOf = Object.fromEntries((await all(env, 'SELECT l.response_id, l.assignment_hash FROM response_link l JOIN responses r ON r.id = l.response_id WHERE r.cycle_id = ? AND r.reviewee_id = ?', cycle.id, Number(params.staff))).map((l) => [l.response_id, l.assignment_hash]));
   const groups = [];
   for (const r of rows) {
     let g = groups.find((x) => x.question_id === r.question_id);
     if (!g) groups.push((g = { question_id: r.question_id, prompt: r.prompt_en, audience: r.audience, kind: r.question_kind, responses: [] }));
-    g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name });
+    g.responses.push({ id: r.id, body: r.body, audio_key: r.audio_key, transcript: r.transcript, language: r.language, signed_name: r.signed_name, tone: tags[linkOf[r.id]] || null });
+  }
+  const voices = await all(env, 'SELECT question, response, who FROM community_voices WHERE cycle_id = ? AND reviewee_id = ? AND response IS NOT NULL', cycle.id, Number(params.staff));
+  for (const v of voices) {
+    let g = groups.find((x) => x.audience === 'community' && x.prompt === v.question);
+    if (!g) groups.push((g = { question_id: `voice:${groups.length}`, prompt: v.question, audience: 'community', kind: 'story', responses: [] }));
+    g.responses.push({ id: null, body: v.response, who: v.who });
   }
   // Shuffle within each question so position never lines up across questions.
   for (const g of groups) g.responses = shuffle(g.responses);
@@ -482,8 +518,9 @@ export async function draft({ env, params, admin }) {
     cycle.id,
     person.id,
   );
-  if (!rows.length) throw new HttpError(409, 'There are no responses about this person yet');
-  const { responses, signers } = stripIdentity(rows);
+  const extra = await yearExtras(env, cycle.id, person.id);
+  if (!rows.length && !extra.length) throw new HttpError(409, 'There are no answers about this person yet');
+  const { responses, signers } = stripIdentity([...rows, ...extra]);
   const values = await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0);
   const last = await one(
     env,
@@ -516,6 +553,58 @@ export async function draft({ env, params, admin }) {
 export async function blankSummary({ env, params }) {
   await env.DB.prepare("INSERT OR IGNORE INTO summaries (cycle_id, reviewee_id, draft) VALUES (?, ?, '')").bind(Number(params.id), Number(params.staff)).run();
   return json({ ok: true });
+}
+
+// Community voices for this review, plus mahalo and feedback answers from the past year.
+async function yearExtras(env, cycleId, personId) {
+  const voices = await all(env, 'SELECT id, question, response FROM community_voices WHERE cycle_id = ? AND reviewee_id = ? AND response IS NOT NULL', cycleId, personId);
+  const mahalo = await all(env, "SELECT id, body FROM mahalo WHERE to_id = ? AND created_at > datetime('now', '-1 year')", personId);
+  const asks = await all(env, "SELECT id, prompt, response FROM feedback_requests WHERE from_id = ? AND response IS NOT NULL AND created_at > datetime('now', '-1 year')", personId);
+  return [
+    ...voices.map((v) => ({ prompt: v.question, audience: 'community', body: v.response, signed_name: null, reviewer_key: `voice:${v.id}` })),
+    ...mahalo.map((m) => ({ prompt: 'A mahalo sent during the year', audience: 'mahalo', body: m.body, signed_name: null, reviewer_key: `mahalo:${m.id}` })),
+    ...asks.map((f) => ({ prompt: `Feedback they asked for: ${f.prompt}`, audience: 'feedback', body: f.response, signed_name: null, reviewer_key: `ask:${f.id}` })),
+  ];
+}
+
+// Talk story prep: openers, something to celebrate, a tension, a question, last year's goals.
+export async function draftPrep({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(params.staff));
+  if (!person) throw new HttpError(404, 'Not found');
+  const rows = await all(
+    env,
+    `SELECT q.prompt_en AS prompt, r.kind AS audience, r.body, NULL AS signed_name, l.assignment_hash AS reviewer_key
+     FROM responses r JOIN questions q ON q.id = r.question_id LEFT JOIN response_link l ON l.response_id = r.id
+     WHERE r.cycle_id = ? AND r.reviewee_id = ? ORDER BY q.audience, q.ord`,
+    cycle.id,
+    person.id,
+  );
+  const { responses } = stripIdentity([...rows, ...(await yearExtras(env, cycle.id, person.id))]);
+  if (!responses.length) throw new HttpError(409, 'There are no answers about this person yet');
+  const goals = await all(env, 'SELECT body, status FROM goals WHERE staff_id = ? AND (cycle_id IS NULL OR cycle_id != ?)', person.id, cycle.id);
+  const n = await settings(env);
+  const { markdown } = await draftSummary({
+    input: {
+      name: person.preferred_name || person.name,
+      cycle: cycle.name,
+      lang: person.lang,
+      huiName: n.hui_name,
+      director: n.director_name,
+      values: await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0),
+      responses,
+      signers: {},
+      lastYear: goals.length ? `Goals:\n${goals.map((g) => `- ${g.body} (${g.status})`).join('\n')}` : '',
+    },
+    templates: { system: prepSystem, user: userPrompt, fix: fixPrompt },
+    complete: completer(env),
+  });
+  await env.DB.prepare(
+    `INSERT INTO summaries (cycle_id, reviewee_id, talk_story_prep) VALUES (?, ?, ?)
+     ON CONFLICT (cycle_id, reviewee_id) DO UPDATE SET talk_story_prep = excluded.talk_story_prep`,
+  ).bind(cycle.id, person.id, markdown).run();
+  await audit(env, admin, 'draft_prep', `cycle:${cycle.id} staff:${person.id}`);
+  return json({ prep: markdown });
 }
 
 export async function saveSummary({ env, request, params }) {
@@ -631,6 +720,168 @@ export async function shareTeam({ env, request, params, admin }) {
   return json({ ok: true });
 }
 
+export async function draftBoard({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  if (!['closed', 'published'].includes(cycle.status)) throw new HttpError(409, 'The board report opens after the review closes');
+  const rows = await all(
+    env,
+    `SELECT q.prompt_en AS prompt, r.kind AS audience, r.body, NULL AS signed_name, l.assignment_hash AS reviewer_key
+     FROM responses r JOIN questions q ON q.id = r.question_id LEFT JOIN response_link l ON l.response_id = r.id WHERE r.cycle_id = ?`,
+    cycle.id,
+  );
+  if (!rows.length) throw new HttpError(409, 'There are no answers in this review yet');
+  const names = (await all(env, 'SELECT s.name, s.preferred_name FROM staff s JOIN cycle_people p ON p.staff_id = s.id WHERE p.cycle_id = ?', cycle.id))
+    .flatMap((s) => [s.name, s.preferred_name, s.name.split(' ')[0]])
+    .filter(Boolean);
+  const n = await settings(env);
+  const st = await participation(env, cycle.id);
+  const { markdown, notes } = await draftSummary({
+    input: {
+      name: n.hui_name || 'the Hui',
+      cycle: cycle.name,
+      huiName: n.hui_name,
+      director: n.director_name,
+      values: await all(env, 'SELECT * FROM "values" WHERE values_set_id = ? ORDER BY ord', cycle.values_set_id ?? 0),
+      responses: stripIdentity(rows).responses,
+      signers: {},
+      forbid: names,
+      facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished (${st.pct}%).`,
+    },
+    templates: { system: boardSystem, user: teamUser, fix: fixPrompt },
+    complete: completer(env),
+  });
+  // The board report never quotes anyone, so remove any quote the model slipped in.
+  const clean = markdown.replace(/\s*["“][^"“”\n]{12,}["”]/g, '');
+  await env.DB.prepare(
+    `INSERT INTO team_reports (cycle_id, board_draft) VALUES (?, ?)
+     ON CONFLICT (cycle_id) DO UPDATE SET board_draft = excluded.board_draft, board_edited = NULL`,
+  ).bind(cycle.id, clean).run();
+  await audit(env, admin, 'draft_board', `cycle:${cycle.id}`);
+  return json({ draft: clean, notes });
+}
+
+export async function saveBoard({ env, request, params }) {
+  const cycle = await getCycle(env, params.id);
+  await env.DB.prepare('INSERT INTO team_reports (cycle_id, board_edited) VALUES (?, ?) ON CONFLICT (cycle_id) DO UPDATE SET board_edited = excluded.board_edited')
+    .bind(cycle.id, String((await body(request)).edited ?? '')).run();
+  return json({ ok: true });
+}
+
+// ---------- kuleana map ----------
+
+export async function getKuleana({ env }) {
+  const rows = await all(
+    env,
+    'SELECT s.id, s.name, s.preferred_name, s.team, k.title, k.responsibilities, k.works_with FROM staff s LEFT JOIN kuleana k ON k.staff_id = s.id WHERE s.active = 1 ORDER BY s.name',
+  );
+  return json({ people: rows.map((r) => ({ ...r, works_with: JSON.parse(r.works_with || '[]') })) });
+}
+
+export async function putKuleana({ env, request, params }) {
+  const b = await body(request);
+  const cur = (await one(env, 'SELECT * FROM kuleana WHERE staff_id = ?', Number(params.staff))) || {};
+  const works = Array.isArray(b.works_with) ? b.works_with.map(Number).filter(Boolean) : JSON.parse(cur.works_with || '[]');
+  await env.DB.prepare(
+    `INSERT INTO kuleana (staff_id, title, responsibilities, works_with) VALUES (?, ?, ?, ?)
+     ON CONFLICT (staff_id) DO UPDATE SET title = excluded.title, responsibilities = excluded.responsibilities, works_with = excluded.works_with`,
+  ).bind(Number(params.staff), b.title ?? cur.title ?? null, b.responsibilities ?? cur.responsibilities ?? null, JSON.stringify(works)).run();
+  return json({ ok: true });
+}
+
+// ---------- early signals and reviewer tone ----------
+
+async function analyze(env, cycleId) {
+  const todo = await all(
+    env,
+    "SELECT r.id, r.body FROM responses r LEFT JOIN response_signals s ON s.response_id = r.id WHERE r.cycle_id = ? AND s.response_id IS NULL AND TRIM(COALESCE(r.body, '')) != '' LIMIT 400",
+    cycleId,
+  );
+  const complete = completer(env);
+  for (let i = 0; i < todo.length; i += 20) {
+    const batch = todo.slice(i, i + 20);
+    const { system, user } = signalsPrompt(batch.map((r) => r.body));
+    const out = parseSignals(await complete(system, user), batch.length);
+    await env.DB.batch(
+      batch.map((r, k) => env.DB.prepare('INSERT OR REPLACE INTO response_signals (response_id, label, tone) VALUES (?, ?, ?)').bind(r.id, out[k].label, out[k].tone)),
+    );
+  }
+  return todo.length;
+}
+
+async function signalCounts(env, cycleId) {
+  const rows = await all(
+    env,
+    "SELECT s.label, COUNT(*) AS n FROM response_signals s JOIN responses r ON r.id = s.response_id WHERE r.cycle_id = ? AND s.label != 'none' GROUP BY s.label",
+    cycleId,
+  );
+  const checked = await one(env, 'SELECT COUNT(*) AS n FROM response_signals s JOIN responses r ON r.id = s.response_id WHERE r.cycle_id = ?', cycleId);
+  const total = await one(env, "SELECT COUNT(*) AS n FROM responses WHERE cycle_id = ? AND TRIM(COALESCE(body, '')) != ''", cycleId);
+  return { counts: Object.fromEntries(rows.map((r) => [r.label, r.n])), checked: checked.n, total: total.n };
+}
+
+export const getSignals = async ({ env, params }) => json(await signalCounts(env, (await getCycle(env, params.id)).id));
+
+export async function runSignals({ env, params, admin }) {
+  const cycle = await getCycle(env, params.id);
+  await analyze(env, cycle.id);
+  await audit(env, admin, 'signals', `cycle:${cycle.id}`);
+  return json(await signalCounts(env, cycle.id));
+}
+
+// Tone tags per assignment hash. The server links a reviewer's assignments with the
+// pepper, compares their average tone to the group, and only the tag leaves.
+async function toneTags(env, cycleId) {
+  const toned = await all(
+    env,
+    "SELECT l.assignment_hash AS hash, s.tone FROM response_signals s JOIN response_link l ON l.response_id = s.response_id JOIN responses r ON r.id = s.response_id WHERE r.cycle_id = ? AND r.kind = 'peer'",
+    cycleId,
+  );
+  if (!toned.length) return {};
+  const owner = {};
+  for (const a of await all(env, "SELECT id, reviewer_id FROM assignments WHERE cycle_id = ? AND kind = 'peer'", cycleId)) {
+    owner[await assignmentHash(a.id, env.HASH_PEPPER, cycleId)] = { reviewer: a.reviewer_id, review: a.id };
+  }
+  const rows = toned.filter((t) => owner[t.hash]).map((t) => ({ ...owner[t.hash], tone: t.tone }));
+  const byReviewer = calibrate(rows);
+  return Object.fromEntries(Object.entries(owner).map(([hash, o]) => [hash, byReviewer[o.reviewer] || null]).filter(([, v]) => v));
+}
+
+// ---------- optional sending (Twilio, Resend) ----------
+
+export async function getChannels({ env }) {
+  const n = await settings(env);
+  return json({ ...channels(env), prefer: n.reminder_channel || 'manual' });
+}
+
+export async function sendMessage({ env, request, admin }) {
+  const b = await body(request);
+  const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(b.staff_id));
+  if (!person) throw new HttpError(404, 'Not found');
+  const n = await settings(env);
+  const to = via(env, person, n.reminder_channel === 'email' ? 'email' : 'sms');
+  if (!to) throw new HttpError(400, `No way to reach ${person.preferred_name || person.name}. Add a phone or email, or copy the message instead.`);
+  await send(env, to.to, String(b.message || '').slice(0, 1500), to.channel, b.subject || 'A message from your review');
+  await audit(env, admin, `send_${to.channel}`, `staff:${person.id}`);
+  return json({ ok: true, channel: to.channel });
+}
+
+// ---------- mahalo board moderation ----------
+
+export async function listMahalo({ env }) {
+  return json({
+    mahalo: await all(
+      env,
+      'SELECT m.id, m.body, m.public, m.created_at, t.name AS to_name, f.name AS from_name FROM mahalo m JOIN staff t ON t.id = m.to_id LEFT JOIN staff f ON f.id = m.from_id WHERE m.public = 1 ORDER BY m.id DESC LIMIT 200',
+    ),
+  });
+}
+
+export async function removeMahalo({ env, params, admin }) {
+  await env.DB.prepare('DELETE FROM mahalo WHERE id = ?').bind(Number(params.id)).run();
+  await audit(env, admin, 'remove_mahalo', `mahalo:${params.id}`);
+  return json({ ok: true });
+}
+
 // ---------- files, export, audit ----------
 
 export async function file({ env, url, admin }) {
@@ -650,7 +901,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'cycle_people', 'team_reports', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
+  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';

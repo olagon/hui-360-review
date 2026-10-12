@@ -1,7 +1,9 @@
 import { api, esc, md, copy, toast, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
+import { moonFor, moonIcon, hawaiiToday } from './moon.js';
+import { layoutMeetings, buildICS } from './ics.js';
 
 await initI18n();
-shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
+shell({ langSwitch: false, nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/kuleana">Kuleana</a><a href="#/data">Data</a><a href="/guide/">Guide</a><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
 const app = $('#app');
 api('/api/admin/me').then((r) => ($('#who').textContent = r.email)).catch(() => {});
@@ -90,6 +92,29 @@ function lockPane(pane, c, what) {
   for (const el of $$('[draggable]', pane)) el.draggable = false;
 }
 
+// The Hawaiian moon for a date, a small touch next to dates. Counts vary by place.
+const moonName = (date) => (config.moon && date ? moonFor(date).name : '');
+const moonToday = () => {
+  if (!config.moon) return '';
+  const m = moonFor(hawaiiToday());
+  return `<span class="moon small muted" title="Moon names follow one common count. Local practitioners may count differently.">${moonIcon(m.age)} ${esc(m.name)}</span>`;
+};
+// Text or email straight from the app, when Twilio or Resend is set up. Otherwise copy.
+let channelsP;
+const channels = () => (channelsP ||= api('/api/admin/channels').catch(() => ({})));
+async function sendOrCopy(personId, message, subject) {
+  const ch = await channels();
+  if (ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email)) {
+    try {
+      const r = await api('/api/admin/send', { method: 'POST', json: { staff_id: personId, message, subject } });
+      return toast(`Sent by ${r.channel === 'sms' ? 'text' : 'email'}`);
+    } catch (e) {
+      toast(`${e.message} Copied instead.`, 4000);
+    }
+  }
+  copy(message);
+}
+
 const opt = (value, label, selected) => `<option value="${esc(value)}" ${String(value) === String(selected ?? '') ? 'selected' : ''}>${esc(label)}</option>`;
 const chip = (status) => `<span class="chip ${status}">${esc(status.replace('_', ' '))}</span>`;
 const first = (p) => (p.preferred_name || p.name).split(' ')[0];
@@ -117,7 +142,7 @@ function bindFields(root = app) {
 
 // ---------------- router ----------------
 
-const views = { '': home, staff, values, data, cycle, person };
+const views = { '': home, staff, values, data, cycle, person, kuleana };
 async function route() {
   const [name, ...args] = location.hash.replace(/^#\/?/, '').split('/');
   app.innerHTML = '<p class="muted">Loading...</p>';
@@ -134,8 +159,10 @@ route();
 
 async function home() {
   const [{ cycles }, { sets }] = await Promise.all([api('/api/admin/cycles'), api('/api/admin/values')]);
+  const open = cycles.find((c) => c.status === 'open');
   app.innerHTML = `${orgLogo()}
-    <h1>Review cycles</h1>
+    <div class="row spread"><h1>Review cycles</h1>${moonToday()}</div>
+    <div id="digest"></div>
     <p class="muted small">New here? Add everyone in <a href="#/staff">People</a>, then start a review below. Each review walks you through the next step.
     To see what a finished review looks like, load the sample from <a href="#/data">Data</a>.</p>
     ${
@@ -157,6 +184,9 @@ async function home() {
       <p class="small muted">Questions are copied from the last cycle, or from the starter set if this is the first one.</p>
       <button>Create cycle</button>
     </form>`;
+  if (open) digest(open);
+  for (const d of $$('#new input[type=date]')) d.after(Object.assign(document.createElement('small'), { className: 'muted' }));
+  $('#new').oninput = () => $$('#new input[type=date]').forEach((d) => (d.nextElementSibling.textContent = moonName(d.value)));
   $('#new').onsubmit = async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
@@ -165,7 +195,24 @@ async function home() {
   };
 }
 
-const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['progress', 'Progress'], ['letters', 'Letters'], ['team', 'Team report']];
+// This morning's nudges: everyone still behind in the open review, one tap to copy or send each.
+async function digest(c) {
+  const [d, { people }] = await Promise.all([api(`/api/admin/cycles/${c.id}`), api(`/api/admin/cycles/${c.id}/links`)]);
+  const behind = people.filter((p) => d.assignments.some((a) => a.reviewer_id === p.id && a.status !== 'done'));
+  if (!behind.length) return;
+  const ch = await channels();
+  const auto = ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email);
+  $('#digest').innerHTML = `<div class="card"><h2 style="margin-top:0">Today's nudges</h2>
+    <p class="small muted">${behind.length} ${behind.length === 1 ? 'person has' : 'people have'} reviews left in ${esc(c.name)}. ${auto ? 'Reminders go out by themselves each morning at 7am.' : 'Copy each message and send it from your phone.'}</p>
+    ${behind.map((p) => `<div class="row spread list-item"><span>${esc(nameOf(p))} <span class="small muted">${d.assignments.filter((a) => a.reviewer_id === p.id && a.status !== 'done').length} left</span></span><button class="small secondary" data-nudge="${p.id}">${auto ? 'Send nudge' : 'Copy nudge'}</button></div>`).join('')}</div>`;
+  for (const b of $$('#digest [data-nudge]')) {
+    const p = behind.find((x) => x.id === Number(b.dataset.nudge));
+    b.onclick = () => sendOrCopy(p.id, nudge(p, c), 'A gentle reminder');
+  }
+}
+const nudge = (p, c) => `Aloha ${first(p)}, a gentle reminder that ${c.name} is still open${c.closes_at ? ` until ${fmtDate(c.closes_at)}` : ''}. Even 5 minutes helps: ${p.link} Mahalo!`;
+
+const TABS = [['setup', 'Setup'], ['people', 'People'], ['questions', 'Questions'], ['assignments', 'Reviewers'], ['links', 'Links'], ['voices', 'Community'], ['progress', 'Progress'], ['letters', 'Letters'], ['talks', 'Talk story'], ['team', 'Team report']];
 
 async function cycle(id, tab = 'setup') {
   const d = await api(`/api/admin/cycles/${id}`);
@@ -174,11 +221,11 @@ async function cycle(id, tab = 'setup') {
   d.members = d.staff.filter((s) => inReview.has(s.id));
   app.innerHTML = `
     <p class="small"><a href="#/">Cycles</a></p>
-    <div class="row spread"><h1 style="margin:.25rem 0">${esc(c.name)}</h1>${chip(c.status)}</div>
+    <div class="row spread"><h1 style="margin:.25rem 0">${esc(c.name)}</h1><span class="row">${moonToday()}${chip(c.status)}</span></div>
     ${nextStep(d)}
     <nav class="tabs">${TABS.map(([t, label]) => `<a href="#/cycle/${id}/${t}" class="${t === tab ? 'on' : ''}">${label}</a>`).join('')}</nav>
     <div id="pane"></div>`;
-  await { setup, people: participants, questions, assignments, links, progress, letters, team }[tab]?.(d, $('#pane'));
+  await { setup, people: participants, questions, assignments, links, voices, progress, letters, talks, team }[tab]?.(d, $('#pane'));
 }
 
 // One plain sentence about where this review stands and what to do next.
@@ -277,10 +324,12 @@ async function setup({ cycle: c }, pane) {
     <div class="card">
       <label>Name <input data-path="${path}" data-f="name" value="${esc(c.name)}"></label>
       <div class="row">
-        <label style="flex:1">Opens <input type="date" data-path="${path}" data-f="opens_at" value="${esc(c.opens_at || '')}"></label>
-        <label style="flex:1">Closes <input type="date" data-path="${path}" data-f="closes_at" value="${esc(c.closes_at || '')}"></label>
+        <label style="flex:1">Opens <input type="date" data-path="${path}" data-f="opens_at" value="${esc(c.opens_at || '')}"><small class="muted" data-moon>${esc(moonName(c.opens_at))}</small></label>
+        <label style="flex:1">Closes <input type="date" data-path="${path}" data-f="closes_at" value="${esc(c.closes_at || '')}"><small class="muted" data-moon>${esc(moonName(c.closes_at))}</small></label>
       </div>
       <label>Values set <select data-path="${path}" data-f="values_set_id" data-num>${sets.map((s) => opt(s.id, s.name, c.values_set_id)).join('')}</select></label>
+      <label class="check"><input type="checkbox" data-path="${path}" data-f="upward" ${c.upward ? 'checked' : ''} ${['closed', 'published'].includes(c.status) ? 'disabled' : ''}>
+        <span>Include an upward review. Each person also reviews ${esc(config.director)}, and anyone marked lead reviews their team lead, with the Upward review questions.</span></label>
     </div>
     <div class="row">${actions.map(([s, label]) => `<button data-status="${s}">${esc(label)}</button>`).join('')}</div>
     <h2>Delete everything from this cycle</h2>
@@ -290,6 +339,7 @@ async function setup({ cycle: c }, pane) {
       <p><button class="danger" id="del" disabled>Delete this cycle</button></p>
     </div>`;
   bindFields(pane);
+  for (const d of $$('input[type=date]', pane)) d.addEventListener('input', () => (d.nextElementSibling.textContent = moonName(d.value)));
   for (const b of $$('[data-status]', pane)) {
     const [, , question] = actions.find((a) => a[0] === b.dataset.status);
     b.onclick = async () => {
@@ -333,7 +383,7 @@ async function questions({ cycle: c, questions: qs }, pane) {
     ${Object.entries(groups)
       .map(([aud, title]) => {
         const list = qs.filter((q) => q.audience === aud);
-        return `<h2>${title} <small class="muted">${list.filter((q) => q.five_min).length} five minute</small></h2>
+        return `<h2>${title} <small class="muted">${list.filter((q) => q.five_min).length} five minute${aud === 'upward' && !c.upward ? ', turned off in Setup' : ''}</small></h2>
           <div class="qlist" data-aud="${aud}">${list.map(row).join('')}</div>
           <button class="secondary small" data-add="${aud}">Add a ${aud} question</button>`;
       })
@@ -455,6 +505,15 @@ async function links({ cycle: c }, pane) {
       .join('')}`;
   $('#all').onclick = () => copy(people.map((p) => `${nameOf(p)}${p.phone ? ` (${p.phone})` : ''}\n${message(p, c)}`).join('\n\n'));
   for (const b of $$('[data-copy]', pane)) b.onclick = () => copy(message(people.find((p) => p.id === Number(b.dataset.copy)), c));
+  const ch = await channels();
+  if (ch.prefer && ch.prefer !== 'manual' && (ch.sms || ch.email)) {
+    for (const b of $$('[data-copy]', pane)) {
+      const p = people.find((x) => x.id === Number(b.dataset.copy));
+      b.insertAdjacentHTML('beforebegin', `<button class="small" data-send="${p.id}">Send by ${ch.prefer === 'email' ? 'email' : 'text'}</button>`);
+      b.previousElementSibling.onclick = () => sendOrCopy(p.id, message(p, c), `Your link for ${c.name}`);
+      b.className = 'small secondary';
+    }
+  }
   for (const b of $$('[data-new]', pane)) {
     b.onclick = async () => {
       if (!confirm('Make a new link for this person? The old one keeps working until it expires.')) return;
@@ -480,17 +539,137 @@ async function progress({ cycle: c, staff, assignments: as }, pane) {
           ({ s, mine }) => `<tr><td>${esc(nameOf(s))}</td><td>${mine
             .map((a) => `<div>${chip(a.status)} ${a.kind === 'self' ? 'Self reflection' : esc(nameOf(byId.get(a.reviewee_id) || { name: '?' }))}</div>`)
             .join('')}</td>
-          <td>${mine.some((a) => a.status !== 'done') && c.status === 'open' ? `<button class="small secondary" data-nudge="${s.id}">Copy nudge</button>` : ''}</td></tr>`,
+          <td>${mine.some((a) => a.status !== 'done') && c.status === 'open' ? `<button class="small secondary" data-nudge="${s.id}">Nudge</button>` : ''}</td></tr>`,
         )
         .join('')}
-    </table></div>`;
+    </table></div>
+    <div id="signals"></div>`;
   for (const b of $$('[data-nudge]', pane)) {
     b.onclick = async () => {
       const { people } = await api(`/api/admin/cycles/${c.id}/links`);
       const p = people.find((x) => x.id === Number(b.dataset.nudge));
-      copy(`Aloha ${first(p)}, a gentle reminder that ${c.name} is still open${c.closes_at ? ` until ${fmtDate(c.closes_at)}` : ''}. Even 5 minutes helps: ${p.link} Mahalo!`);
+      sendOrCopy(p.id, nudge(p, c), 'A gentle reminder');
     };
   }
+  if (c.status !== 'draft') signals(c, $('#signals'));
+}
+
+// Early signals: repeated themes across every answer so far, as counts. Never names, never quotes.
+const SIGNALS = { burnout: 'Burnout or exhaustion', unclear_roles: 'Unclear roles', safety: 'Safety concerns', friction: 'Friction between people' };
+async function signals(c, el) {
+  const draw = ({ counts, checked, total }) => {
+    el.innerHTML = `<h2>Early signals</h2>
+      <p class="small muted">Only you see this. It is pattern spotting, not surveillance: the app sorts answers into a few themes and shows how often each comes up, with no names and no quotes. Use it to ask better questions of the whole team.</p>
+      <div class="card">${Object.entries(SIGNALS).map(([k, label]) => `<div class="row spread list-item"><span>${label}</span><strong>${counts[k] || 0}</strong></div>`).join('')}
+        <p class="small muted" style="margin-bottom:0">${checked} of ${total} answers checked.</p></div>
+      <p><button class="secondary small" id="runsig">${checked < total ? 'Check new answers' : 'Check again'}</button> <span class="small muted" id="sigstatus"></span></p>`;
+    $('#runsig', el).onclick = async () => {
+      $('#runsig', el).disabled = true;
+      $('#sigstatus', el).textContent = 'Reading answers. This can take a minute.';
+      try {
+        draw(await api(`/api/admin/cycles/${c.id}/signals`, { method: 'POST', json: {} }));
+      } catch (e) {
+        $('#sigstatus', el).textContent = e.message;
+        $('#runsig', el).disabled = false;
+      }
+    };
+  };
+  draw(await api(`/api/admin/cycles/${c.id}/signals`));
+}
+
+// Community voices: one question links for people outside the organization.
+async function voices({ cycle: c, members }, pane) {
+  const { voices: list } = await api(`/api/admin/cycles/${c.id}/voices`);
+  const open = c.status === 'open' || c.status === 'draft';
+  const ask = (p) => `You worked with ${p ? first(p) : '[name]'} this year. What stood out to you about them?`;
+  pane.innerHTML = `
+    <p>Ask someone outside ${esc(config.hui)} (a partner, a kupuna, a volunteer, a landowner) one question about one person. They get a link, answer once, and need no account. Links stop working when the review closes. Their answers show up in that person's Raw tab and help the letter.</p>
+    ${open ? `<form id="vnew" class="card">
+      <label>About <select name="reviewee_id" required>${opt('', 'Pick a person')}${members.map((m) => opt(m.id, nameOf(m))).join('')}</select></label>
+      <label>The one question <textarea name="question" rows="2">${esc(ask())}</textarea></label>
+      <button>Make a link</button>
+    </form>` : '<div class="banner info">This review is closed, so community links no longer work.</div>'}
+    ${list.length ? `<h2>Links</h2><div class="card">${list.map((v) => `<div class="list-item">
+      <div class="row spread"><strong>${esc(v.person)}</strong>${v.answered ? chip('done') : '<span class="small muted">Waiting</span>'}</div>
+      <p class="small" style="margin:.3rem 0">${esc(v.question)}</p>
+      <div class="row"><button class="small secondary" data-vcopy="${v.id}">Copy link and message</button><button class="quiet small" data-vdel="${v.id}">Delete</button></div>
+    </div>`).join('')}</div>` : ''}`;
+  const form = $('#vnew', pane);
+  if (form) {
+    form.reviewee_id.onchange = () => (form.question.value = ask(members.find((m) => m.id === Number(form.reviewee_id.value))));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const { link } = await save(`/api/admin/cycles/${c.id}/voices`, { reviewee_id: Number(form.reviewee_id.value), question: form.question.value }, 'POST');
+      copy(`Aloha, ${config.director} at ${config.hui} would love one answer from you. It takes a few minutes: ${link} Mahalo!`);
+      route();
+    };
+  }
+  for (const b of $$('[data-vcopy]', pane)) {
+    const v = list.find((x) => x.id === Number(b.dataset.vcopy));
+    b.onclick = () => copy(`Aloha, ${config.director} at ${config.hui} would love one answer from you. It takes a few minutes: ${v.link} Mahalo!`);
+  }
+  for (const b of $$('[data-vdel]', pane)) b.onclick = async () => confirm('Delete this link? Any answer it got is deleted too.') && (await save(`/api/admin/voices/${b.dataset.vdel}`, {}, 'DELETE'), route());
+}
+
+// Talk story scheduler: lay every meeting into the director's open blocks, then hand out calendar files.
+async function talks({ cycle: c, members }, pane) {
+  const key = `hui360_blocks_${c.id}`;
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(key) || '{}');
+  } catch {}
+  const blocks = saved.blocks?.length ? saved.blocks : [{ date: '', start: '09:00', end: '12:00' }];
+  const blockRow = (b, i) => `<div class="row" data-block="${i}">
+    <input type="date" value="${esc(b.date)}" aria-label="Date" style="flex:2"><input type="time" value="${esc(b.start)}" aria-label="From" style="flex:1"><input type="time" value="${esc(b.end)}" aria-label="To" style="flex:1">
+    <button type="button" class="quiet small" data-unblock="${i}" aria-label="Remove">Remove</button></div>`;
+  pane.innerHTML = `
+    <p>Each person sits down with ${esc(config.director)} to talk story about their letter. Enter the times you are free, and the app lays out every meeting and makes calendar files to send. It does not touch anyone's calendar.</p>
+    <div class="card">
+      <h2 style="margin-top:0">When you are free</h2>
+      <div id="blocks">${blocks.map(blockRow).join('')}</div>
+      <p><button type="button" class="secondary small" id="addblock">Add another time</button></p>
+      <div class="row"><label style="flex:1">Each meeting, minutes <input type="number" id="mins" value="${saved.minutes || 45}" min="10" step="5"></label>
+        <label style="flex:1">Break between, minutes <input type="number" id="gap" value="${saved.gap ?? 15}" min="0" step="5"></label>
+        <label style="flex:2">Where <input id="where" value="${esc(saved.where || '')}" placeholder="The hale, or a video link"></label></div>
+      <p style="margin-bottom:0"><button id="layout">Lay out the meetings</button></p>
+    </div>
+    <div id="schedule"></div>`;
+  const read = () => ({
+    blocks: $$('[data-block]', pane).map((r) => { const [d, s, e] = $$('input', r); return { date: d.value, start: s.value, end: e.value }; }).filter((b) => b.date && b.start && b.end),
+    minutes: Number($('#mins').value) || 45,
+    gap: Number($('#gap').value) || 0,
+    where: $('#where').value,
+  });
+  const keep = () => { try { localStorage.setItem(key, JSON.stringify(read())); } catch {} };
+  $('#addblock').onclick = () => { $('#blocks').insertAdjacentHTML('beforeend', blockRow({ date: '', start: '09:00', end: '12:00' }, $$('[data-block]', pane).length)); wireBlocks(); };
+  const wireBlocks = () => { for (const b of $$('[data-unblock]', pane)) b.onclick = () => { b.parentElement.remove(); keep(); }; };
+  wireBlocks();
+  pane.oninput = keep;
+  const download = (name, events) => {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([buildICS(events)], { type: 'text/calendar' })), download: name });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('#layout').onclick = () => {
+    const s = read();
+    keep();
+    if (!s.blocks.length) return toast('Add at least one time you are free');
+    const { meetings, unscheduled } = layoutMeetings(s.blocks, members, s.minutes, s.gap);
+    const ev = (m) => ({ start: m.start, end: m.end, title: `Talk story: ${nameOf(m.person)} and ${config.director}`, description: `A talk story about ${first(m.person)}'s letter from ${c.name}. Bring the letter and your reflection. Together we set two or three goals for the year ahead.`, location: s.where });
+    const time = (d) => d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    $('#schedule').innerHTML = `<h2>Schedule</h2>
+      ${unscheduled.length ? `<div class="banner warn">${unscheduled.length} ${unscheduled.length === 1 ? 'person does' : 'people do'} not fit: ${unscheduled.map((p) => esc(nameOf(p))).join(', ')}. Add more time.</div>` : ''}
+      <div class="card">${meetings.map((m, i) => `<div class="row spread list-item"><span><strong>${esc(nameOf(m.person))}</strong> <span class="small muted">${esc(time(m.start))}${config.moon ? ` · ${esc(moonFor(m.start).name)}` : ''}</span></span>
+        <button class="small secondary" data-ics="${i}">Calendar file</button></div>`).join('')}</div>
+      <p class="row"><button id="allics">Download all, one file</button></p>
+      <p class="small muted">Open the combined file to add every meeting to your calendar. Send each person their own file, or just the time, with their letter message.</p>`;
+    for (const b of $$('[data-ics]', pane)) {
+      const m = meetings[Number(b.dataset.ics)];
+      b.onclick = () => download(`talk-story-${first(m.person).toLowerCase()}.ics`, [ev(m)]);
+    }
+    $('#allics').onclick = () => download(`talk-story-${c.name.replace(/\W+/g, '-').toLowerCase()}.ics`, meetings.map(ev));
+  };
+  if (saved.blocks?.length) $('#layout').click();
 }
 
 async function letters({ cycle: c, members, summaries, responses }, pane) {
@@ -534,7 +713,7 @@ async function team({ cycle: c }, pane) {
     <div class="row no-print"><button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button><span class="small muted" id="tstatus"></span></div>
     <div id="tnotes" class="no-print"></div>
     ${
-      report
+      report?.draft || report?.edited
         ? `<div id="ted">${editorHtml(text, 'Team report')}</div>
       ${report.shared_at ? `<div class="banner no-print">Shared ${esc(fmtDate(report.shared_at))}. Everyone in this review sees it on their home page. The app does not send messages, so you may want to let them know.</div>` : ''}
       <p class="row no-print"><button id="tshare" class="${report.shared_at ? 'quiet' : ''}">${report.shared_at ? 'Stop sharing' : 'Share with everyone in this review'}</button>
@@ -557,7 +736,8 @@ async function team({ cycle: c }, pane) {
       $('#tgen').disabled = false;
     }
   };
-  if (!report) return;
+  board(c, report, stats, pane);
+  if (!report?.draft && !report?.edited) return;
   wireEditor($('#ted'), (edited) => api(`/api/admin/cycles/${c.id}/team`, { method: 'PUT', json: { edited } }));
   $('#tprint').onclick = () => print();
   $('#tshare').onclick = async () => {
@@ -565,6 +745,39 @@ async function team({ cycle: c }, pane) {
     if (!confirm(on ? 'Share the team report with everyone in this review?' : 'Stop sharing the team report?')) return;
     await save(`/api/admin/cycles/${c.id}/team/share`, { shared: on }, 'POST');
     route();
+  };
+}
+
+// Board report: one page, anonymized, no quotes. Printed on its own.
+function board(c, report, stats, pane) {
+  const text = report ? report.board_edited ?? report.board_draft ?? '' : '';
+  pane.insertAdjacentHTML('beforeend', `
+    <section id="board">
+      <h2>Board report</h2>
+      <p class="no-print">One page for your board: team health, growth themes, participation, and one or two ideas for leadership. No quotes and no names, so nothing in it points to anyone.</p>
+      <p class="print-only">${esc(config.hui)} · ${esc(c.name)} · ${stats.people} people took part, ${stats.pct}% of reviews finished.</p>
+      <div class="row no-print"><button id="bgen" class="${text ? 'secondary' : ''}">${text ? 'Regenerate board report' : 'Write the board report'}</button><span class="small muted" id="bstatus"></span></div>
+      ${text ? `<div id="bed">${editorHtml(text, 'Board report')}</div><p class="no-print"><button class="secondary" id="bprint">Print the board report</button></p>` : ''}
+    </section>`);
+  $('#bgen').onclick = async () => {
+    if (report?.board_edited && !confirm('Regenerating replaces the board report, including your edits. Go ahead?')) return;
+    $('#bgen').disabled = true;
+    $('#bstatus').textContent = 'Writing. This can take a minute.';
+    try {
+      await api(`/api/admin/cycles/${c.id}/board/draft`, { method: 'POST', json: {} });
+      route();
+    } catch (e) {
+      $('#bstatus').textContent = e.message;
+      $('#bgen').disabled = false;
+    }
+  };
+  if (!text) return;
+  wireEditor($('#bed'), (edited) => api(`/api/admin/cycles/${c.id}/board`, { method: 'PUT', json: { edited } }));
+  // Print only this section: hide the rest of the page for the print.
+  $('#bprint').onclick = () => {
+    document.body.classList.add('print-board');
+    print();
+    document.body.classList.remove('print-board');
   };
 }
 
@@ -594,9 +807,11 @@ async function person(cycleId, staffId, tab = 'raw') {
             .map(
               (r) => `<div class="card">
               ${r.signed_name ? `<p class="small"><span class="chip done">Signed mahalo from ${esc(r.signed_name)}</span></p>` : ''}
+              ${r.tone ? `<p class="small muted" style="margin-top:0" title="Only you see this. It compares this reviewer's tone across their reviews with everyone else's.">This reviewer tends to be ${r.tone}</p>` : ''}
               <div class="raw-body">${esc(r.body || '')}</div>
               ${r.audio_key ? `<audio controls preload="none" style="width:100%;margin-top:.5rem" src="/api/admin/file?key=${encodeURIComponent(r.audio_key)}"></audio>` : ''}
               ${r.language && r.language !== 'en' ? `<p class="small muted">Language: ${esc(r.language)}</p>` : ''}
+              ${g.audience === 'community' ? `<p class="small muted" style="margin-bottom:0">From outside ${esc(config.hui)}${r.who ? `: ${esc(r.who)}` : ''}</p>` : ''}
             </div>`,
             )
             .join('')}`,
@@ -643,7 +858,26 @@ async function person(cycleId, staffId, tab = 'raw') {
              <div id="letter">${editorHtml(text(), `Letter for ${nameOf(p)}`)}</div>
              <label class="check"><input type="checkbox" id="ready" ${summary.status !== 'draft' ? 'checked' : ''} ${summary.status === 'shared' ? 'disabled' : ''}> Ready to share</label>`
           : ''
-      }`;
+      }
+      <details class="card" id="prep" ${summary?.talk_story_prep ? 'open' : ''}>
+        <summary><strong>Talk story prep</strong> <span class="small muted">Only you see this</span></summary>
+        <p class="small muted">Openers, one thing to celebrate, one tension worth sitting with, one question to ask, and last year's goals, from the same answers as the letter.</p>
+        <div class="summary-doc" style="border:0;padding:0">${md(summary?.talk_story_prep || '')}</div>
+        <p style="margin-bottom:0"><button class="secondary small" id="prepgen">${summary?.talk_story_prep ? 'Write it again' : 'Write talk story prep'}</button> <span class="small muted" id="prepstatus"></span></p>
+      </details>`;
+    $('#prepgen').onclick = async () => {
+      $('#prepgen').disabled = true;
+      $('#prepstatus').textContent = 'Writing. This can take a minute.';
+      try {
+        const { prep } = await api(`${base}/prep`, { method: 'POST', json: {} });
+        $('#prep .summary-doc').innerHTML = md(prep);
+        $('#prepstatus').textContent = '';
+        $('#prepgen').textContent = 'Write it again';
+      } catch (e) {
+        $('#prepstatus').textContent = e.message;
+      }
+      $('#prepgen').disabled = false;
+    };
     $('#gen').onclick = async () => {
       if (summary?.edited && !confirm('Regenerating replaces the draft, including your edits. Go ahead?')) return;
       const b = $('#gen');
@@ -725,6 +959,7 @@ async function staff() {
     const inp = (f, type = 'text', extra = '') => `<input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}>`;
     return `<tr>
       <td>${inp('name')}</td><td>${inp('preferred_name')}</td><td>${inp('email', 'email')}</td><td>${inp('phone', 'tel')}</td><td>${inp('team', 'text', 'list="groups"')}</td>
+      <td><select data-path="${p}" data-f="role">${[['staff', 'Staff'], ['lead', 'Team lead'], ['admin', 'Director']].map(([v, l]) => opt(v, l, s.role)).join('')}</select></td>
       <td><select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></td>
       <td>${inp('start_date', 'date')}</td>
       <td><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''} aria-label="Active"></td></tr>`;
@@ -749,9 +984,9 @@ async function staff() {
       </form>
     </div>
     <h2>Everyone</h2>
-    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out.</p>
+    <p class="muted small">Changes save as you go. Joined is the optional date someone started with your organization, not their review. To see who has started or finished a review, open that review's Progress tab. Uncheck Active when someone leaves. Their past reviews stay, and new reviews leave them out. A team lead reads the shared letters of everyone in their Group, and is reviewed by that group in an upward review. Mark yourself Director so staff can review you in an upward review.</p>
     <div class="scroll"><table>
-      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Language</th><th>Joined</th><th>Active</th></tr>
+      <tr><th>Name</th><th>Goes by</th><th>Email</th><th>Phone</th><th>Group</th><th>Role</th><th>Language</th><th>Joined</th><th>Active</th></tr>
       ${list.map(row).join('')}
     </table></div>
     ${GROUPS}`;
@@ -770,6 +1005,32 @@ async function staff() {
     toast(`Added ${lines.length} ${lines.length === 1 ? 'person' : 'people'}`);
     route();
   };
+}
+
+// ---------------- kuleana ----------------
+
+async function kuleana() {
+  const { people } = await api('/api/admin/kuleana');
+  app.innerHTML = `
+    <h1>Kuleana</h1>
+    <p>Each person's title, what they take care of, and who they work with most. Staff see this as the kuleana map, which helps new people find their way. Auto fill in Reviewers uses "works with" to pair people who know each other's work.</p>
+    <p class="small"><a href="/kuleana/" target="_blank" rel="noopener">See it the way staff do</a></p>
+    ${people.map((p) => `<details class="card" data-k="${p.id}">
+      <summary><strong>${esc(nameOf(p))}</strong> <span class="small muted">${esc(p.title || '')}</span></summary>
+      <label>Title <input name="title" value="${esc(p.title || '')}"></label>
+      <label>What they take care of <textarea name="responsibilities" rows="3">${esc(p.responsibilities || '')}</textarea></label>
+      <fieldset style="border:0;padding:0;margin:0"><legend class="small">Works with most</legend>
+        <div class="row">${people.filter((o) => o.id !== p.id).map((o) => `<label class="check" style="width:auto"><input type="checkbox" value="${o.id}" ${p.works_with.includes(o.id) ? 'checked' : ''}> ${esc(nameOf(o))}</label>`).join('')}</div>
+      </fieldset>
+    </details>`).join('')}`;
+  for (const d of $$('[data-k]')) {
+    d.onchange = () =>
+      save(`/api/admin/kuleana/${d.dataset.k}`, {
+        title: $('[name=title]', d).value,
+        responsibilities: $('[name=responsibilities]', d).value,
+        works_with: $$('input[type=checkbox]:checked', d).map((x) => Number(x.value)),
+      });
+  }
 }
 
 // ---------------- values ----------------
@@ -806,7 +1067,7 @@ async function values() {
 // ---------------- data ----------------
 
 async function data() {
-  const [{ files }, { audit }, settings, { cycles }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles')]);
+  const [{ files }, { audit }, settings, { cycles }, ch, { mahalo }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles'), channels(), api('/api/admin/mahalo')]);
   const sampleCycle = cycles.find((c) => c.name === 'Sample review (example)');
   const sample = sampleCycle && { id: sampleCycle.id, person: (await api(`/api/admin/cycles/${sampleCycle.id}`)).summaries[0]?.reviewee_id };
   const byFolder = {};
@@ -840,6 +1101,22 @@ async function data() {
         <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto">
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
+      <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+    </div>
+    <h2>Reminders and messages</h2>
+    <div class="card">
+      <p style="margin-top:0">By default the app sends nothing. You copy each link and nudge and send it yourself. To have the app text or email people, and send reminders by itself each morning, add a Twilio or Resend key (see the README).</p>
+      <p class="small">Text messages: <strong>${ch.sms ? 'set up' : 'not set up'}</strong> · Email: <strong>${ch.email ? 'set up' : 'not set up'}</strong></p>
+      <label>How to send <select data-path="/api/admin/settings" data-f="reminder_channel">
+        ${opt('manual', 'I copy and send each message myself', settings.reminder_channel || 'manual')}
+        ${ch.sms ? opt('sms', 'Text message, with a morning reminder for anyone behind', settings.reminder_channel) : ''}
+        ${ch.email ? opt('email', 'Email, with a morning reminder for anyone behind', settings.reminder_channel) : ''}
+      </select></label>
+    </div>
+    <h2>Mahalo board</h2>
+    <div class="card">
+      <p style="margin-top:0" class="small muted">Public mahalo staff have posted. Remove anything that should not be there.</p>
+      ${mahalo.length ? mahalo.map((m) => `<div class="row spread list-item"><span><strong>${esc(m.to_name)}</strong> ${esc(m.body)} <span class="small muted">${esc(m.from_name || 'unsigned')}</span></span><button class="quiet small" data-unmahalo="${m.id}">Remove</button></div>`).join('') : '<p class="muted" style="margin:0">None yet.</p>'}
     </div>
     <h2>Audit log</h2>
     <p class="small muted">Every read of raw answers, every draft, share, export, and delete.</p>
@@ -847,6 +1124,8 @@ async function data() {
       ${audit.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('')}
     </table></div>`;
   bindFields();
+  $('#moon').onchange = (e) => save('/api/admin/settings', { moon_calendar: e.target.checked ? 'on' : 'off' });
+  for (const b of $$('[data-unmahalo]')) b.onclick = async () => confirm('Remove this mahalo from the board?') && (await save(`/api/admin/mahalo/${b.dataset.unmahalo}`, {}, 'DELETE'), route());
   $('#logo').onchange = async (e) => {
     const f = e.target.files[0];
     if (!f) return;

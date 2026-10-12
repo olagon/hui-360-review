@@ -28,7 +28,7 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar')").all();
   return json(Object.fromEntries(rows.results.map((r) => [r.key, r.value])));
 }
 
@@ -86,6 +86,8 @@ export async function me({ env, staff }) {
     assignments,
     summaries: shared.n,
     team: team.n,
+    asks: (await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback_requests WHERE to_id = ? AND response IS NULL').bind(staff.id).first()).n,
+    lead: staff.role === 'lead',
   });
 }
 

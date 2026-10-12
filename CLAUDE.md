@@ -234,7 +234,9 @@ Team view and board report use the same module with different templates. Early s
 
 ## Reminders
 
-Default is manual and fully on Cloudflare. The cron job each morning computes who is behind and writes a digest to the admin dashboard with one tap copy of each nudge message. Noʻeau sends them himself from his phone. This works on day one with no outside account.
+Default is manual and fully on Cloudflare. The admin Cycles page computes who is behind in the open review each time it loads ("Today's nudges") with one tap copy of each nudge message. Noʻeau sends them himself from his phone. This works on day one with no outside account and needs no cron.
+
+As built: Pages cannot run cron triggers, so the optional 7am run lives in a tiny Worker, `workers/reminders`, that calls `POST /api/cron/reminders` with a shared `CRON_SECRET` header. Deploy it only when Twilio or Resend is set up. The app sends nothing unless admin picks text or email in Data, Reminders and messages. Resend also needs `RESEND_FROM` in `[vars]`.
 
 Optional, off by default, one secret each:
 - Text messages through Twilio. Secrets `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`. If present, the cron job sends nudges by text and the landing page can send magic links by text.
@@ -295,6 +297,15 @@ Personal page with goals and timeline, mahalo feed and board, feedback requests,
 
 ### Phase 3, widen the circle
 Upward review, community voice links, early signals, reviewer calibration, board report, lead role, optional Twilio and Resend channels, Hawaiian i18n review pass, README for other nonprofits.
+
+All three phases are built, except the Hawaiian i18n review pass, which needs a fluent speaker. Notes on how a few pieces landed:
+- Staff pages: `/me/` (letters, huli goals, mahalo, feedback, timeline, and "My team" for leads), `/mahalo/`, `/kuleana/`, `/voice/?t=`. A small nav under the header links them.
+- Feedback requests do not send a link. The asker copies a message pointing the coworker to `/me/#feedback`, and the coworker's dashboard shows a card until they answer.
+- Community voice links work while the cycle is draft or open, answer once, and show in Raw with the optional "who".
+- Early signals run when a cycle closes and on demand from Progress. Reviewer tone tags come from the same pass and need 2 or more peer reviews per reviewer.
+- Upward review is a checkbox in Setup. Everyone in the cycle reviews staff with role admin, and each team reviews its lead (same Group).
+- The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
+- The board report lives under the Team report tab and prints on its own.
 
 ## Setup walkthrough for Olin
 

@@ -28,7 +28,8 @@ export function completer(env) {
       ],
       max_tokens: 3000,
     }, env.AI_GATEWAY_ID ? { gateway: { id: env.AI_GATEWAY_ID } } : undefined);
-    return out.response;
+    // Workers AI hands back JSON replies already parsed. Callers always get text.
+    return typeof out.response === 'string' ? out.response : JSON.stringify(out.response ?? '');
   };
 }
 

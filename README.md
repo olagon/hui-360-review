@@ -27,16 +27,25 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **I only have 5 minutes** opens just the quick questions.
 - Every peer review starts with **mahalo**. Only the mahalo can be signed, and only if the writer chooses to. Everything else is anonymous, and the screen says so.
 - After the review, they read the summary written for them and can write a reflection back.
+- All year, on **My page**: their two or three goals (my huli), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed next year's letter.
+- A **mahalo board** of public thanks, and a **kuleana map** of who does what. No likes and no comments.
 
 **For the director (admin)**
 - Add staff, set your values, create a cycle, and edit questions in both languages with drag to reorder.
 - Assign reviewers on a simple grid, or press **Auto fill** to pair people who work together and avoid repeating last year's pairs.
 - Open the cycle and copy one ready to send text message per person with their link.
-- Watch completion, and copy a gentle nudge for anyone behind.
-- After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it.
+- Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
+- **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
+- **Community voices:** a one question link for a partner, kupuna, or volunteer outside your organization. Single use, no account.
+- **Upward review:** a checkbox per cycle adds a review of the director and team leads.
+- After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it. A quiet tag marks reviewers who run notably generous or critical, so you read with that in mind.
+- **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
+- A **team report** for staff and a one page **board report** with no names and no quotes.
+- A **kuleana map** you keep up to date, which Auto fill uses to pair coworkers.
+- A **lead** role: someone marked lead reads the shared letters of their own team.
+- Optional texts or emails through Twilio or Resend, with a reminder each morning for anyone behind. Off by default.
+- A Hawaiian moon name for today and next to review dates. Turn it off in Data.
 - Export everything to JSON and Markdown at any time. Delete a whole cycle by typing its name.
-
-**What comes next:** personal goals, a mahalo board, a kuleana map, a meeting scheduler with calendar files, a Hawaiian moon calendar, team and board reports, community voices, and optional reminders by text or email. See the phases in `CLAUDE.md`.
 
 ## How anonymity works
 
@@ -124,7 +133,23 @@ The app checks the Access token's signature on every admin request. It never tru
 - **Llama:** do nothing. Without an Anthropic key, drafts come from Llama on Workers AI.
 - With a key, drafts use Claude Haiku 5.5. For richer letters at about 20 times the cost, set `CLAUDE_MODEL` to `claude-sonnet-5-5` in `functions/lib/config.js`.
 
-### 6. Deploy
+### 6. Optional: texts and emails
+
+By default the app sends nothing. You copy each message and send it from your own phone. To let the app send links, nudges, and a 7am reminder for anyone behind:
+
+- **Text messages, Twilio:** `npx wrangler pages secret put TWILIO_SID`, then `TWILIO_TOKEN` and `TWILIO_FROM` (your Twilio number), each with `--project-name hui-360`. Roughly $0.01 a text in the US.
+- **Email, Resend:** `npx wrangler pages secret put RESEND_API_KEY --project-name hui-360`, and set `RESEND_FROM` (an address on a domain you verified in Resend) under `[vars]` in `wrangler.toml`. Free up to 3,000 emails a month.
+- **Morning reminders:** Pages cannot run on a schedule, so a tiny Worker does it. Make one more random string and run:
+
+```bash
+npx wrangler pages secret put CRON_SECRET --project-name hui-360
+npx wrangler deploy -c workers/reminders/wrangler.toml
+npx wrangler secret put CRON_SECRET -c workers/reminders/wrangler.toml
+```
+
+Change `APP_URL` in `workers/reminders/wrangler.toml` to your address first. Then in admin, Data, Reminders and messages, choose text or email.
+
+### 7. Deploy
 
 In your GitHub repository, add two secrets under **Settings, Secrets and variables, Actions**:
 - `CLOUDFLARE_ACCOUNT_ID`
@@ -132,14 +157,15 @@ In your GitHub repository, add two secrets under **Settings, Secrets and variabl
 
 Commit your `wrangler.toml` changes and push to `main`. The workflow runs every test, applies database migrations, and deploys only if everything passes. Then, in the Pages project, add your custom domain.
 
-### 7. Make it yours
+### 8. Make it yours
 
 Open `https://<your domain>/admin/` and sign in.
 1. **Data, Settings:** enter your organization's name and what staff call your director. Staff see both, and summary drafts are written in the director's voice. Upload your logo there too (an animated SVG works); it shows on the staff and admin home pages.
 2. **Values:** replace the sample set (from Pukui's ʻŌlelo Noʻeau) with your own values. Each value has a name, an optional ʻōlelo noʻeau, and what it looks like in your organization. The AI measures summaries against these.
-3. **Staff:** add everyone, with a phone or email so you can send links.
+3. **People:** add everyone, with a phone or email so you can send links.
+4. **Kuleana:** add each person's title, what they take care of, and who they work with most.
 
-### 8. Run a practice cycle
+### 9. Run a practice cycle
 
 Add three test people, create a cycle, open it, answer as each of them from their links (try airplane mode halfway through), close it, draft a summary, share it, then delete the cycle. Now you know every step before your team does.
 
@@ -154,8 +180,9 @@ Add three test people, create a cycle, open it, answer as each of them from thei
 7. **Nudge** from the Progress tab as the close date gets near.
 8. **Close it.** Answers lock, and the Letters tab opens.
 9. **Write the letters.** For each person, read every answer about them, let AI compile a draft that summarizes what was sent, write your final version, and share the parts you choose. Print or save any letter as a PDF.
-10. **Talk story.** Sit down with each person. They read their letter on their phone and can write a reflection back.
-11. **Mark it published** once every letter is shared, and export a copy for your records.
+10. **Write the team report and the board report** in the Team report tab.
+11. **Talk story.** Lay out the meetings in the Talk story tab and send calendar files. Open each person's Draft tab for talk story prep. They read their letter on their phone and can write a reflection back, then set their goals on My page.
+12. **Mark it published** once every letter is shared, and export a copy for your records.
 
 Want to see the end result first? In Data, load the sample review: three made up people, their answers, a finished letter, and a reflection.
 
@@ -164,7 +191,7 @@ Want to see the end result first? In Data, load the sample review: three made up
 ```bash
 cp .dev.vars.example .dev.vars   # DEV_ADMIN_EMAIL lets /admin work on localhost without Access
 npm run dev                      # http://localhost:8790
-npm test                         # summarizer, anonymity, auth
+npm test                         # summarizer, anonymity, auth, moon, calendar files, signals
 npm run e2e                      # offline flow in a real browser
 ```
 

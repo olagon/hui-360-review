@@ -13,13 +13,16 @@ test('the list shows every answer after a quick run through', async ({ page, req
   await page.goto(link);
   await page.getByRole('link', { name: 'Start' }).first().click();
   const box = page.locator('textarea.answer');
-  for (const [i, word] of ['Proud', 'Loʻi', 'Patience', 'Yes', 'Plan', 'Grants'].entries()) {
-    await expect(page.getByText(`Question ${i + 1} of 6`)).toBeVisible();
-    await box.fill(word);
+  // One word answers count. The number of questions depends on the cycle, so read it.
+  await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
+  const total = Number((await page.getByText(/Question 1 of \d+/).textContent()).match(/of (\d+)/)[1]);
+  for (let i = 0; i < total; i++) {
+    await expect(page.getByText(`Question ${i + 1} of ${total}`)).toBeVisible();
+    await box.fill(['Proud', 'Loʻi', 'Patience', 'Yes', 'Plan', 'Grants'][i % 6]);
     await page.getByRole('button', { name: /Next|Finish/ }).click();
   }
   await page.getByRole('link', { name: 'Back to my list' }).click();
   const card = page.locator('.card').first();
-  await expect(card).toContainText('6 of 6 answered');
+  await expect(card).toContainText(`${total} of ${total} answered`);
   await expect(card).toContainText('Done');
 });

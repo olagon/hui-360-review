@@ -173,3 +173,16 @@ blockquote { border-left: 2px solid var(--kalo); margin: 1rem 0; padding: 0.25re
 .editor blockquote { color: var(--ink); }
 .print-only { display: none; }
 @media print { .print-only { display: block; } }
+.subnav { display: flex; gap: .25rem; justify-content: center; flex-wrap: wrap; padding: .45rem .75rem; border-bottom: 1px solid var(--line); background: var(--bg); font-size: .9rem; }
+.subnav a { padding: .3rem .8rem; border-radius: 999px; color: var(--ink); text-decoration: none; }
+.subnav a[aria-current='page'] { background: var(--kalo-soft); color: var(--kalo); font-weight: 600; }
+.chips { display: flex; gap: .4rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.chips a { font-size: .85rem; padding: .25rem .75rem; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--ink); background: var(--card); }
+.list-item { border-top: 1px solid var(--line); padding: .8rem 0; }
+.list-item:first-child { border-top: 0; }
+.moon { display: inline-flex; gap: .35rem; align-items: center; }
+.kgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1rem; }
+.mahalo-card { border-left: 3px solid var(--kalo); }
+@media print { body.print-board main > *:not(#pane), body.print-board #pane > *:not(#board), body.print-board header, body.print-board footer, body.print-board .subnav { display: none !important; } }
+@media print { body:not(.print-board) #board { display: none !important; } }
+textarea.short { min-height: 4.5rem; }

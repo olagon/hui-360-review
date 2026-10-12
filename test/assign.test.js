@@ -9,7 +9,7 @@ import { saveAnswer } from '../functions/lib/staff-api.js';
 function d1() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
-  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql', '0004_team_reports.sql', '0005_year_round.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     first: async () => db.prepare(sql).get(...args) ?? null,
@@ -106,4 +106,22 @@ test('autoFill gives everyone reviewers without self pairs or repeats', () => {
   assert.ok(added.every((p) => p.reviewer !== p.reviewee));
   const keep = autoFill({ staffIds: [1, 2, 3], existing: [{ reviewer: 2, reviewee: 1 }], target: 1 });
   assert.ok(!keep.some((p) => p.reviewee === 1), 'existing pairs count toward the target');
+});
+
+test('community voice links answer once and stop when the review closes', async () => {
+  const { voice, answerVoice } = await import('../functions/lib/year-api.js');
+  const DB = d1();
+  const env = { DB };
+  DB.raw.exec(`
+    INSERT INTO staff (id, name) VALUES (22, 'Kainoa');
+    INSERT INTO cycles (id, name, status) VALUES (5, '2026', 'open');
+    INSERT INTO community_voices (cycle_id, reviewee_id, token, question) VALUES (5, 22, 'tok', 'What stood out?');
+  `);
+  const post = (b) => answerVoice({ env, params: { token: 'tok' }, request: new Request('http://x', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json' } }) });
+  assert.equal((await (await voice({ env, params: { token: 'tok' } })).json()).open, true);
+  await post({ response: 'He listens to the kupuna.', who: 'Aunty Lei' });
+  await assert.rejects(() => post({ response: 'again' }), /already been used/);
+  assert.equal(DB.raw.prepare('SELECT response FROM community_voices').get().response, 'He listens to the kupuna.');
+  DB.raw.exec(`INSERT INTO community_voices (cycle_id, reviewee_id, token, question) VALUES (5, 22, 'tok2', 'Q'); UPDATE cycles SET status = 'closed'`);
+  await assert.rejects(() => answerVoice({ env, params: { token: 'tok2' }, request: new Request('http://x', { method: 'POST', body: '{"response":"late"}' }) }), /closed/);
 });

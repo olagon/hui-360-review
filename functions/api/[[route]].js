@@ -2,8 +2,9 @@ import { HttpError, json } from '../lib/http.js';
 import { requireStaff, verifyAccess } from '../lib/auth.js';
 import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
+import * as y from '../lib/year-api.js';
 
-const PUBLIC = new Set(['/api/config', '/api/logo', '/api/logout']);
+const PUBLIC = new Set(['/api/config', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
 
 const routes = [
   ['GET', '/api/config', s.config],
@@ -17,6 +18,24 @@ const routes = [
   ['POST', '/api/audio', s.audio],
   ['GET', '/api/summaries', s.summaries],
   ['PUT', '/api/summaries/:id/reflection', s.reflection],
+  ['GET', '/api/people', y.people],
+  ['GET', '/api/kuleana', y.kuleana],
+  ['GET', '/api/goals', y.goals],
+  ['POST', '/api/goals', y.addGoal],
+  ['PUT', '/api/goals/:id', y.updateGoal],
+  ['DELETE', '/api/goals/:id', y.deleteGoal],
+  ['GET', '/api/mahalo/board', y.board],
+  ['GET', '/api/mahalo/mine', y.myMahalo],
+  ['POST', '/api/mahalo', y.sendMahalo],
+  ['DELETE', '/api/mahalo/:id', y.deleteMahalo],
+  ['GET', '/api/feedback', y.feedback],
+  ['POST', '/api/feedback', y.askFeedback],
+  ['PUT', '/api/feedback/:id', y.answerFeedback],
+  ['GET', '/api/team-letters', y.teamLetters],
+  ['GET', '/api/voice/:token', y.voice],
+  ['POST', '/api/voice/:token', y.answerVoice],
+  ['POST', '/api/request-link', y.requestLink],
+  ['POST', '/api/cron/reminders', y.reminders],
 
   ['GET', '/api/admin/me', a.whoami],
   ['GET', '/api/admin/staff', a.listStaff],
@@ -48,6 +67,20 @@ const routes = [
   ['POST', '/api/admin/cycles/:id/team/draft', a.draftTeam],
   ['PUT', '/api/admin/cycles/:id/team', a.saveTeam],
   ['POST', '/api/admin/cycles/:id/team/share', a.shareTeam],
+  ['POST', '/api/admin/cycles/:id/board/draft', a.draftBoard],
+  ['PUT', '/api/admin/cycles/:id/board', a.saveBoard],
+  ['GET', '/api/admin/cycles/:id/signals', a.getSignals],
+  ['POST', '/api/admin/cycles/:id/signals', a.runSignals],
+  ['GET', '/api/admin/cycles/:id/voices', y.listVoices],
+  ['POST', '/api/admin/cycles/:id/voices', y.createVoice],
+  ['DELETE', '/api/admin/voices/:id', y.deleteVoice],
+  ['POST', '/api/admin/cycles/:id/people/:staff/prep', a.draftPrep],
+  ['GET', '/api/admin/kuleana', a.getKuleana],
+  ['PUT', '/api/admin/kuleana/:staff', a.putKuleana],
+  ['GET', '/api/admin/channels', a.getChannels],
+  ['POST', '/api/admin/send', a.sendMessage],
+  ['GET', '/api/admin/mahalo', a.listMahalo],
+  ['DELETE', '/api/admin/mahalo/:id', a.removeMahalo],
   ['GET', '/api/admin/cycles/:id/links', a.links],
   ['POST', '/api/admin/cycles/:id/links/:staff', a.newLink],
   ['GET', '/api/admin/cycles/:id/people/:staff/raw', a.raw],
