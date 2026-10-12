@@ -6,7 +6,7 @@
 
 *Hui 360 in about a minute. Click for the [full quality video](docs/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`. For directors, a 90 second walkthrough of running a review start to finish: [video](docs/hui-360-admin-walkthrough.mp4), or `/tour/admin/` in the app.*
 
-**An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets an AI drafted letter for each person, written from exact quotes and measured against the organization's own values.
+**An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets a first draft of a letter for each person, written from exact quotes and measured against the organization's own values. AI is optional: turn it off and each letter starts from the answers, word for word.
 
 Open source under the [MIT license](LICENSE). Free to use, copy, and change. Runs entirely on Cloudflare, and for a team of 20 it costs a few dollars a year (see [What it costs](#what-it-costs)).
 
@@ -27,12 +27,12 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **I only have 5 minutes** opens just the quick questions.
 - Every peer review starts with **mahalo**. Only the mahalo can be signed, and only if the writer chooses to. Everything else is anonymous, and the screen says so.
 - After the review, they read the summary written for them and can write a reflection back.
-- All year, on **My page**: their two or three goals (my huli), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed next year's letter.
+- All year, on **My page**: their two or three goals (my huli), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed the next letter.
 - A **mahalo board** of public thanks. No likes and no comments.
 
 **For the director (admin)**
 - Add staff, set your values, create a cycle, and edit questions in both languages with drag to reorder.
-- Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last year's pairs.
+- Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last review's pairs.
 - Open the cycle and email each person their link, or copy a ready-to-send message for anyone without email. The app never sends text messages.
 - Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
 - One sign in for directors who take part too: an admin whose email matches someone in People opens their own reviews from **My reviews** in admin, and gets back with **Admin** on the staff side.
@@ -194,7 +194,7 @@ Add three test people, create a cycle, open it, answer as each of them from thei
 6. **Open it** and send each person their message from the Links tab.
 7. **Nudge** from the Progress tab as the close date gets near.
 8. **Close it.** Answers lock, and the Letters tab opens.
-9. **Write the letters.** For each person, read every answer about them, let AI compile a draft that summarizes what was sent, write your final version, and share the parts you choose. Print or save any letter as a PDF.
+9. **Write the letters.** For each person, read every answer about them, let AI compile a draft that summarizes what was sent (or start from the answers, no AI), write your final version, and share the parts you choose. Print or save any letter as a PDF.
 10. **Write the team report and the board report** in the Reports tab. Print them, or copy them straight into a doc or an email.
 11. **Talk story.** Lay out the meetings in the Talk story tab and send calendar files. Open each person's Draft tab for talk story prep. They read their letter on their phone and can write a reflection back, then set their goals on My page.
 12. **Mark it published** once every letter is shared, and export a copy for your records.

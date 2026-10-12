@@ -38,17 +38,18 @@
       <a class="button secondary" href="/admin/">Go to admin</a>
     </p>
 
-    <div class="note"><strong>The one thing to know first: how messages reach people.</strong> Every message to staff (their link, a reminder, and "your letter is ready") has an <strong>Email everyone</strong> button. It emails each person who has an email address and <strong>Send email</strong> checked in People, and tells you how many it skipped. For those few, press Copy and send it yourself by text. If Settings, Automated Emails says email is not set up yet, you copy and send every message yourself.</div>
+    <div class="note"><strong>The one thing to know first: how messages reach people.</strong> Every message to staff (their link, a reminder, and "your letter is ready") has an <strong>Email everyone</strong> button. It emails each person who has an email address and <strong>Send email</strong> checked in People, and tells you how many it skipped. For those few, press Copy and send it yourself by text. If Settings, Automated Emails says Email is off, you copy and send every message yourself.</div>
 
     <h2>1. Once, before your first review <small>about 20 minutes</small></h2>
     <ul class="todo">
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Sign in.</span> Go to <strong>/admin/</strong> and type your email. You get a code by email. Type it in and you stay signed in for the day. Only emails on the admin list get in.</span></li>
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, Organization.</span> Check your organization's name, what staff call you, and your logo. Staff see these on every screen, and letter drafts are written in your voice.</span></li>
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Values.</span> Make sure your values and their descriptions are right. The AI measures each letter against them.</span></li>
-      <li><input type="checkbox" aria-label="Done"><span><span class="where">People.</span> Add everyone who will write or receive reviews: staff, interns, volunteers, board. Paste a list to add many at once. Set Group to say which. Add each person's email, and leave Send email checked for anyone the app should email. Uncheck it for anyone who would rather hear from you directly.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">People.</span> Add everyone who will write or receive reviews: staff, interns, volunteers, board. Paste a list to add many at once. Set Group to say which. Add each person's email, and leave Send email checked for anyone the app should email. Uncheck it for anyone who would rather hear from you directly. Press Add people to add one or paste a list. Each person is one line: tap it to edit their details, role, and Send email. Use the search box to find someone. People who are not active fold away under Not active.</span></li>
       <li><input type="checkbox" aria-label="Done"><span><span class="where">People.</span> Set Role to Director for yourself, with your email. Replies to the app's emails come to you. Set Team lead for anyone who leads a group. Leads read their group's shared letters.</span></li>
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, Language.</span> Leave Offer ʻŌlelo Hawaiʻi off until the screens are translated. A fluent speaker can fill in every screen text under Manage translations, and it goes live right away. Then turn it on.</span></li>
-      <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, AI.</span> Choose whether to use AI. On: staff can answer by voice, and AI compiles a first draft of each letter and report for you to rewrite. Off: staff type, letters start from the answers word for word, reports start from an outline, and nothing goes to any AI model. Everything else works the same. With AI on, you can paste an Anthropic key there for warmer, more specific drafts, about 25 cents a review. The page shows how to get one.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, AI.</span> Choose whether to use AI. On: staff can answer by voice, and AI compiles a first draft of each letter and report for you to rewrite. Off: staff type, letters start from the answers word for word, reports start from an outline, and nothing goes to any AI model. Everything else works the same. With AI on, you can paste an Anthropic key there for warmer, more specific drafts, about 25 cents a review. The page shows how to get one. Drafts use the free Llama model unless you paste an Anthropic key there, which gives warmer, more specific letters for about 25 cents a review. Settings, AI log lists every time AI wrote something, and each draft says which model wrote it and when.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, Automated Emails.</span> Choose how the app sends email: Off (you copy and send every message), Cloudflare (needs the Workers Paid plan, $5 a month), or Resend (free, with steps on the page to set it up). Enter a From address on a domain set up with that service, press Save, then Send me a test email. Replies go to whoever is marked Director in People. Optional: check the box to email a gentle reminder on Monday and Friday mornings, 7am Hawaiʻi time, to anyone behind. Reminders never go out after the close date. The app never sends text messages.</span></li>
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Settings, Sample review.</span> Optional. Load the sample to see a finished letter and a reflection, then remove it.</span></li>
     </ul>
 
@@ -73,7 +74,7 @@
     <ul class="todo">
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Progress tab.</span> Check once or twice a week. It shows who has started and finished, never what anyone wrote.</span></li>
       <li><input type="checkbox" aria-label="Done"><span>Press Email a nudge to everyone behind, on Progress or on the Cycles page under Today's nudges. Copy the nudge for anyone without email. Five minutes is enough for the quick version.</span></li>
-      <li><input type="checkbox" aria-label="Done"><span><span class="where">Progress, Early signals.</span> Press Check new answers to see how many sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Use it to ask the whole team better questions.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Progress, Early signals (AI on only).</span> Press Check new answers to see how many sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Use it to ask the whole team better questions.</span></li>
       <li><input type="checkbox" aria-label="Done"><span>You cannot read any answers yet. They open when you close the review, so people can write freely.</span></li>
     </ul>
 
@@ -108,7 +109,7 @@
     <h2>9. Talk story</h2>
     <ul class="todo">
       <li><input type="checkbox" aria-label="Done"><span><span class="where">Talk story tab.</span> Enter the times you are free and press Lay out the meetings. Download the combined calendar file for yourself, and send each person their time or their own file.</span></li>
-      <li><input type="checkbox" aria-label="Done"><span><span class="where">Draft tab, Talk story prep.</span> Before each meeting, press Write talk story prep for openers, one thing to celebrate, one tension, one question, and goals from last time. Only you see it.</span></li>
+      <li><input type="checkbox" aria-label="Done"><span><span class="where">Draft tab, Talk story prep (AI on only).</span> Before each meeting, press Write talk story prep for openers, one thing to celebrate, one tension, one question, and goals from last time. Only you see it.</span></li>
       <li><input type="checkbox" aria-label="Done"><span>Bring their letter (press Print or save as PDF in Share) and their reflection. Talk through the questions at the end of the letter and set two or three goals. They add the goals on My page.</span></li>
     </ul>
 
@@ -123,14 +124,14 @@
       <li>You can read every answer, but never who wrote it, except a mahalo someone chose to sign. If someone has only one reviewer, you will know whose answers those are.</li>
       <li>The AI never sees who wrote what. It sees the words, the question, your values, and the name of the person the letter is for.</li>
       <li>Staff can change their answers any time until you close the review.</li>
-      <li>Someone lost their link? They can type their email or phone number on the home page, and the app emails them a fresh one. Or, in People, press Email link (or Copy link) next to their name. That link works any time of year, even with no review open, for My page and mahalo.</li>
+      <li>Someone lost their link? When email is on, they can type their email or phone number on the home page, and the app emails them a fresh one. Or, in People, tap their name and press Email their sign in link (or Copy their sign in link). That link works any time of year, even with no review open, for My page and mahalo.</li>
       <li>Only one review can be open at a time. Once a review closes, its questions, reviewers, and people lock. Reopen it in Setup to change them.</li>
       <li><strong>You take part too.</strong> If you are on the People list with the same email you sign in with, press <strong>My reviews</strong> at the top of admin to write your own self reflection and reviews, with no link needed. The number next to it is how many you have left. On the staff side, <strong>Admin</strong> at the top takes you back.</li>
       <li>On a shared computer or phone, use Sign out at the top when you finish. It signs you out of both admin and your own reviews. Staff have their own Sign out too.</li>
       <li>Voice recordings delete themselves 90 days after they are recorded. The typed words stay.</li>
       <li>To delete everything from a review, go to its Setup tab and type its name. This cannot be undone, so export first.</li>
       <li>Someone left? In People, uncheck Active. Their past reviews stay, and new reviews leave them out.</li>
-      <li>All year, staff can thank each other, ask each other for feedback, and keep their goals on My page. Feedback answers and mahalo from the year feed into each person's next letter. Remove anything from the mahalo board in Settings.</li>
+      <li>All year, staff can thank each other, ask each other for feedback, and keep their goals on My page. Feedback answers and mahalo since the last review feed into each person's next letter. Remove anything from the mahalo board in Settings.</li>
     </ul>
     <p class="no-print" style="margin-top:2rem"><a href="/how/">How this works, for staff</a> · <a href="/privacy/">Privacy and trust</a></p>
   </main>

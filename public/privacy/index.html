@@ -43,7 +43,7 @@
 
       <h2>Who can see what</h2>
       <ul>
-        <li>You can see and change your own answers while a review is open, and your summary once it is shared with you.</li>
+        <li>You can see and change your own answers while a review is open, and your letter once it is shared with you.</li>
         <li>Admins (<span data-name="director">your director</span>, and anyone helping set up the app) can read every answer, but not who wrote it. The one exception is a mahalo you choose to sign.</li>
         <li>Raw answers open to admins only after the review closes. Every time an admin opens them, it is logged.</li>
         <li>Coworkers never see your answers. A line may be quoted in their summary. Details that could point to you, like a date or a place, get blurred, for example "[the workday in May]".</li>
@@ -51,7 +51,7 @@
         <li>A team lead can read the shared letters of the people on their own team.</li>
         <li>Admins can see counts of answers that sound like burnout, unclear roles, safety concerns, or friction, with no names and no quotes. They may also see a note that some of the people who reviewed someone tend to write more warmly or critically than everyone else, so they read with that in mind. That note never says who those reviewers are or which answers are theirs.</li>
         <li>Someone outside <span data-name="hui">the Hui</span> may be asked one question about you. Their answer goes to admins and may help your letter.</li>
-        <li>An AI model helps draft summaries. It only sees the words, the question, the values of <span data-name="hui">the Hui</span>, and the name of the person being reviewed. It never sees who wrote anything. AI is optional: if <span data-name="hui">the Hui</span> turns it off, nothing about anyone is sent to any AI model, and voice recordings are kept but not turned into text.</li>
+        <li>An AI model may help draft letters. It only sees the words, the question, the values of <span data-name="hui">the Hui</span>, and the name of the person being reviewed. It never sees who wrote anything. AI is optional: if <span data-name="hui">the Hui</span> turns it off, nothing about anyone is sent to any AI model, and staff type their answers instead of talking.</li>
       </ul>
 
       <h2>How anonymity works</h2>
@@ -69,7 +69,7 @@
       <p>Everything here belongs to your organization. Admins can export all of it at any time, or delete everything from a review cycle. Nothing is sold or shared with anyone else.</p>
 
       <h2>Where it lives</h2>
-      <p>Everything lives on Cloudflare's network. The database (Cloudflare D1) and file storage (Cloudflare R2) were created with the Western North America location hint (wnam), the closest region to Hawaiʻi. Voice is turned into text by Cloudflare Workers AI. Summary drafts are written by Claude, made by Anthropic, reached through Cloudflare AI Gateway, and only the anonymous text described above is sent.</p>
+      <p>Everything lives on Cloudflare's network. The database (Cloudflare D1) and file storage (Cloudflare R2) were created with the Western North America location hint (wnam), the closest region to Hawaiʻi. Voice is turned into text by Cloudflare Workers AI. Letter drafts are written by Llama on Cloudflare Workers AI, or by Claude, made by Anthropic, if your organization adds a key, reached through Cloudflare AI Gateway. If AI is turned off, nothing is sent to any AI model. Only the anonymous text described above is ever sent.</p>
       <p class="small muted">This app is open source, so anyone can read exactly how it handles your words.</p>
     </section>
   </main>

@@ -104,7 +104,7 @@
   "dash.links": "Your page has your letters, goals, and mahalo.",
   "landing.requestLabel": "Your email or phone number",
   "landing.requestButton": "Email me a fresh link",
-  "landing.requestSent": "If you are in an open review and have an email on file, a fresh link is on its way to your inbox. If nothing arrives in a few minutes, ask {director}.",
+  "landing.requestSent": "If you have an email on file, a fresh link is on its way to your inbox. If nothing arrives in a few minutes, ask {director}.",
   "landing.requestManual": "Please ask {director} for a fresh link.",
   "me.page": "My page",
   "me.letters": "Letters",
@@ -119,7 +119,7 @@
   "goals.none": "No goals yet.",
   "goals.status.open": "Working on it",
   "goals.status.met": "Met",
-  "goals.status.carried": "Carried to next year",
+  "goals.status.carried": "Carried forward",
   "goals.status.dropped": "Let go",
   "goals.past": "Past goals",
   "goals.delete": "Remove",
@@ -153,7 +153,7 @@
   "feedback.mine": "What you asked",
   "feedback.noAnswer": "No answer yet",
   "feedback.from": "{name} answered",
-  "timeline.help": "One line per year, from the themes in your letters.",
+  "timeline.help": "One line per review, from the themes in your letters.",
   "timeline.none": "Your timeline starts with your first shared letter.",
   "myteam.help": "As a team lead, you can read the letters shared with your team.",
   "myteam.none": "No letters shared with your team yet.",
@@ -179,5 +179,7 @@
   "nav.admin": "Admin",
   "landing.adminAlsoStaff": "You are on the People list too, so you can open your own reviews without a link.",
   "landing.myReviews": "Open my reviews",
-  "dash.alsoAdmin": "You are also an admin."
+  "dash.alsoAdmin": "You are also an admin.",
+  "review.placeholderType": "Type here",
+  "review.requiredType": "This one needs an answer."
 }

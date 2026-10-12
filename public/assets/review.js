@@ -83,7 +83,7 @@ function renderQuestion(i) {
     ${
       q.kind === 'scale'
         ? `<div class="scale" role="group" aria-labelledby="prompt">${scale.map((w) => `<button type="button" aria-pressed="${s.body === w}" ${closed ? 'disabled' : ''}>${esc(w)}</button>`).join('')}</div>`
-        : `<textarea class="answer" aria-labelledby="prompt" placeholder="${esc(t('review.placeholder'))}" ${closed ? 'readonly' : ''}>${esc(s.body)}</textarea>
+        : `<textarea class="answer" aria-labelledby="prompt" placeholder="${esc(t(config.ai ? 'review.placeholder' : 'review.placeholderType'))}" ${closed ? 'readonly' : ''}>${esc(s.body)}</textarea>
            <div class="tools">
              ${closed || !config.ai ? '' : `<button type="button" class="mic secondary">${micIcon}<span>${esc(t('review.mic'))}</span></button>`}
              <span class="status" role="status"></span>
@@ -119,7 +119,7 @@ function renderQuestion(i) {
   $('#back').onclick = () => go(i - 1);
   $('#skip')?.addEventListener('click', () => go(i + 1));
   $('#next').onclick = async () => {
-    if (q.required && !closed && !(await answered(q))) return setStatus(t('review.required')) || ta?.focus();
+    if (q.required && !closed && !(await answered(q))) return setStatus(t(config.ai ? 'review.required' : 'review.requiredType')) || ta?.focus();
     go(i + 1);
   };
   if (ta && !s.body && !closed) ta.focus({ preventScroll: true });

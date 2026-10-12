@@ -404,11 +404,11 @@ async function setup({ cycle: c }, pane) {
   const { sets } = await api('/api/admin/values');
   const path = `/api/admin/cycles/${c.id}`;
   const actions = {
-    draft: [['open', 'Open the cycle', 'This adds a self reflection for every active staff member and lets people start. Open now?']],
-    open: [['closed', 'Close the cycle', 'Close now? Staff will not be able to change answers. Raw answers open to you after closing.']],
+    draft: [['open', 'Open the review', 'This adds a self reflection for everyone checked in the People tab and lets people start. Open now?']],
+    open: [['closed', 'Close the review', 'Close now? Staff will not be able to change answers. Raw answers open to you after closing.']],
     closed: [
       ['open', 'Reopen', 'Reopen so staff can keep answering?'],
-      ['published', 'Mark published', 'Mark this cycle published once summaries are shared?'],
+      ['published', 'Mark published', 'Mark this review published once letters are shared?'],
     ],
     published: [['closed', 'Back to closed', 'Move back to closed?']],
   }[c.status];
@@ -421,7 +421,7 @@ async function setup({ cycle: c }, pane) {
       </div>
       <label>Values set <select data-path="${path}" data-f="values_set_id" data-num>${sets.map((s) => opt(s.id, s.name, c.values_set_id)).join('')}</select></label>
       <label class="check"><input type="checkbox" data-path="${path}" data-f="upward" ${c.upward ? 'checked' : ''} ${['closed', 'published'].includes(c.status) ? 'disabled' : ''}>
-        <span>Include an upward review. Each person also reviews ${esc(config.director)}, and anyone marked lead reviews their team lead, with the Upward review questions.</span></label>
+        <span>Include an upward review. Each person also reviews ${esc(config.director)}, and everyone in a team lead's group reviews that lead, with the Upward review questions.</span></label>
     </div>
     <div class="row">${actions.map(([s, label]) => `<button data-status="${s}">${esc(label)}</button>`).join('')}</div>
     <h2>Delete everything from this cycle</h2>
@@ -537,11 +537,11 @@ async function assignments({ cycle: c, members: staff, assignments: as }, pane) 
   const gave = (id) => peers.filter((a) => a.reviewer_id === id).length;
   const flag = (n) => (n < 1 || n > 3 ? 'bad' : '');
   pane.innerHTML = `
-    <p class="muted small">Each row is a person being reviewed. Each column is a reviewer. Tap a box to assign. Aim for 1 to 3 reviewers per person.
+    <p class="muted small">Each row is a person being reviewed. Each column is a reviewer. Tap a box to assign. Aim for 2 or 3 reviewers per person. With only 1, you will know whose answers those are.
     Only people checked in the People tab show here, and each of them gets a self reflection when the review opens.</p>
     <div class="row"><label class="row" style="margin:0">Reviewers each <select id="target" style="width:auto">${[1, 2, 3].map((n) => opt(n, n, 2)).join('')}</select></label>
     <button class="secondary small" id="auto">Auto fill</button>
-    <span class="small muted">Prefers people who work together, avoids last cycle's pairs. Only adds, you can change anything after.</span></div>
+    <span class="small muted">Spreads reviewers evenly and avoids last review's pairs. Only adds, you can change anything after.</span></div>
     <div class="scroll"><table class="grid">
       <tr><th>Reviewed ↓ / Reviewer →</th>${staff.map((s) => `<th class="rot">${esc(nameOf(s))}</th>`).join('')}<th>Reviewers</th></tr>
       ${staff
@@ -787,7 +787,7 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
   pane.innerHTML = `
     ${
       closed
-        ? `<p>Each person gets a letter about their year. Open a person to read every answer about them, have AI compile a draft, write your final version, and share it. Shared letters show up on their phone, where they can write a reflection back.</p>`
+        ? `<p>Each person gets a letter about their work. Open a person to read every answer about them, start a draft (with AI, or from the answers), write your final version, and share it. Shared letters show up on their phone, where they can write a reflection back.</p>`
         : '<div class="banner info">Letters open after you close the review in Setup. Until then, answers stay private to the people writing them.</div>'
     }
     ${c.name === 'Sample review (example)' ? '<div class="banner info">This is the sample review, with made up people. Remove it any time from Settings.</div>' : '<p class="small muted">Want to see a finished letter first? Load the sample review from <a href="#/settings">Settings</a>.</p>'}
@@ -809,14 +809,14 @@ async function letters({ cycle: c, members, summaries, responses }, pane) {
 
 async function team({ cycle: c }, pane) {
   if (!['closed', 'published'].includes(c.status)) {
-    pane.innerHTML = '<div class="banner info">The team report opens after you close the review in Setup.</div>';
+    pane.innerHTML = '<div class="banner info">Reports open after you close the review in Setup.</div>';
     return;
   }
   const { report, stats, made = {} } = await api(`/api/admin/cycles/${c.id}/team`);
   const text = report ? report.edited ?? report.draft ?? '' : '';
   pane.innerHTML = `
     <h2>Team report</h2>
-    <p class="no-print">One report on the whole team: what you do well, where you struggle, what people asked of you, and ideas for next year. It never names anyone. Edit it, print it for your board, or share it with everyone in this review.</p>
+    <p class="no-print">One report on the whole team: what you do well, where you struggle, what people asked of you, and ideas for what comes next. It never names anyone. Edit it, print it, copy it into a doc or email, or share it with everyone in this review.</p>
     <p><strong>${stats.people}</strong> people took part. <strong>${stats.done} of ${stats.total}</strong> reviews finished (${stats.pct}%).</p>
     <div class="row no-print">${config.ai ? `<button id="tgen">${text ? 'Regenerate draft' : 'Write a draft'}</button>` : text ? '' : '<button id="toutline">Start from an outline</button>'}<span class="small muted" id="tstatus"></span></div>
     <div id="tnotes" class="no-print"></div>
@@ -870,7 +870,7 @@ async function team({ cycle: c }, pane) {
 }
 
 // With AI off, reports start from these headings. Write under each one.
-const TEAM_OUTLINE = '## What we do well\n\nWrite here.\n\n## Where we struggle\n\nWrite here.\n\n## What people asked for\n\nWrite here.\n\n## Ideas for next year\n\nWrite here.';
+const TEAM_OUTLINE = '## What we do well\n\nWrite here.\n\n## Where we struggle\n\nWrite here.\n\n## What people asked for\n\nWrite here.\n\n## Ideas for what comes next\n\nWrite here.';
 const BOARD_OUTLINE = '## Team health\n\nWrite here.\n\n## Growth\n\nWrite here.\n\n## Participation\n\n{facts}\n\n## Ideas for leadership\n\nWrite here.';
 
 // Board report: one page, anonymized, no quotes. Printed on its own.
@@ -1047,7 +1047,7 @@ async function person(cycleId, staffId, tab = 'raw') {
 
   // share
   if (!summary || !text().trim()) {
-    pane.innerHTML = '<p>Write a draft first.</p>';
+    pane.innerHTML = '<p>Start the letter in the Draft tab first.</p>';
     return;
   }
   const parts = [];
@@ -1317,12 +1317,12 @@ async function values() {
       `<label>${label} ${area ? `<textarea style="min-height:3rem" data-path="${p}" data-f="${k}">${esc(v[k] ?? '')}</textarea>` : `<input data-path="${p}" data-f="${k}" value="${esc(v[k] ?? '')}">`}</label>`;
     return `<div class="card">
       <div class="row"><div style="flex:1">${f('name_haw', 'Hawaiian name')}</div><div style="flex:1">${f('name_en', 'English name')}</div><div style="width:5rem">${f('ord', 'Order')}</div></div>
-      ${f('olelo_noeau', 'ʻŌlelo noʻeau', true)}${f('olelo_noeau_meaning', 'Meaning', true)}${f('description', 'What it looks like in this Hui', true)}
+      ${f('olelo_noeau', 'ʻŌlelo noʻeau', true)}${f('olelo_noeau_meaning', 'Meaning', true)}${f('description', `What it looks like at ${esc(config.hui)}`, true)}
       <button class="quiet small" data-del="${v.id}">Remove</button></div>`;
   };
   app.innerHTML = `
     <h1>Values</h1>
-    <div class="banner warn small">The starter set is a sample from Pukui's ʻŌlelo Noʻeau. Replace it with the Hui's own values before the first cycle.</div>
+    <div class="banner warn small">The starter set is a sample from Pukui's ʻŌlelo Noʻeau. Replace it with ${esc(config.hui)}'s own values before the first review.</div>
     ${sets
       .map(
         (s) => `<h2><input data-path="/api/admin/value-sets/${s.id}" data-f="name" value="${esc(s.name)}" style="font-weight:600"></h2>
@@ -1518,7 +1518,7 @@ async function settingsPage() {
       <p class="small">${ch.reply_to
         ? `When someone replies to an email from the app, it goes to <strong>${esc(ch.reply_to)}</strong>, the person marked Director in <a href="#/staff">People</a>.`
         : `Mark someone as Director in <a href="#/staff">People</a>, with an email, so replies to the app's emails reach them.`}</p>
-      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am, to anyone still behind</label>
+      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am Hawaiʻi time, to anyone still behind</label>
       <p class="small muted">${ch.email && ch.cron
         ? 'Off unless checked. Each person behind gets one short reminder with their link, twice a week, until they finish or the review closes. Only people with Send email checked.'
         : 'Not set up for this app yet, so use Today\'s nudges on the Cycles page instead.'}</p>
