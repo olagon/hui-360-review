@@ -261,7 +261,7 @@ export async function createVoice({ env, request, params, url }) {
   const b = await body(request);
   const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(b.reviewee_id));
   if (!person) throw new HttpError(400, 'Pick a person');
-  const question = text(b.question, 600) || `You worked with ${nameOf(person)} this year. What stood out to you about them?`;
+  const question = text(b.question, 600) || `You worked with ${nameOf(person)} recently. What stood out to you about them?`;
   const token = randomToken(18);
   await env.DB.prepare('INSERT INTO community_voices (cycle_id, reviewee_id, token, question) VALUES (?, ?, ?, ?)').bind(cycleId, person.id, token, question).run();
   return json({ link: `${url.origin}/voice/?t=${token}` });

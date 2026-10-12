@@ -1,6 +1,6 @@
 // Caches the staff app shell and the current cycle's questions so the review
 // works with no signal. Admin pages are never cached on the device.
-const VERSION = 'hui360-v19';
+const VERSION = 'hui360-v20';
 const SHELL = [
   '/', '/review/', '/me/', '/mahalo/', '/privacy/', '/how/', '/tour/', '/guide/',
   '/assets/style.css', '/assets/app.js', '/assets/idb.js', '/assets/home.js', '/assets/review.js', '/assets/me.js', '/assets/mahalo.js', '/assets/moon.js',

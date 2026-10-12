@@ -13,7 +13,7 @@ Rules that matter most
 
 Write these parts, in Markdown, in this order:
 
-1. Opening, with no heading. Two or three sentences on what this year looked like across the team, leading with what people are grateful for.
+1. Opening, with no heading. Two or three sentences on what this review showed across the team, leading with what people are grateful for.
 
 ## What we do well
 Three or four strengths that came up across many people. One short paragraph each, with how many people raised it and one short quote if a safe one exists.

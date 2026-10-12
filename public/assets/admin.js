@@ -653,7 +653,7 @@ async function signals(c, el) {
 async function voices({ cycle: c, members }, pane) {
   const { voices: list } = await api(`/api/admin/cycles/${c.id}/voices`);
   const open = c.status === 'open' || c.status === 'draft';
-  const ask = (p) => `You worked with ${p ? first(p) : '[name]'} this year. What stood out to you about them?`;
+  const ask = (p) => `You worked with ${p ? first(p) : '[name]'} recently. What stood out to you about them?`;
   pane.innerHTML = `
     <p>Ask someone outside ${esc(config.hui)} (a partner, a kupuna, a volunteer, a landowner) one question about one person. They get a link, answer once, and need no account. Links stop working when the review closes. Their answers show up in that person's Raw tab and help the letter.</p>
     ${open ? `<form id="vnew" class="card">
@@ -727,7 +727,7 @@ async function talks({ cycle: c, members }, pane) {
     keep();
     if (!s.blocks.length) return toast('Add at least one time you are free');
     const { meetings, unscheduled } = layoutMeetings(s.blocks, members, s.minutes, s.gap);
-    const ev = (m) => ({ start: m.start, end: m.end, title: `Talk story: ${nameOf(m.person)} and ${config.director}`, description: `A talk story about ${first(m.person)}'s letter from ${c.name}. Bring the letter and your reflection. Together we set two or three goals for the year ahead.`, location: s.where });
+    const ev = (m) => ({ start: m.start, end: m.end, title: `Talk story: ${nameOf(m.person)} and ${config.director}`, description: `A talk story about ${first(m.person)}'s letter from ${c.name}. Bring the letter and your reflection. Together we set two or three goals for what comes next.`, location: s.where });
     const time = (d) => d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     $('#schedule').innerHTML = `<h2>Schedule</h2>
       ${unscheduled.length ? `<div class="banner warn">${unscheduled.length} ${unscheduled.length === 1 ? 'person does' : 'people do'} not fit: ${unscheduled.map((p) => esc(nameOf(p))).join(', ')}. Add more time.</div>` : ''}
@@ -959,7 +959,7 @@ async function person(cycleId, staffId, tab = 'raw') {
       }
       ${config.ai || summary?.talk_story_prep ? `<details class="card" id="prep" ${summary?.talk_story_prep ? 'open' : ''}>
         <summary><strong>Talk story prep</strong> <span class="small muted">Only you see this</span></summary>
-        <p class="small muted">Openers, one thing to celebrate, one tension worth sitting with, one question to ask, and last year's goals, from the same answers as the letter.</p>
+        <p class="small muted">Openers, one thing to celebrate, one tension worth sitting with, one question to ask, and goals from last time, from the same answers as the letter.</p>
         <div class="summary-doc" style="border:0;padding:0">${md(summary?.talk_story_prep || '')}</div>
         ${config.ai ? `<p style="margin-bottom:0"><button class="secondary small" id="prepgen">${summary?.talk_story_prep ? 'Write it again' : 'Write talk story prep'}</button> <span class="small muted" id="prepstatus"></span></p>` : ''}
       </details>` : ''}`;
@@ -1171,15 +1171,19 @@ const AI_OFF_LIST = [
   ['Nothing sent to AI', 'No answer, name, or word about anyone goes to any AI model.'],
 ];
 
+const auditRows = (rows) => rows.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('');
+
 async function settingsPage() {
-  const [{ files }, { audit }, settings, { cycles }, ch, { mahalo }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles'), channels(), api('/api/admin/mahalo')]);
+  const [{ files }, { audit, more }, settings, { cycles }, ch, { mahalo }] = await Promise.all([api('/api/admin/exports'), api('/api/admin/audit'), api('/api/admin/settings'), api('/api/admin/cycles'), channels(), api('/api/admin/mahalo')]);
   const sampleCycle = cycles.find((c) => c.name === 'Sample review (example)');
   const sample = sampleCycle && { id: sampleCycle.id, person: (await api(`/api/admin/cycles/${sampleCycle.id}`)).summaries[0]?.reviewee_id };
   const byFolder = {};
   for (const f of files) (byFolder[f.key.split('/')[1]] ||= []).push(f);
   const link = (key) => `<a href="/api/admin/file?key=${encodeURIComponent(key)}">${esc(key.split('/').slice(2).join('/'))}</a>`;
   const aiOn = settings.ai !== 'off';
-  const engine = settings.engine === 'llama' ? "Llama 3.3 on Cloudflare's free AI ($0)" : `Claude (${esc(settings.engine)}) with your Anthropic key, a few cents a review`;
+  const MODEL_NAMES = { 'claude-haiku-5-5': 'Claude Haiku 5.5', 'claude-sonnet-5-5': 'Claude Sonnet 5.5' };
+  const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
+  const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
   const SECTIONS = [['org', 'Organization'], ['ai', 'AI'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
   app.innerHTML = `
@@ -1208,6 +1212,37 @@ async function settingsPage() {
         <div class="card ${aiOn ? '' : 'on'}" style="margin:0"><h3 style="margin-top:0">With AI off</h3>${list(AI_OFF_LIST)}</div>
       </div>
       <p class="small muted" style="margin-bottom:0">Everything else works the same: reviews, anonymity, email, mahalo, goals, and export. You can switch any time. Answers already written stay as they are.</p>
+    </div>
+    <div class="card" id="claude">
+      <h3 style="margin-top:0">Better drafts with Claude <span class="small muted" style="font-weight:400">optional</span></h3>
+      <p><strong>Drafts are written by ${esc(engine)}.</strong>${aiOn ? '' : ' (Only used when AI is on.)'}</p>
+      <div class="cols2">
+        <div><h4 style="margin:0 0 .4rem">Free, with no key: Llama</h4>
+          <p class="small" style="margin:0">Built into Cloudflare, $0. Fine for a first draft, but plainer and more generic. It tends to pick weaker quotes, so the quote check removes more of them. It is less sure with ʻōlelo Hawaiʻi and drifts from your director's voice. Expect to rewrite more.</p></div>
+        <div><h4 style="margin:0 0 .4rem">With a key: Claude Haiku 5.5</h4>
+          <p class="small" style="margin:0">Made by Anthropic. Warmer, more specific letters in your director's voice. Better at choosing the exact words people wrote, at keeping Hawaiian in Hawaiian, and at holding each letter to your values. Less to fix.</p></div>
+      </div>
+      <p class="small"><strong>What it costs.</strong> Under a cent per letter. A whole review for 20 people (every letter, talk story prep, the team and board reports, and early signals) comes to about 25 cents. Anthropic bills from prepaid credit, so $5 covers many years of reviews. You can set a monthly limit in Anthropic's console.</p>
+      <p class="small"><strong>Privacy is the same either way.</strong> Claude sees only what Llama sees: the words, the question, your values, and the name of the person a letter is for. Never who wrote anything. Anthropic does not train on it.</p>
+      ${key?.source === 'secret'
+        ? `<p class="banner info small" style="margin-bottom:0">A key ending in ${esc(key.last4)} was set up by whoever installed the app, as a Cloudflare secret. To change it, ask them.</p>`
+        : key
+          ? `<p class="row" style="margin-bottom:0"><span>Your key ending in <strong>${esc(key.last4)}</strong> is saved and working.</span><button class="quiet small" id="nokey">Remove key</button></p>`
+          : `<details>
+              <summary><strong>How to get a key</strong> (about 5 minutes)</summary>
+              <ol class="small">
+                <li>Go to <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> and sign up with your organization's email.</li>
+                <li>Open <strong>Billing</strong>, add a card, and buy credit. The smallest amount ($5) is plenty.</li>
+                <li>Optional but wise: in <strong>Limits</strong>, set a monthly spend limit, like $5.</li>
+                <li>Open <strong>API Keys</strong>, press <strong>Create Key</strong>, name it "Hui 360", and copy it. It starts with <code>sk-ant-</code> and is shown only once.</li>
+                <li>Paste it below and press Save. The app checks that it works before saving it.</li>
+              </ol>
+            </details>
+            <form id="keyform" class="row" style="margin-top:.75rem">
+              <input type="password" name="key" autocomplete="off" spellcheck="false" placeholder="sk-ant-..." aria-label="Anthropic API key" style="flex:1;min-width:14rem">
+              <button>Save key</button>
+            </form>
+            <p class="small muted" style="margin-bottom:0">The key is encrypted before it is stored, never shown again (only its last four characters), and left out of every export. Remove it any time to go back to Llama.</p>`}
     </div></section>
 
     <section id="email"><h2>Automated Emails</h2>
@@ -1249,12 +1284,33 @@ async function settingsPage() {
         .join('')}
     </div>
     <h3>Audit log</h3>
-    <p class="small muted">Every read of raw answers, every draft, share, export, AI switch, and delete.</p>
-    <div class="scroll"><table><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Target</th></tr>
-      ${audit.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('')}
-    </table></div></section>`;
+    <p class="small muted">Every read of raw answers, every draft, share, export, AI switch, and delete. Newest first. The full log is also in every export.</p>
+    <div class="scroll"><table id="audit"><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Target</th></tr>${auditRows(audit)}</table></div>
+    ${more ? '<p><button class="secondary small" id="older">Show older</button></p>' : ''}</section>`;
+  let oldest = audit.at(-1)?.id;
+  $('#older')?.addEventListener('click', async () => {
+    const page = await api(`/api/admin/audit?before=${oldest}`);
+    $('#audit').insertAdjacentHTML('beforeend', auditRows(page.audit));
+    oldest = page.audit.at(-1)?.id;
+    if (!page.more) $('#older').remove();
+  });
   const want = location.hash.split('/')[2];
   if (want) document.getElementById(want)?.scrollIntoView();
+  $('#keyform')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/admin/anthropic-key', { method: 'PUT', json: { key: e.target.key.value } });
+      toast('Key saved. Drafts now use Claude.', 4000);
+      route();
+    } catch (err) {
+      toast(err.message, 6000);
+    }
+  });
+  $('#nokey')?.addEventListener('click', async () => {
+    if (!confirm('Remove the Anthropic key? Drafts go back to Llama, which is free.')) return;
+    await save('/api/admin/anthropic-key', {}, 'DELETE');
+    route();
+  });
   $('#aitoggle').onchange = async (e) => {
     const on = e.target.checked;
     if (!confirm(on ? 'Turn AI on? Voice answers, letter drafts, reports, prep, and early signals come back.' : 'Turn AI off? Nothing will be sent to any AI model. Staff type their answers, and letters start from the answers.')) {

@@ -8,7 +8,7 @@ Rules that matter most
 
 Write these parts, in Markdown:
 
-1. Opening, with no heading. Two sentences on the overall health of the team this year.
+1. Opening, with no heading. Two sentences on the overall health of the team in this review.
 
 ## Participation
 One sentence using the participation numbers given.

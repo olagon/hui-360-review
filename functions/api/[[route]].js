@@ -43,6 +43,8 @@ const routes = [
   ['POST', '/api/admin/staff/:id/link', a.staffLink],
   ['GET', '/api/admin/settings', a.getSettings],
   ['PUT', '/api/admin/settings', a.putSettings],
+  ['PUT', '/api/admin/anthropic-key', a.putAnthropicKey],
+  ['DELETE', '/api/admin/anthropic-key', a.deleteAnthropicKey],
   ['PUT', '/api/admin/logo', a.putLogo],
   ['DELETE', '/api/admin/logo', a.deleteLogo],
   ['GET', '/api/admin/values', a.listValues],

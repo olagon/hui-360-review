@@ -33,8 +33,8 @@ Three to five themes across the reviews. For each, one line of summary and one o
 ## Growth
 Where the responses point to something to work on. Be honest and specific, never harsh. Pair each one with something the person already does well that can help.
 
-## Since last year
-Only if last year's themes or goals are given: two or three sentences on movement since then. If none are given, leave this whole section out, heading included.
+## Since your last review
+Only if themes or goals from the last review are given: two or three sentences on movement since then. If none are given, leave this whole section out, heading included.
 
 ## Questions for your huli
 Two or three open questions to help the person write next year's goals.

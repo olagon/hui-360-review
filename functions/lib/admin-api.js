@@ -1,7 +1,7 @@
 import { HttpError, json, body, audit } from './http.js';
 import { autoFill, assignmentHash } from './assign.js';
 import { linkFor, createLink } from './auth.js';
-import { completer, aiOn } from './ai.js';
+import { completer, aiOn, anthropicKey, sealKey, checkKey } from './ai.js';
 import { CLAUDE_MODEL } from './config.js';
 import { draftSummary, stripIdentity, section, answersDraft } from './summarize.js';
 import systemPrompt from './prompts/summary-system.txt';
@@ -94,10 +94,43 @@ export async function updateStaff({ env, request, params }) {
 
 // ---------- settings ----------
 
-export const getSettings = async ({ env }) => json({ ...(await settings(env)), engine: env.ANTHROPIC_API_KEY ? CLAUDE_MODEL : 'llama' });
+// The stored Anthropic key never leaves the server. The page only learns where it came from and its last four characters.
+export async function getSettings({ env }) {
+  const { anthropic_key, anthropic_last4, ...rest } = await settings(env);
+  const key = await anthropicKey(env);
+  return json({
+    ...rest,
+    engine: key ? CLAUDE_MODEL : 'llama',
+    anthropic: key ? { source: env.ANTHROPIC_API_KEY ? 'secret' : 'settings', last4: env.ANTHROPIC_API_KEY ? env.ANTHROPIC_API_KEY.slice(-4) : anthropic_last4 } : null,
+  });
+}
+
+export async function putAnthropicKey({ env, request, admin }) {
+  const key = String((await body(request)).key || '').trim();
+  if (!/^sk-ant-[\w-]{20,}$/.test(key)) throw new HttpError(400, 'That does not look like an Anthropic API key. It starts with sk-ant-.');
+  try {
+    await checkKey(env, key);
+  } catch (e) {
+    throw new HttpError(400, `Anthropic did not accept that key (${e.status || 'no answer'}). Check it was copied in full, and that the account has credit.`);
+  }
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('anthropic_key', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(await sealKey(env, key)),
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('anthropic_last4', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(key.slice(-4)),
+  ]);
+  await audit(env, admin, 'anthropic_key_set', `ending ${key.slice(-4)}`);
+  return json({ ok: true });
+}
+
+export async function deleteAnthropicKey({ env, admin }) {
+  await env.DB.prepare("DELETE FROM settings WHERE key IN ('anthropic_key', 'anthropic_last4')").run();
+  await audit(env, admin, 'anthropic_key_removed', 'settings');
+  return json({ ok: true });
+}
 
 export async function putSettings({ env, request, admin }) {
   const data = await body(request);
+  delete data.anthropic_key; // only through putAnthropicKey, which checks and seals it
+  delete data.anthropic_last4;
   if ('ai' in data) await audit(env, admin, data.ai === 'off' ? 'ai_off' : 'ai_on', 'settings');
   await env.DB.batch(
     Object.entries(data).map(([k, v]) =>
@@ -612,7 +645,7 @@ async function yearExtras(env, cycleId, personId) {
   ];
 }
 
-// Talk story prep: openers, something to celebrate, a tension, a question, last year's goals.
+// Talk story prep: openers, something to celebrate, a tension, a question, goals from last time.
 export async function draftPrep({ env, params, admin }) {
   const cycle = await getCycle(env, params.id);
   const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(params.staff));
@@ -987,6 +1020,7 @@ export function exportMarkdown(data) {
 export async function exportAll({ env, admin }) {
   const data = {};
   for (const t of EXPORT_TABLES) data[t] = await all(env, `SELECT * FROM "${t}"`);
+  data.settings = data.settings.filter((s) => !s.key.startsWith('anthropic_')); // the key stays out of every export
   const prefix = `exports/${new Date().toISOString().replace(/[:.]/g, '-')}/`;
   const files = {
     'hui360.json': JSON.stringify({ exported_at: new Date().toISOString(), note: 'response_link is left out on purpose so exports never carry the reviewer hash.', tables: data }, null, 2),
@@ -1004,7 +1038,12 @@ export async function listExports({ env }) {
   return json({ files: page.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })) });
 }
 
-export const listAudit = async ({ env }) => json({ audit: await all(env, 'SELECT * FROM audit ORDER BY id DESC LIMIT 300') });
+// Newest first, a page at a time. ?before=<id> gets the next older page. The full log is in every export.
+export async function listAudit({ env, url }) {
+  const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
+  const rows = await all(env, 'SELECT * FROM audit WHERE id < ? ORDER BY id DESC LIMIT 26', before);
+  return json({ audit: rows.slice(0, 25), more: rows.length > 25 });
+}
 
 // ---------- sample review, so a director can see the finished product ----------
 

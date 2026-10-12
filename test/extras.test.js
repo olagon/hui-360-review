@@ -77,3 +77,17 @@ test('email goes only to people with Send email checked, in batches of 100', asy
   assert.deepEqual(sent, [{ to: 'x@y.org', subject: 'Subject', text: 'hi', from: 'Hui <a@b.org>', replyTo: 'director@b.org' }]);
   assert.equal(route({ MAILER: {} }, { email: 'x@y.org', send_email: 1 }), null, 'off until EMAIL_FROM is set');
 });
+
+test('a pasted Anthropic key is sealed at rest and only opens with the same server secret', async () => {
+  const { sealKey, openKey, anthropicKey } = await import('../functions/lib/ai.js');
+  const env = { SESSION_SECRET: 'server-secret' };
+  const key = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789';
+  const sealed = await sealKey(env, key);
+  assert.ok(!sealed.includes('sk-ant') && !sealed.includes('0123456789'), 'nothing readable is stored');
+  assert.notEqual(sealed, await sealKey(env, key), 'a fresh nonce every time');
+  assert.equal(await openKey(env, sealed), key);
+  assert.equal(await openKey({ SESSION_SECRET: 'rotated' }, sealed), '', 'a changed secret means paste it again');
+  const DB = { prepare: () => ({ first: async () => ({ value: sealed }) }) };
+  assert.equal(await anthropicKey({ ...env, DB }), key);
+  assert.equal(await anthropicKey({ ...env, DB, ANTHROPIC_API_KEY: 'sk-ant-from-secret' }), 'sk-ant-from-secret', 'a Cloudflare secret wins');
+});

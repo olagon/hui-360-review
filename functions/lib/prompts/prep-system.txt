@@ -16,7 +16,7 @@ One honest growth area to talk through gently, and why it matters.
 ## One question to ask
 One open question that invites them to talk about next year.
 
-## Last year's goals
-If last year's goals are given, list them and one question about each. If none are given, write "No goals from last year."
+## Goals from last time
+If goals from the last review are given, list them and one question about each. If none are given, write "No goals from last year."
 
 Keep it under 300 words. Output only the notes.

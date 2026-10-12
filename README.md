@@ -130,8 +130,9 @@ The app checks the Access token's signature on every admin request. It never tru
 
 ### 5. Choose how summaries are written
 
-- **Claude:** create an AI Gateway in the Cloudflare dashboard (AI, AI Gateway). Put its id in `AI_GATEWAY_ID` and your account id in `CF_ACCOUNT_ID` in `wrangler.toml`, then `npx wrangler pages secret put ANTHROPIC_API_KEY --project-name hui-360`.
-- **Llama:** do nothing. Without an Anthropic key, drafts come from Llama on Workers AI.
+- **Llama, free:** do nothing. Without an Anthropic key, drafts come from Llama on Workers AI.
+- **Claude, better letters for about 25 cents a review:** your director can paste an Anthropic API key in **Settings, AI**, which explains how to get one, what changes, and what it costs. The key is encrypted before it is stored and left out of exports. (Or set it as a secret: `npx wrangler pages secret put ANTHROPIC_API_KEY --project-name hui-360`.) Create an AI Gateway in the Cloudflare dashboard (AI, AI Gateway) and put its id in `AI_GATEWAY_ID` and your account id in `CF_ACCOUNT_ID` in `wrangler.toml`, so Claude calls are logged inside Cloudflare.
+- **No AI at all:** turn it off in Settings, AI.
 - With a key, drafts use Claude Haiku 5.5. For richer letters at about 20 times the cost, set `CLAUDE_MODEL` to `claude-sonnet-5-5` in `functions/lib/config.js`.
 
 ### 6. Recommended: email
