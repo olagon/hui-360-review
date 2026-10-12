@@ -7,5 +7,9 @@
 /sw.js
   Cache-Control: no-cache
 
+# Check for a newer copy every time (a quick 304 when nothing changed), so a deploy reaches everyone at once.
+/assets/*
+  Cache-Control: no-cache
+
 /admin/*
   Cache-Control: no-store
