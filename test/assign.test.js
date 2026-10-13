@@ -9,7 +9,7 @@ import { saveAnswer } from '../functions/lib/staff-api.js';
 function d1() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
-  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql', '0004_team_reports.sql', '0005_year_round.sql', '0006_send_email.sql', '0007_ai_runs.sql', '0008_translations.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_init.sql', '0002_seed.sql', '0003_cycle_people.sql', '0004_team_reports.sql', '0005_year_round.sql', '0006_send_email.sql', '0007_ai_runs.sql', '0008_translations.sql', '0009_supervisors.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     first: async () => db.prepare(sql).get(...args) ?? null,
@@ -181,4 +181,23 @@ test('morning reminders keep going past an address that fails', async () => {
   env.KV.map.clear();
   DB.raw.exec("UPDATE cycles SET closes_at = '2020-01-01' WHERE id = 9");
   assert.deepEqual(await run(), { sent: 0, closed: true }, 'nothing after the close date');
+});
+
+test('supervisors see only the letters shared with them, about their own people', async () => {
+  const { teamLetters } = await import('../functions/lib/year-api.js');
+  const DB = d1();
+  DB.raw.exec(`
+    INSERT INTO staff (id, name, role) VALUES (60, 'Lei Supervisor', 'lead'), (61, 'Kainoa', 'staff'), (62, 'Keoni', 'staff'), (63, 'Pua Elsewhere', 'staff'), (64, 'No Team', 'staff');
+    UPDATE staff SET reports_to = 60 WHERE id IN (61, 62);
+    INSERT INTO cycles (id, name, status) VALUES (7, 'Review', 'closed');
+    INSERT INTO summaries (cycle_id, reviewee_id, shared_body, status, shared_at, supervisor_body, supervisor_shared_at) VALUES
+      (7, 61, 'Letter to Kainoa', 'shared', '2026-10-01', 'Parts for Lei', '2026-10-02'),
+      (7, 62, 'Letter to Keoni', 'shared', '2026-10-01', NULL, NULL),
+      (7, 63, 'Letter to Pua', 'shared', '2026-10-01', 'Not Lei''s to see', '2026-10-02');
+  `);
+  const env = { DB };
+  const r = await (await teamLetters({ env, staff: { id: 60 } })).json();
+  assert.deepEqual(r.team.sort(), ['Kainoa', 'Keoni']);
+  assert.deepEqual(r.letters.map((l) => [l.person, l.body]), [['Kainoa', 'Parts for Lei']], 'Keoni was not shared, and Pua is not on her team');
+  await assert.rejects(() => teamLetters({ env, staff: { id: 64 } }), /Only supervisors/);
 });

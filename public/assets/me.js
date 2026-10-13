@@ -110,7 +110,8 @@ function feedback() {
 
 function myTeam() {
   const letters = data.lead?.letters || [];
-  return `<p class="muted">${esc(t('myteam.help'))}</p>${letters.length ? letters.map((l) => `<section class="card"><h3 style="margin-top:0">${esc(l.person)}</h3>${when(l)}${doc(l.body)}</section>`).join('') : `<p>${esc(t('myteam.none'))}</p>`}`;
+  const team = data.lead?.team || [];
+  return `<p class="muted">${esc(t('myteam.help'))}</p>${team.length ? `<p class="small">${esc(t('myteam.people', { names: team.join(', ') }))}</p>` : ''}${letters.length ? letters.map((l) => `<section class="card"><h3 style="margin-top:0">${esc(l.person)}</h3>${when(l)}${doc(l.body)}</section>`).join('') : `<p>${esc(t('myteam.none'))}</p>`}`;
 }
 
 const SECTIONS = [

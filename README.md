@@ -38,11 +38,12 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - One sign in for directors who take part too: an admin whose email matches someone in People opens their own reviews from **My reviews** in admin, and gets back with **Admin** on the staff side.
 - **Early signals:** counts of answers that sound like burnout, unclear roles, safety concerns, or friction. No names, no quotes. Pattern spotting, not surveillance.
 - **Community voices:** a one question link for a partner, kupuna, or volunteer outside your organization. Single use, no account.
-- **Upward review:** a checkbox per cycle adds a review of the director and team leads.
+- **Upward review:** a checkbox per cycle adds a review of the director and of each person's supervisor.
 - After the cycle closes: read every answer about a person (each read is logged), play recordings, generate an AI draft, edit it, choose which parts to share, and share it. A quiet note says when some of a person's reviewers run notably generous or critical, without ever saying which answers are theirs.
 - **Talk story prep** for each meeting (openers, something to celebrate, a tension, a question, last year's goals), and a **scheduler** that lays every meeting into your free time and makes calendar files.
 - A **team report** for staff and a one page **board report** with no names and no quotes.
-- A **lead** role: someone marked lead reads the shared letters of their own team.
+- **Supervisors (alakaʻi):** each person can have a supervisor. The director chooses, letter by letter, whether to share a letter with that supervisor, who reads it on their page under My team. Supervisors never see raw answers.
+- **Your own name and logo** at the top of every page, like "huiMAU 360", set in Settings.
 - Email everyone their link, a nudge, or "your letter is ready" in one click, through Cloudflare Email Sending or a free Resend account. A Send email checkbox per person decides who gets email. The app never sends text messages: anyone without email gets a message the director copies and sends from their own phone. Plus an optional Monday and Friday email reminder for anyone behind.
 - A Hawaiian moon name for today and next to review dates. Turn it off in Settings.
 - **AI is optional.** One switch in Settings. With it on: voice answers, AI first drafts of letters and reports, talk story prep, and early signals. With it off: staff type, letters start from the answers word for word, reports start from an outline, and nothing is sent to any AI model. Everything else works the same.

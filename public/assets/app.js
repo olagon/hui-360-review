@@ -1,5 +1,9 @@
 // Shared by every staff page and the admin app.
-export const APP_NAME = 'Hui 360'; // The one place the app name lives.
+// The product's name. An organization can show its own (Settings, Organization), like "huiMAU 360".
+export const PRODUCT = 'Hui 360';
+export let APP_NAME = PRODUCT;
+// The build number, shown in every footer. Goes up by 0.1 with each release.
+export const VERSION = '0.1';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 
@@ -34,6 +38,7 @@ export async function initI18n() {
   config.email = !!c.email;
   config.ai = c.ai !== 'off';
   config.hawaiian = c.hawaiian === 'on';
+  APP_NAME = c.app_name?.trim() || PRODUCT;
   // Hawaiian: the starter file, then whatever admins translated in Settings, Translations.
   strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')), ...((await get('/api/i18n/haw')).strings || {}) };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
@@ -190,7 +195,9 @@ export function plainText(src = '') {
 export const orgLogo = () => (config.logo ? `<img class="org-logo" src="${config.logo}" alt="${esc(config.hui)}">` : '');
 
 // The niho ring: kapa's niho pattern turned into a circle that points in to one person.
-export const mark = (size = 22) => `<img class="mark" src="/favicon.svg" width="${size}" height="${size}" alt="">`;
+// Next to the name at the top of every page: the organization's own logo when it has one, otherwise the niho ring.
+export const mark = (size = 22) =>
+  config.logo ? `<img class="mark mark-org" src="${config.logo}" height="${size + 14}" alt="">` : `<img class="mark" src="/favicon.svg" width="${size}" height="${size}" alt="">`;
 
 // An admin who is also on the People list opens their own reviews with one click, no link needed.
 export async function openMyReviews() {
@@ -253,7 +260,8 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false, h
   const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${esc(text)}</a>`;
   footer.innerHTML = `<div>${ext(REPO_URL, t('footer.openSource'))} · ${ext(`${REPO_URL}/blob/main/LICENSE`, t('footer.license'))}</div>
     <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin Lagon'))}</div>
-    <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>`;
+    <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>
+    <div class="small muted">${esc(t('footer.version', { v: VERSION }))}${APP_NAME !== PRODUCT ? ` · ${esc(t('footer.poweredBy', { product: PRODUCT }))}` : ''}</div>`;
   document.body.append(footer);
   $('#signout', header)?.addEventListener('click', (e) => {
     e.preventDefault();

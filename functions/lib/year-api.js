@@ -144,19 +144,19 @@ export async function answerFeedback({ env, staff, request, params }) {
   return json({ ok: true });
 }
 
-// ---------- leads see their own team's shared letters ----------
+// ---------- supervisors (alakaʻi) read the letters the director shared with them ----------
 
 export async function teamLetters({ env, staff }) {
-  if (staff.role !== 'lead' || !staff.team) throw new HttpError(403, 'Only team leads see this');
   const rows = await all(
     env,
-    `SELECT s.name, s.preferred_name, c.name AS cycle, m.shared_body, m.shared_at FROM summaries m
+    `SELECT s.name, s.preferred_name, c.name AS cycle, m.supervisor_body, m.supervisor_shared_at FROM summaries m
      JOIN staff s ON s.id = m.reviewee_id JOIN cycles c ON c.id = m.cycle_id
-     WHERE m.status = 'shared' AND s.team = ? AND s.id != ? AND s.role = 'staff' AND s.active = 1 ORDER BY m.shared_at DESC`,
-    staff.team,
+     WHERE s.reports_to = ? AND m.supervisor_shared_at IS NOT NULL ORDER BY m.supervisor_shared_at DESC`,
     staff.id,
   );
-  return json({ team: staff.team, letters: rows.map((r) => ({ person: nameOf(r), cycle: r.cycle, body: r.shared_body, shared_at: r.shared_at })) });
+  const team = await all(env, 'SELECT name, preferred_name FROM staff WHERE reports_to = ? AND active = 1 ORDER BY name', staff.id);
+  if (!team.length && !rows.length) throw new HttpError(403, 'Only supervisors see this');
+  return json({ team: team.map(nameOf), letters: rows.map((r) => ({ person: nameOf(r), cycle: r.cycle, body: r.supervisor_body, shared_at: r.supervisor_shared_at })) });
 }
 
 // ---------- community voice: one question, one answer, no account ----------

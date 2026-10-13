@@ -217,3 +217,4 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; 
 .tr { padding: 0.75rem 0; border-top: 1px solid var(--line); }
 .tr textarea { min-height: 0; }
 .trtools { position: sticky; top: 0.5rem; z-index: 2; }
+.mark-org { width: auto; max-width: 7.5rem; object-fit: contain; }

@@ -177,7 +177,10 @@
     "landing.myReviews",
     "dash.alsoAdmin",
     "review.placeholderType",
-    "review.requiredType"
+    "review.requiredType",
+    "footer.version",
+    "footer.poweredBy",
+    "myteam.people"
   ],
   "lang.en": "ʻŌlelo Pelekānia",
   "lang.haw": "ʻŌlelo Hawaiʻi",

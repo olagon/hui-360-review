@@ -421,7 +421,7 @@ async function setup({ cycle: c }, pane) {
       </div>
       <label>Values set <select data-path="${path}" data-f="values_set_id" data-num>${sets.map((s) => opt(s.id, s.name, c.values_set_id)).join('')}</select></label>
       <label class="check"><input type="checkbox" data-path="${path}" data-f="upward" ${c.upward ? 'checked' : ''} ${['closed', 'published'].includes(c.status) ? 'disabled' : ''}>
-        <span>Include an upward review. Each person also reviews ${esc(config.director)}, and everyone in a team lead's group reviews that lead, with the Upward review questions.</span></label>
+        <span>Include an upward review. Each person also reviews ${esc(config.director)}, and anyone with a supervisor reviews that supervisor, with the Upward review questions.</span></label>
     </div>
     <div class="row">${actions.map(([s, label]) => `<button data-status="${s}">${esc(label)}</button>`).join('')}</div>
     <h2>Delete everything from this cycle</h2>
@@ -1074,6 +1074,14 @@ async function person(cycleId, staffId, tab = 'raw') {
            <p class="row">${canMail ? `<button id="emailtell">Email ${esc(first(p))}</button>` : ''}<button id="tell" class="${canMail ? 'secondary' : ''}">Copy message to ${esc(first(p))}</button></p></div>`
         : ''
     }
+    <div class="card no-print"><h2 style="margin-top:0">Their supervisor</h2>
+      ${p.supervisor
+        ? `<p>${esc(first(p))} reports to <strong>${esc(nameOf(p.supervisor))}</strong>. You can share this letter with ${esc(first(p.supervisor))} too, separately from sharing it with ${esc(first(p))}. The parts checked above are what ${esc(first(p.supervisor))} sees. Supervisors never see raw answers.</p>
+          ${summary.supervisor_shared_at ? `<p class="banner small">Shared with ${esc(first(p.supervisor))} ${esc(fmtDate(summary.supervisor_shared_at))}. They read it on their page, under My team. Sharing again replaces what they see.</p>` : ''}
+          <p class="row" style="margin-bottom:0"><button id="supshare" class="${summary.supervisor_shared_at ? 'secondary' : ''}">${summary.supervisor_shared_at ? 'Share again' : 'Share'} with ${esc(first(p.supervisor))}</button>
+            ${summary.supervisor_shared_at ? `<button class="secondary" id="suptell">${CH.email && emails(p.supervisor) ? 'Email' : 'Copy a message to'} ${esc(first(p.supervisor))}</button><button class="quiet" id="supstop">Stop sharing with ${esc(first(p.supervisor))}</button>` : ''}</p>`
+        : `<p class="muted" style="margin:0">${esc(first(p))} has no supervisor set. To share letters with a supervisor (alakaʻi), set one for ${esc(first(p))} in <a href="#/staff">People</a>.</p>`}
+    </div>
     ${summary.reflection ? `<div class="no-print"><h2>${esc(first(p))}'s reflection</h2><div class="card raw-body">${esc(summary.reflection)}</div></div>` : ''}`;
   const chosen = () => parts.filter((_, i) => $(`[data-part="${i}"]`).checked).map((x) => x.lines.join('\n')).join('\n').trim();
   const preview = () => ($('#preview').innerHTML = md(chosen()));
@@ -1083,6 +1091,24 @@ async function person(cycleId, staffId, tab = 'raw') {
   const fresh = async () => (await api(`/api/admin/cycles/${cycleId}/links/${staffId}`, { method: 'POST', json: {} })).link;
   $('#tell')?.addEventListener('click', () => copy(fresh().then((link) => letterMsg(p, cyc.name, link))));
   $('#emailtell')?.addEventListener('click', () => sendOrCopy(p, fresh().then((link) => letterMsg(p, cyc.name, link)), `Your letter from ${cyc.name}`));
+  $('#supshare')?.addEventListener('click', async () => {
+    if (!confirm(`Share these parts of ${first(p)}'s letter with ${nameOf(p.supervisor)}?`)) return;
+    await save(`/api/admin/summaries/${summary.id}/share-supervisor`, { body: chosen() }, 'POST');
+    route();
+  });
+  $('#supstop')?.addEventListener('click', async () => {
+    if (!confirm(`Stop sharing ${first(p)}'s letter with ${nameOf(p.supervisor)}?`)) return;
+    await save(`/api/admin/summaries/${summary.id}/share-supervisor`, { shared: false }, 'POST');
+    route();
+  });
+  // Their year round link opens their page, where My team has the letter.
+  $('#suptell')?.addEventListener('click', () =>
+    sendOrCopy(
+      p.supervisor,
+      api(`/api/admin/staff/${p.supervisor.id}/link`, { method: 'POST', json: {} }).then(({ link }) => `Aloha ${first(p.supervisor)}, ${config.director} shared ${first(p)}'s letter from ${cyc.name} with you. Read it on your page, under My team: ${link}\n\nPlease keep it between you, ${first(p)}, and ${config.director}. Mahalo!`),
+      `${first(p)}'s letter from ${cyc.name}`,
+    ),
+  );
   $('#share').onclick = async () => {
     if (!confirm(`Share this with ${nameOf(p)}? It also opens their reflection box.`)) return;
     await save(`/api/admin/summaries/${summary.id}/share`, { shared_body: chosen() }, 'POST');
@@ -1094,7 +1120,8 @@ async function person(cycleId, staffId, tab = 'raw') {
 
 async function staff() {
   const [{ staff: list }, ch] = await Promise.all([api('/api/admin/staff'), channels()]);
-  const ROLE = { staff: 'Staff', lead: 'Team lead', admin: 'Director' };
+  const ROLE = { staff: 'Staff', lead: 'Supervisor', admin: 'Director' };
+  const byId = new Map(list.map((x) => [x.id, x]));
   // One line to read at a glance. Built from the form, so it updates as you edit.
   const line = (s) => {
     const badges = [
@@ -1103,7 +1130,7 @@ async function staff() {
       !s.active && '<span class="badge muted">Not active</span>',
     ].filter(Boolean).join('');
     return `<span class="pmain"><strong>${esc(s.name || 'New person')}</strong>${s.preferred_name ? ` <span class="muted">(${esc(s.preferred_name)})</span>` : ''}
-        <span class="small muted">${esc(s.team || 'No group')}</span></span>
+        <span class="small muted">${esc(s.team || 'No group')}${s.reports_to && byId.get(Number(s.reports_to)) ? ` · reports to ${esc(nameOf(byId.get(Number(s.reports_to))))}` : ''}</span></span>
       <span class="pcontact small muted">${esc(s.email || s.phone || 'No email or phone yet')}</span>
       <span class="pbadges">${badges}</span>
       <span class="pedit small">Edit</span>`;
@@ -1117,6 +1144,7 @@ async function staff() {
         ${inp('name', 'Name')}${inp('preferred_name', 'Goes by')}${inp('email', 'Email', 'email')}${inp('phone', 'Phone', 'tel')}
         ${inp('team', 'Group', 'text', 'list="groups" placeholder="Staff"')}
         <label>Role <select data-path="${p}" data-f="role">${Object.entries(ROLE).map(([v, l]) => opt(v, l, s.role)).join('')}</select></label>
+        <label>Supervisor (alakaʻi) <select data-path="${p}" data-f="reports_to">${opt('', 'None')}${list.filter((o) => o.active && o.id !== s.id).map((o) => opt(o.id, nameOf(o), s.reports_to)).join('')}</select></label>
         ${config.hawaiian ? `<label>Language <select data-path="${p}" data-f="lang">${[['en', 'English'], ['haw', 'Hawaiian'], ['both', 'Both']].map(([v, l]) => opt(v, l, s.lang)).join('')}</select></label>` : ''}
         ${inp('start_date', 'Joined (optional)', 'date')}
         <label class="check"><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''}> Send email</label>
@@ -1160,8 +1188,9 @@ async function staff() {
     <details class="small" style="margin-top:1.5rem"><summary><strong>What each field means</strong></summary>
       <ul class="plain" style="margin-top:.5rem">
         <li><strong>Goes by.</strong> The name staff see and letters use.</li>
-        <li><strong>Group.</strong> Staff, Intern, Volunteer, Board, or a team name. A team lead reads the shared letters of everyone in their group.</li>
-        <li><strong>Role.</strong> Staff for most people. Team lead for someone who leads a group, who is reviewed by that group in an upward review. Director for you: staff review you in an upward review, and replies to the app's emails come to you.</li>
+        <li><strong>Group.</strong> Staff, Intern, Volunteer, Board, or a team name. It helps you sort and find people.</li>
+        <li><strong>Role.</strong> Staff for most people. Supervisor for an alakaʻi who manages a team. Director for you: staff review you in an upward review, and replies to the app's emails come to you.</li>
+        <li><strong>Supervisor.</strong> Who this person reports to. You choose, letter by letter, whether to share a letter with the supervisor (in the letter's Share tab). Supervisors read them on their page, under My team, and never see raw answers. In an upward review, people also review their supervisor.</li>
         ${config.hawaiian ? '<li><strong>Language.</strong> The language their screens start in. They can switch any time.</li>' : ''}
         <li><strong>Joined.</strong> Optional, the date they started with your organization. To see who has started or finished a review, open that review's Progress tab.</li>
         <li><strong>Send email.</strong> The app can email them their link, reminders, and when their letter is ready (once email is on in Settings). Uncheck it for anyone who would rather hear from you directly.</li>
@@ -1229,7 +1258,7 @@ async function translationProgress() {
 const AREA = {
   app: 'Everywhere', nav: 'Menus', footer: 'Footer', lang: 'Language picker', signout: 'Signing out', error: 'Error messages', sync: 'Saving offline',
   landing: 'Home page', dash: 'Home page, signed in', card: 'Review cards', review: 'Answering questions', me: 'My page', goals: 'My page, goals',
-  mahalo: 'Mahalo', feedback: 'Asking for feedback', timeline: 'My page, timeline', myteam: 'My page, team leads', voice: 'Community voice page',
+  mahalo: 'Mahalo', feedback: 'Asking for feedback', timeline: 'My page, timeline', myteam: 'My page, supervisors', voice: 'Community voice page',
   moon: 'Moon calendar', open: 'How reviews are run',
 };
 const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(' ');
@@ -1327,7 +1356,7 @@ async function values() {
       .map(
         (s) => `<h2><input data-path="/api/admin/value-sets/${s.id}" data-f="name" value="${esc(s.name)}" style="font-weight:600"></h2>
         ${s.values.map(val).join('')}
-        <div class="row"><button class="secondary small" data-add="${s.id}">Add a value</button><button class="quiet small" data-copy="${s.id}">Copy this set</button></div>`,
+        <div class="row"><button class="secondary small" data-add="${s.id}">Add a value</button><button class="quiet small" data-copy="${s.id}">Copy this set</button>${s.used ? `<span class="small muted">Used by ${s.used} ${s.used === 1 ? 'review' : 'reviews'}</span>` : `<button class="quiet small" data-delset="${s.id}">Remove this set</button>`}</div>`,
       )
       .join('')}
     <p style="margin-top:2rem"><button class="secondary" id="newset">New empty values set</button></p>`;
@@ -1335,6 +1364,7 @@ async function values() {
   for (const b of $$('[data-add]')) b.onclick = async () => (await save('/api/admin/values', { values_set_id: Number(b.dataset.add) }, 'POST'), route());
   for (const b of $$('[data-del]')) b.onclick = async () => confirm('Remove this value?') && (await save(`/api/admin/values/${b.dataset.del}`, {}, 'DELETE'), route());
   for (const b of $$('[data-copy]')) b.onclick = async () => (await save('/api/admin/value-sets', { name: 'Copy of values', copy_from: Number(b.dataset.copy) }, 'POST'), route());
+  for (const b of $$('[data-delset]')) b.onclick = async () => confirm('Remove this whole values set? No review uses it.') && (await save(`/api/admin/value-sets/${b.dataset.delset}`, {}, 'DELETE'), route());
   $('#newset').onclick = async () => (await save('/api/admin/value-sets', { name: 'New values' }, 'POST'), route());
 }
 
@@ -1418,6 +1448,8 @@ async function settingsPage() {
 
     <section id="org"><h2>Organization</h2>
     <div class="card">
+      <label>App name, at the top of every page <input data-path="/api/admin/settings" data-f="app_name" value="${esc(settings.app_name || '')}" placeholder="Hui 360"></label>
+      <p class="small muted">Like ${esc(config.hui)} 360. Leave it empty for Hui 360. When you upload a logo below, it shows next to this name.</p>
       <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
       <label>Director's name, as staff call them <input data-path="/api/admin/settings" data-f="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
       <p class="small muted">Staff see these names on their screens, and letter drafts are written in the director's voice.</p>

@@ -30,7 +30,7 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian', 'app_name')").all();
   return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: (await channels(env)).email });
 }
 
@@ -107,7 +107,7 @@ export async function me({ env, staff }) {
     summaries: shared.n,
     team: team.n,
     asks: (await env.DB.prepare('SELECT COUNT(*) AS n FROM feedback_requests WHERE to_id = ? AND response IS NULL').bind(staff.id).first()).n,
-    lead: staff.role === 'lead',
+    lead: !!(await env.DB.prepare('SELECT 1 FROM staff WHERE reports_to = ? AND active = 1 LIMIT 1').bind(staff.id).first()), // supervises someone
   });
 }
 

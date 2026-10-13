@@ -38,7 +38,7 @@ const DEFAULT_QUESTIONS = [
   ['upward', 'short', 0, 0, 'Is there something you need from leadership that you are not getting?'],
 ];
 
-const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang', 'send_email'];
+const STAFF_FIELDS = ['name', 'preferred_name', 'email', 'phone', 'role', 'team', 'start_date', 'active', 'lang', 'send_email', 'reports_to'];
 const VALUE_FIELDS = ['name_haw', 'name_en', 'olelo_noeau', 'olelo_noeau_meaning', 'description', 'ord'];
 const QUESTION_FIELDS = ['prompt_en', 'prompt_haw', 'kind', 'required', 'five_min', 'value_id', 'audience'];
 const CYCLE_FIELDS = ['name', 'opens_at', 'closes_at', 'values_set_id', 'upward'];
@@ -109,7 +109,12 @@ export async function createStaff({ env, request }) {
 }
 
 export async function updateStaff({ env, request, params }) {
-  await update(env, 'staff', params.id, pick(await body(request), STAFF_FIELDS));
+  const data = pick(await body(request), STAFF_FIELDS);
+  if ('reports_to' in data) {
+    data.reports_to = data.reports_to ? Number(data.reports_to) : null;
+    if (data.reports_to === Number(params.id)) throw new HttpError(400, 'Someone cannot be their own supervisor');
+  }
+  await update(env, 'staff', params.id, data);
   return json({ ok: true });
 }
 
@@ -166,9 +171,19 @@ export async function putSettings({ env, request, admin }) {
 // ---------- values ----------
 
 export async function listValues({ env }) {
-  const sets = await all(env, 'SELECT * FROM value_sets ORDER BY id');
+  const sets = await all(env, 'SELECT s.*, (SELECT COUNT(*) FROM cycles c WHERE c.values_set_id = s.id) AS used FROM value_sets s ORDER BY s.id');
   const values = await all(env, 'SELECT * FROM "values" ORDER BY ord, id');
   return json({ sets: sets.map((s) => ({ ...s, values: values.filter((v) => v.values_set_id === s.id) })) });
+}
+
+// A values set no review uses can be removed. One a review used stays, so that review's letters still make sense.
+export async function deleteValueSet({ env, params, admin }) {
+  const id = Number(params.id);
+  const used = await all(env, 'SELECT name FROM cycles WHERE values_set_id = ?', id);
+  if (used.length) throw new HttpError(409, `This set is used by ${used.map((c) => c.name).join(', ')}, so it stays.`);
+  await env.DB.batch([env.DB.prepare('DELETE FROM "values" WHERE values_set_id = ?').bind(id), env.DB.prepare('DELETE FROM value_sets WHERE id = ?').bind(id)]);
+  await audit(env, admin, 'delete_value_set', `set:${id}`);
+  return json({ ok: true });
 }
 
 export async function createValueSet({ env, request }) {
@@ -428,7 +443,7 @@ async function syncUpward(env, cycleId) {
       `INSERT OR IGNORE INTO assignments (cycle_id, reviewer_id, reviewee_id, kind)
        SELECT ?, r.id, l.id, 'upward' FROM cycle_people pr JOIN staff r ON r.id = pr.staff_id
        JOIN cycle_people pl ON pl.cycle_id = pr.cycle_id JOIN staff l ON l.id = pl.staff_id
-       WHERE pr.cycle_id = ? AND r.id != l.id AND (l.role = 'admin' OR (l.role = 'lead' AND l.team IS NOT NULL AND l.team = r.team))`,
+       WHERE pr.cycle_id = ? AND r.id != l.id AND (l.role = 'admin' OR r.reports_to = l.id)`,
     ).bind(c.id, c.id).run();
   }
 }
@@ -598,7 +613,8 @@ export async function getSummary({ env, params }) {
     Number(params.id),
     Number(params.staff),
   );
-  const person = await one(env, 'SELECT id, name, preferred_name, lang, email, send_email FROM staff WHERE id = ?', Number(params.staff));
+  const person = await one(env, 'SELECT id, name, preferred_name, lang, email, send_email, reports_to FROM staff WHERE id = ?', Number(params.staff));
+  if (person?.reports_to) person.supervisor = await one(env, 'SELECT id, name, preferred_name, email, send_email, active FROM staff WHERE id = ?', person.reports_to);
   const cycle = await one(env, 'SELECT id, name, status FROM cycles WHERE id = ?', Number(params.id));
   return json({ summary: s, person, cycle, made: await madeBy(env, Number(params.id), Number(params.staff), ['letter', 'answers', 'prep']) });
 }
@@ -733,6 +749,24 @@ export async function share({ env, request, params, admin }) {
   if (!shared_body?.trim()) throw new HttpError(400, 'Nothing to share');
   await env.DB.prepare("UPDATE summaries SET shared_body = ?, status = 'shared', shared_at = datetime('now') WHERE id = ?").bind(shared_body, Number(params.id)).run();
   await audit(env, admin, 'share_summary', `summary:${params.id}`);
+  return json({ ok: true });
+}
+
+// Share a letter with the person's supervisor (alakaʻi), separately from sharing it with the person.
+// The director chooses which parts. The supervisor never sees raw answers, only this letter.
+export async function shareSupervisor({ env, request, params, admin }) {
+  const b = await body(request);
+  const s = await one(env, 'SELECT m.id, st.reports_to FROM summaries m JOIN staff st ON st.id = m.reviewee_id WHERE m.id = ?', Number(params.id));
+  if (!s) throw new HttpError(404, 'Not found');
+  if (b.shared === false) {
+    await env.DB.prepare('UPDATE summaries SET supervisor_body = NULL, supervisor_shared_at = NULL WHERE id = ?').bind(s.id).run();
+    await audit(env, admin, 'unshare_supervisor', `summary:${s.id}`);
+    return json({ ok: true });
+  }
+  if (!s.reports_to) throw new HttpError(400, 'This person has no supervisor yet. Set one in People.');
+  if (!String(b.body || '').trim()) throw new HttpError(400, 'Nothing to share');
+  await env.DB.prepare("UPDATE summaries SET supervisor_body = ?, supervisor_shared_at = datetime('now') WHERE id = ?").bind(String(b.body), s.id).run();
+  await audit(env, admin, 'share_supervisor', `summary:${s.id} staff:${s.reports_to}`);
   return json({ ok: true });
 }
 

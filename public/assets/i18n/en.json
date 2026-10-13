@@ -155,8 +155,8 @@
   "feedback.from": "{name} answered",
   "timeline.help": "One line per review, from the themes in your letters.",
   "timeline.none": "Your timeline starts with your first shared letter.",
-  "myteam.help": "As a team lead, you can read the letters shared with your team.",
-  "myteam.none": "No letters shared with your team yet.",
+  "myteam.help": "Letters {director} chose to share with you about the people you supervise. Please keep them between you, the person, and {director}.",
+  "myteam.none": "Nothing has been shared with you yet.",
   "voice.title": "A question from {hui}",
   "voice.who": "Your name, or how you know {name} (optional)",
   "voice.send": "Send",
@@ -181,5 +181,8 @@
   "landing.myReviews": "Open my reviews",
   "dash.alsoAdmin": "You are also an admin.",
   "review.placeholderType": "Type here",
-  "review.requiredType": "This one needs an answer."
+  "review.requiredType": "This one needs an answer.",
+  "footer.version": "Version {v}",
+  "footer.poweredBy": "made with {product}",
+  "myteam.people": "You supervise: {names}."
 }
