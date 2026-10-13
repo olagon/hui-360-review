@@ -3,7 +3,7 @@
 export const PRODUCT = 'Hui 360';
 export let APP_NAME = PRODUCT;
 // The build number, shown in every footer. Goes up by 0.1 with each release.
-export const VERSION = '0.4';
+export const VERSION = '0.5';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 
@@ -41,6 +41,8 @@ export async function initI18n() {
   APP_NAME = c.app_name?.trim() || PRODUCT;
   // Hawaiian: the starter file, then whatever admins translated in Settings, Translations.
   strings = getLang() === 'en' ? en : { ...en, ...(await get('/assets/i18n/haw.json')), ...((await get('/api/i18n/haw')).strings || {}) };
+  // An organization's own word for goals (Settings, Organization) wins in every language.
+  if (c.goals_name?.trim()) strings = { ...strings, 'me.huli': c.goals_name.trim() };
   document.documentElement.lang = getLang() === 'en' ? 'en' : 'haw';
 }
 export function t(key, vars = {}) {

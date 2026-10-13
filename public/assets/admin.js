@@ -1499,6 +1499,8 @@ async function settingsPage() {
       <label>App name, at the top of every page <input data-path="/api/admin/settings" data-f="app_name" value="${esc(settings.app_name || '')}" placeholder="Hui 360"></label>
       <p class="small muted">Like ${esc(config.hui)} 360. Leave it empty for Hui 360. When you upload a logo below, it shows next to this name.</p>
       <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
+      <label>What staff call their goals <input data-path="/api/admin/settings" data-f="goals_name" value="${esc(settings.goals_name || '')}" placeholder="Goals"></label>
+      <p class="small muted">Shown on My page and as a heading in each letter. Use your own word if you have one.</p>
       <label>Director's name, as staff call them <input data-path="/api/admin/settings" data-f="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
       <p class="small muted">Staff see these names on their screens, and letter drafts are written in the director's voice.</p>
       <label>Logo, shown on the staff and admin home pages</label>
@@ -1641,7 +1643,7 @@ async function settingsPage() {
     ${changes.on ? `<div class="card">
       <p style="margin-top:0">Describe a change to this app in plain words. Claude makes it on a separate copy, tests it, and writes you a short summary, usually within 15 minutes. Nothing changes for staff until you press Approve. It goes live a few minutes after that.</p>
       <p class="small muted">Requests are posted on the app's public code page on GitHub, so leave out staff names and anything private. One at a time: approve or decline each change before asking for the next.</p>
-      <label>What should change? <textarea id="chreq" class="short" placeholder="Like: On My page, show Pahuhopu above Letters." ${changeOpen ? 'disabled' : ''}></textarea></label>
+      <label>What should change? <textarea id="chreq" class="short" placeholder="Like: On My page, show goals above Letters." ${changeOpen ? 'disabled' : ''}></textarea></label>
       <p style="margin-bottom:0"><button id="chask" ${changeOpen ? 'disabled' : ''}>Ask Claude</button>${changeOpen ? ' <span class="small muted">Waiting on the change below.</span>' : ''}</p>
     </div>` : '<p class="muted">Not set up on this app.</p>'}
     <div id="changelog">${changeCards(changes.changes, changes.repo, changes.on)}</div>

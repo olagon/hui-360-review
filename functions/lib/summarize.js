@@ -88,6 +88,7 @@ export function summaryPrompt(input, templates) {
     values: formatValues(input.values || []),
     org: formatOrg(input.org),
     position: formatPosition(input.position),
+    goals_word: input.goalsWord || 'goals',
     responses: formatResponses(input.responses),
     last_year: input.lastYear || 'None.',
     facts: input.facts || '',

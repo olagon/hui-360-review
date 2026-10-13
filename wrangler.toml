@@ -12,6 +12,9 @@ CF_ACCOUNT_ID = "9d4206418d10ed67812b7e4ff70d098b"
 AI_GATEWAY_ID = "hui360"
 # Email: the from address on a domain onboarded in Email Sending (or verified in Resend). Leave it out to turn email off.
 EMAIL_FROM = "huiMAU <review@actionsmatter.com>"
+# Settings, Ask for a change (temporary): the GitHub repo that holds this copy of the app.
+# Also needs the CHANGES_GITHUB_TOKEN secret. Leave it out to keep the feature off.
+CHANGES_REPO = "olagon/hui-360-review"
 
 # Cloudflare Email Sending lives in a small Worker (workers/mailer), because Pages Functions
 # cannot hold a send_email binding. Remove this block if you use Resend instead.

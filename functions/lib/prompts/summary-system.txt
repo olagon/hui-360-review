@@ -43,7 +43,7 @@ Where the responses point to something to work on. Be honest and specific, never
 ## Since your last review
 Only if themes or goals from the last review are given: two or three sentences on movement since then. If none are given, leave this whole section out, heading included.
 
-## Questions for your pahuhopu
+## Questions for your {{goals_word}}
 Two or three open questions to help the person write next year's goals.
 
 Output only the letter in Markdown, with no preamble.

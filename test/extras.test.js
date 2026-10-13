@@ -120,7 +120,7 @@ test('reading Claude\'s progress comment on an app request', async () => {
 ---
 Moved Pahuhopu above Letters on My page.
 
-For Noʻeau: On everyone's page, Pahuhopu now comes before Letters, so goals are the first thing people see.
+For the director: On everyone's page, Pahuhopu now comes before Letters, so goals are the first thing people see.
 
 [Create PR ➔](https://github.com/o/r/compare/main...claude/issue-12-20261013-1830)`);
   assert.equal(done.done, true);

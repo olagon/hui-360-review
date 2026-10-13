@@ -30,7 +30,7 @@ const answersFor = (env, hash) =>
 
 // Public: names the UI shows before anyone signs in.
 export async function config({ env }) {
-  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian', 'app_name')").all();
+  const rows = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('hui_name', 'director_name', 'logo_v', 'moon_calendar', 'ai', 'hawaiian', 'app_name', 'goals_name')").all();
   return json({ ...Object.fromEntries(rows.results.map((r) => [r.key, r.value])), email: (await channels(env)).email });
 }
 

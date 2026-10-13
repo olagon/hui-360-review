@@ -27,7 +27,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **I only have 5 minutes** opens just the quick questions.
 - Every peer review starts with **mahalo**. Only the mahalo can be signed, and only if the writer chooses to. Everything else is anonymous, and the screen says so.
 - After the review, they read the summary written for them and can write a reflection back.
-- All year, on **My page**: their two or three goals (pahuhopu), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed the next letter.
+- All year, on **My page**: their two or three goals (called whatever your organization calls them, set in Settings), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed the next letter.
 - A **mahalo board** of public thanks. No likes and no comments.
 
 **For the director (admin)**

@@ -713,7 +713,7 @@ export async function draft({ env, params, admin }) {
   const names = await settings(env);
 
   const { markdown, notes } = await draftSummary({
-    input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear, org: orgOf(names), position: await positionOf(env, person.id) },
+    input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear, org: orgOf(names), position: await positionOf(env, person.id), goalsWord: names.goals_name?.trim() },
     templates: { system: systemPrompt, user: userPrompt, fix: fixPrompt },
     complete: completer(env, { kind: 'letter', cycle: cycle.id, staff: person.id, actor: admin }),
   });
@@ -1364,7 +1364,7 @@ You listen before you plan. Two coworkers named it in their own words, including
 
 Two coworkers said the same thing in different words: you carry too much by yourself. You named it too: "Saying yes to everything. I was tired by October." The patience you give the keiki is the same patience you can give yourself. Let us plan the season together so you are not always catching up.
 
-## Questions for your pahuhopu
+## Questions for your ${names.goals_name?.trim() || 'goals'}
 
 - What would you hand off first if you had help?
 - What would your first 90 days leading the education program look like?

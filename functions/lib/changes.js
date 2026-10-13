@@ -9,7 +9,7 @@ import { HttpError, json, body, audit } from './http.js';
 const OPEN = ['asked', 'working', 'testing', 'ready', 'failed', 'no_change'];
 
 async function gh(env, path, { method = 'GET', data, allow = [] } = {}) {
-  const r = await fetch(`https://api.github.com/repos/${env.CHANGES_REPO || 'olagon/hui-360-review'}${path}`, {
+  const r = await fetch(`https://api.github.com/repos/${env.CHANGES_REPO}${path}`, {
     method,
     headers: {
       authorization: `Bearer ${env.CHANGES_GITHUB_TOKEN}`,
@@ -25,11 +25,12 @@ async function gh(env, path, { method = 'GET', data, allow = [] } = {}) {
 }
 
 // Claude keeps one progress comment on the issue. Read where it stands from that comment.
+// Its summary starts "For the director:" (see App requests in CLAUDE.md).
 export function readTracking(text = '') {
   return {
     error: /encountered an error/i.test(text),
     done: /Claude finished/i.test(text),
-    summary: text.match(/For No.?eau:\s*([\s\S]*?)(?:\n\s*\n|\n---|$)/)?.[1]?.trim() || null,
+    summary: text.match(/For the director:\s*([\s\S]*?)(?:\n\s*\n|\n---|$)/)?.[1]?.trim() || null,
     branch: text.match(/\/tree\/(claude\/[^\s)"'`\]]+)/)?.[1] || null,
   };
 }
@@ -56,14 +57,14 @@ async function refresh(env, row) {
 }
 
 export async function listChanges({ env }) {
-  const on = !!env.CHANGES_GITHUB_TOKEN;
+  const on = !!(env.CHANGES_GITHUB_TOKEN && env.CHANGES_REPO);
   const rows = (await env.DB.prepare('SELECT * FROM change_requests ORDER BY id DESC LIMIT 50').all()).results;
   const changes = await Promise.all(rows.map((r) => (on && r.issue && OPEN.includes(r.status) ? refresh(env, r) : r)));
-  return json({ on, repo: env.CHANGES_REPO || 'olagon/hui-360-review', changes });
+  return json({ on, repo: env.CHANGES_REPO, changes });
 }
 
 export async function askChange({ env, request, admin }) {
-  if (!env.CHANGES_GITHUB_TOKEN) throw new HttpError(409, 'Asking for changes is not set up on this app.');
+  if (!env.CHANGES_GITHUB_TOKEN || !env.CHANGES_REPO) throw new HttpError(409, 'Asking for changes is not set up on this app.');
   const text = String((await body(request)).request || '').trim();
   if (text.length < 10) throw new HttpError(400, 'Say a little more about the change you want.');
   if (text.length > 4000) throw new HttpError(400, 'Keep it under about a page. Ask for one change at a time.');
