@@ -1438,9 +1438,10 @@ async function settingsPage() {
   const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
   const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
-  const SECTIONS = [['org', 'Organization'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const SECTIONS = [['org', 'Organization'], ['admins', 'Admins'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
   const lang = await translationProgress();
   const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
+  const admins = await api('/api/admin/admins');
   const fromDomain = (ch.from || '').match(/@([^>\s]+)/)?.[1] || '';
   app.innerHTML = `
     <h1>Settings</h1>
@@ -1459,6 +1460,15 @@ async function settingsPage() {
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+    </div></section>
+
+    <section id="admins"><h2>Admins</h2>
+    <div class="card">
+      <p style="margin-top:0">Only these people can open the admin side. Anyone else who signs in is turned away.</p>
+      ${admins.admins.map((e) => `<div class="row spread list-item"><span>${esc(e)}${e === admins.you ? ' <span class="small muted">(you)</span>' : ''}</span>${e === admins.you ? '' : `<button class="quiet small" data-unadmin="${esc(e)}">Remove</button>`}</div>`).join('')}
+      <form id="addadmin" class="row" style="margin-top:.75rem"><input type="email" name="email" required placeholder="name@your-org.org" style="flex:1;min-width:12rem"><button>Add admin</button></form>
+      <p class="small muted">A new admin opens <strong>${esc(location.host)}/admin/</strong>, types their email, and signs in with the code that arrives. If they also write reviews, add them in <a href="#/staff">People</a> with the same email so My reviews works for them. You cannot remove yourself, so there is always at least one admin.</p>
+      ${admins.saved ? '' : '<p class="banner info small" style="margin-bottom:0">Until you add someone here, the Cloudflare Access rule alone decides who is an admin.</p>'}
     </div></section>
 
     <section id="lang"><h2>Language</h2>
@@ -1659,6 +1669,15 @@ async function settingsPage() {
     config.ai = on;
     route();
   };
+  const putAdmins = async (list) => {
+    await save('/api/admin/admins', { admins: list });
+    route();
+  };
+  $('#addadmin').onsubmit = (e) => {
+    e.preventDefault();
+    putAdmins([...admins.admins, e.target.email.value]);
+  };
+  for (const b of $$('[data-unadmin]')) b.onclick = () => confirm(`Remove ${b.dataset.unadmin} as an admin?`) && putAdmins(admins.admins.filter((e) => e !== b.dataset.unadmin));
   bindFields();
   $('#moon').onchange = (e) => save('/api/admin/settings', { moon_calendar: e.target.checked ? 'on' : 'off' });
   for (const b of $$('[data-unmahalo]')) b.onclick = async () => confirm('Remove this mahalo from the board?') && (await save(`/api/admin/mahalo/${b.dataset.unmahalo}`, {}, 'DELETE'), route());

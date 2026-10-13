@@ -1,6 +1,6 @@
 import { HttpError, json, body, audit } from './http.js';
 import { autoFill, assignmentHash } from './assign.js';
-import { linkFor, createLink, sessionCookie } from './auth.js';
+import { linkFor, createLink, sessionCookie, adminList } from './auth.js';
 import { completer, aiOn, anthropicKey, sealKey, checkKey, logRun } from './ai.js';
 import { CLAUDE_MODEL, PRICES } from './config.js';
 import { draftSummary, stripIdentity, section, answersDraft } from './summarize.js';
@@ -92,6 +92,27 @@ export async function whoami({ env, admin }) {
   return json({ email: admin, staff: me ? { id: me.id, name: me.preferred_name || me.name } : null, pending });
 }
 
+// Settings, Admins. You cannot remove yourself, so nobody locks the last admin out.
+export async function getAdmins({ env, admin }) {
+  const list = await adminList(env);
+  return json({ admins: list.length ? list : [admin.toLowerCase()], you: admin.toLowerCase(), saved: list.length > 0 });
+}
+
+export async function putAdmins({ env, request, admin }) {
+  const you = admin.toLowerCase();
+  const raw = (await body(request)).admins;
+  const admins = [...new Set((Array.isArray(raw) ? raw : []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+  const bad = admins.find((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  if (bad) throw new HttpError(400, `${bad} does not look like an email address.`);
+  if (!admins.includes(you)) throw new HttpError(400, 'You cannot remove yourself. Ask another admin to do it.');
+  const before = await adminList(env);
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('admins', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(admins)).run();
+  const added = admins.filter((e) => !before.includes(e));
+  const removed = before.filter((e) => !admins.includes(e));
+  await audit(env, admin, 'admins_changed', [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean).join('; ') || 'saved');
+  return json({ ok: true, admins });
+}
+
 export async function asStaff({ env, admin }) {
   const me = await staffForAdmin(env, admin);
   if (!me) throw new HttpError(404, `${admin} is not on the People list as an active person, so there is nothing to fill out.`);
@@ -158,6 +179,7 @@ export async function putSettings({ env, request, admin }) {
   delete data.anthropic_key; // only through putAnthropicKey, which checks and seals it
   delete data.anthropic_last4;
   delete data.resend_key; // only through putEmailSetup, which seals it
+  delete data.admins; // only through putAdmins, which keeps you on the list
   delete data.resend_last4;
   if ('ai' in data) await audit(env, admin, data.ai === 'off' ? 'ai_off' : 'ai_on', 'settings');
   await env.DB.batch(

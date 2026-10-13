@@ -48,6 +48,29 @@ export async function verifyAccess(request, env, { cookie = false } = {}) {
   }
 }
 
+// ---- Admin list (Settings, Admins) ----
+// Cloudflare Access proves who someone is (by a code sent to their email). This list decides who is an admin.
+// While the list is empty, Access alone decides, which suits a new install whose Access rule names its admins.
+// Once it has names, Access can let anyone with an email code through, and this list is the gate.
+
+export async function adminList(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'admins'").first();
+  try {
+    return (JSON.parse(row?.value || '[]') || []).map((e) => String(e).toLowerCase()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function requireAdmin(request, env, opts) {
+  const email = await verifyAccess(request, env, opts);
+  const list = await adminList(env);
+  if (list.length && !list.includes(email.toLowerCase())) {
+    throw new HttpError(403, `You are signed in as ${email}, which is not on the admin list. An admin can add you in Settings, Admins.`);
+  }
+  return email;
+}
+
 // ---- Staff: HMAC signed session cookie ----
 
 const hmacKey = (env) =>

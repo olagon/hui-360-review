@@ -125,8 +125,11 @@ npx wrangler pages secret put HASH_PEPPER --project-name hui-360
 In the Cloudflare dashboard, open **Zero Trust**:
 1. **Settings, Authentication:** add a login method, either Google or One time PIN.
 2. **Access, Applications, Add an application, Self hosted.** Add two public hostnames: your domain with path `admin` and your domain with path `api/admin`.
-3. Add a policy that allows only your admins' email addresses.
+3. Add a policy that allows only your own email address, for now.
 4. Copy the **Application Audience (AUD) tag** into `ACCESS_AUD` in `wrangler.toml`, and your team domain (`https://<team>.cloudflareaccess.com`) into `ACCESS_TEAM_DOMAIN`.
+5. After you deploy, sign in at `/admin/`, open **Settings, Admins**, and add everyone who should run reviews. Then come back to the policy and change its Include rule to **Everyone**, with One time PIN as the login method.
+
+From then on, Access proves who someone is with a code sent to their email, and the app's Admins list decides who is an admin. Your director adds and removes admins in Settings, with no trip to Cloudflare. While the list is empty, Access alone decides, which is why step 3 starts with only your email.
 
 The app checks the Access token's signature on every admin request. It never trusts the header alone.
 

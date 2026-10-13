@@ -1,5 +1,5 @@
 import { HttpError, json } from '../lib/http.js';
-import { requireStaff, verifyAccess } from '../lib/auth.js';
+import { requireStaff, requireAdmin } from '../lib/auth.js';
 import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 import * as y from '../lib/year-api.js';
@@ -39,6 +39,8 @@ const routes = [
   ['POST', '/api/cron/reminders', y.reminders],
 
   ['GET', '/api/admin/me', a.whoami],
+  ['GET', '/api/admin/admins', a.getAdmins],
+  ['PUT', '/api/admin/admins', a.putAdmins],
   ['POST', '/api/admin/as-staff', a.asStaff],
   ['GET', '/api/admin/staff', a.listStaff],
   ['POST', '/api/admin/staff', a.createStaff],
@@ -133,7 +135,7 @@ export async function onRequest(ctx) {
       const params = match(pattern, url.pathname);
       if (!params) continue;
       const extra = pattern.startsWith('/api/admin/')
-        ? { admin: await verifyAccess(request, env) }
+        ? { admin: await requireAdmin(request, env) }
         : PUBLIC.has(pattern)
           ? {}
           : { staff: await requireStaff(request, env) };

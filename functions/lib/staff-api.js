@@ -4,7 +4,7 @@ import { detectLanguage } from './summarize.js';
 import { transcribe, aiOn } from './ai.js';
 import { MAX_AUDIO_BYTES } from './config.js';
 import { channels } from './notify.js';
-import { verifyAccess } from './auth.js';
+import { requireAdmin } from './auth.js';
 
 const MINUTES = { story: 3, mahalo: 2, short: 1, scale: 0.5 };
 
@@ -37,7 +37,7 @@ export async function config({ env }) {
 // Public: is the person looking at this page signed in as an admin? Only ever answers about themselves.
 export async function adminStatus({ env, request }) {
   try {
-    const email = await verifyAccess(request, env, { cookie: true });
+    const email = await requireAdmin(request, env, { cookie: true });
     const me = await env.DB.prepare('SELECT id FROM staff WHERE active = 1 AND LOWER(email) = LOWER(?) LIMIT 1').bind(email).first();
     return json({ admin: true, email, staff: !!me });
   } catch {

@@ -70,3 +70,17 @@ test('a public page can recognize an admin from the Access cookie, and only when
   await assert.rejects(() => verifyAccess(cookieReq(`CF_Authorization=${otherApp}`), env, { cookie: true }), (e) => e.status === 401);
   await assert.rejects(() => verifyAccess(cookieReq('CF_Authorization=a.b.c'), env, { cookie: true }), (e) => e.status === 401);
 });
+
+test('the admin list decides who is an admin once it has names', async () => {
+  const { requireAdmin } = await import('../functions/lib/auth.js');
+  let list = null;
+  const DB = { prepare: () => ({ first: async () => (list ? { value: JSON.stringify(list) } : null) }) };
+  const e = { ...env, DB };
+  const token = await jwt({}); // noeau@example.org
+  assert.equal(await requireAdmin(req(token), e), 'noeau@example.org', 'empty list: Cloudflare Access alone decides');
+  list = ['Noeau@Example.org', 'olin@example.org'];
+  assert.equal(await requireAdmin(req(token), e), 'noeau@example.org', 'on the list, any capitalization');
+  list = ['olin@example.org'];
+  await assert.rejects(() => requireAdmin(req(token), e), (err) => err.status === 403 && /not on the admin list/.test(err.message));
+  await assert.rejects(() => requireAdmin(req(null), e), (err) => err.status === 401, 'no sign in is still refused first');
+});
