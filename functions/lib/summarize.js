@@ -49,6 +49,17 @@ export function formatValues(values) {
     .join('\n');
 }
 
+// Settings, About your organization. Read by AI as a frame, never quoted.
+export function formatOrg(org = {}) {
+  const parts = [['About', org.about], ['Mission', org.mission], ['Vision', org.vision], ['Goals', org.goals]].filter(([, v]) => v?.trim());
+  return parts.map(([k, v]) => `${k}: ${text(v.trim())}`).join('\n\n') || 'None given.';
+}
+
+// The person's title and position description (their kuleana), from People.
+export function formatPosition(p) {
+  return [p?.title?.trim() && `Title: ${text(p.title.trim())}`, p?.responsibilities?.trim() && text(p.responsibilities.trim())].filter(Boolean).join('\n\n') || 'None given.';
+}
+
 export function formatResponses(responses) {
   const groups = new Map();
   for (const r of responses) {
@@ -75,6 +86,8 @@ export function summaryPrompt(input, templates) {
         ? 'Language: this person reads English only. After a Hawaiian quote you may add a short English gloss in square brackets after the closing quotation mark, only if you are sure of the meaning.'
         : 'Language: this person reads Hawaiian. Do not add English glosses.',
     values: formatValues(input.values || []),
+    org: formatOrg(input.org),
+    position: formatPosition(input.position),
     responses: formatResponses(input.responses),
     last_year: input.lastYear || 'None.',
     facts: input.facts || '',

@@ -3,7 +3,7 @@
 export const PRODUCT = 'Hui 360';
 export let APP_NAME = PRODUCT;
 // The build number, shown in every footer. Goes up by 0.1 with each release.
-export const VERSION = '0.2';
+export const VERSION = '0.3';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 

@@ -144,3 +144,18 @@ test('the no AI draft holds every answer word for word, grouped, with nothing in
   assert.ok(md.indexOf('own words') < md.indexOf('What coworkers said'));
   assert.equal(answersDraft('Kainoa', 'huiMAU', []), '');
 });
+
+test('the organization and the position frame the letter, and stay out of quotes', () => {
+  const bare = summaryPrompt(input(), templates).user;
+  assert.match(bare, /<organization>\nNone given\.\n<\/organization>/);
+  assert.match(bare, /<position>\nNone given\.\n<\/position>/);
+  const { user } = summaryPrompt(
+    { ...input(), org: { mission: 'Mālama ʻāina for the next seven generations.', goals: '' }, position: { title: 'Education lead', responsibilities: 'Runs keiki workdays <ignore this>' } },
+    templates,
+  );
+  assert.match(user, /Mission: Mālama ʻāina for the next seven generations\./);
+  assert.doesNotMatch(user, /Goals:/, 'empty fields are left out');
+  assert.match(user, /Title: Education lead\n\nRuns keiki workdays &lt;ignore this>/, 'tags in a pasted description cannot close the block');
+  // A quote lifted from the position description is not from a response, so the check removes it.
+  assert.deepEqual(verifyQuotes('She "runs keiki workdays every month" well.', rows.map((r) => r.body)), ['runs keiki workdays every month']);
+});

@@ -1130,7 +1130,7 @@ async function staff() {
       !s.active && '<span class="badge muted">Not active</span>',
     ].filter(Boolean).join('');
     return `<span class="pmain"><strong>${esc(s.name || 'New person')}</strong>${s.preferred_name ? ` <span class="muted">(${esc(s.preferred_name)})</span>` : ''}
-        <span class="small muted">${esc(s.team || 'No group')}${s.reports_to && byId.get(Number(s.reports_to)) ? ` · reports to ${esc(nameOf(byId.get(Number(s.reports_to))))}` : ''}</span></span>
+        <span class="small muted">${s.position_title ? `${esc(s.position_title)} · ` : ''}${esc(s.team || 'No group')}${s.reports_to && byId.get(Number(s.reports_to)) ? ` · reports to ${esc(nameOf(byId.get(Number(s.reports_to))))}` : ''}</span></span>
       <span class="pcontact small muted">${esc(s.email || s.phone || 'No email or phone yet')}</span>
       <span class="pbadges">${badges}</span>
       <span class="pedit small">Edit</span>`;
@@ -1138,7 +1138,7 @@ async function staff() {
   const card = (s) => {
     const p = `/api/admin/staff/${s.id}`;
     const inp = (f, label, type = 'text', extra = '') => `<label>${label} <input type="${type}" data-path="${p}" data-f="${f}" value="${esc(s[f] ?? '')}" ${extra}></label>`;
-    return `<details class="person" data-id="${s.id}" data-search="${esc([s.name, s.preferred_name, s.email, s.phone, s.team].filter(Boolean).join(' ').toLowerCase())}">
+    return `<details class="person" data-id="${s.id}" data-search="${esc([s.name, s.preferred_name, s.email, s.phone, s.team, s.position_title].filter(Boolean).join(' ').toLowerCase())}">
       <summary>${line(s)}</summary>
       <div class="pform">
         ${inp('name', 'Name')}${inp('preferred_name', 'Goes by')}${inp('email', 'Email', 'email')}${inp('phone', 'Phone', 'tel')}
@@ -1149,6 +1149,12 @@ async function staff() {
         ${inp('start_date', 'Joined (optional)', 'date')}
         <label class="check"><input type="checkbox" data-path="${p}" data-f="send_email" ${s.send_email ? 'checked' : ''}> Send email</label>
         <label class="check"><input type="checkbox" data-path="${p}" data-f="active" ${s.active ? 'checked' : ''}> Active</label>
+        <div class="pwide">
+          ${inp('position_title', 'Job title')}
+          <label>Position description, their kuleana <textarea data-path="${p}" data-f="position" placeholder="Paste their duties and responsibilities, or upload the file below.">${esc(s.position || '')}</textarea></label>
+          <div class="row"><label class="button secondary small">Upload a PDF or Word file<input type="file" data-posfile accept=".pdf,.docx,.odt,.txt,.md" hidden></label>
+            <span class="small muted">The text shows above so you can check it. It saves on its own.</span></div>
+        </div>
         ${s.active ? `<div class="plink"><button type="button" class="small secondary" data-link="${s.id}">${ch.email && emails(s) ? 'Email their sign in link' : 'Copy their sign in link'}</button>
           <span class="small muted">Works any time of year, for My page and mahalo.</span></div>` : ''}
       </div>
@@ -1192,6 +1198,7 @@ async function staff() {
         <li><strong>Role.</strong> Staff for most people. Supervisor for an alakaʻi who manages a team. Director for you: staff review you in an upward review, and replies to the app's emails come to you.</li>
         <li><strong>Supervisor.</strong> Who this person reports to. You choose, letter by letter, whether to share a letter with the supervisor (in the letter's Share tab). Supervisors read them on their page, under My team, and never see raw answers. In an upward review, people also review their supervisor.</li>
         ${config.hawaiian ? '<li><strong>Language.</strong> The language their screens start in. They can switch any time.</li>' : ''}
+        <li><strong>Job title and position description.</strong> Their kuleana. When AI drafts their letter and talk story prep, it reads the answers against it, along with your values and your mission and goals. Paste the text or upload a PDF or Word file.</li>
         <li><strong>Joined.</strong> Optional, the date they started with your organization. To see who has started or finished a review, open that review's Progress tab.</li>
         <li><strong>Send email.</strong> The app can email them their link, reminders, and when their letter is ready (once email is on in Settings). Uncheck it for anyone who would rather hear from you directly.</li>
         <li><strong>Active.</strong> Uncheck it when someone leaves. Their past reviews stay, and new reviews leave them out.</li>
@@ -1213,6 +1220,21 @@ async function staff() {
   };
   $('#addtoggle').onclick = () => ($('#addbox').hidden = !$('#addbox').hidden);
   bindFields();
+  // A PDF or Word file becomes text on the server. Plain text is read right here.
+  for (const f of $$('[data-posfile]')) f.onchange = async () => {
+    const file = f.files[0];
+    f.value = '';
+    if (!file) return;
+    const box = $('[data-f="position"]', f.closest('.pform'));
+    try {
+      box.value = /\.(txt|md)$/i.test(file.name)
+        ? (await file.text()).trim()
+        : (await api(`/api/admin/position-text?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).text;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (e) {
+      toast(e.message, 6000);
+    }
+  };
   // Their link works all year: in an open review it opens their list, otherwise their page.
   for (const b of $$('[data-link]')) {
     const s = list.find((x) => x.id === Number(b.dataset.link));
@@ -1438,7 +1460,7 @@ async function settingsPage() {
   const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
   const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
-  const SECTIONS = [['org', 'Organization'], ['admins', 'Admins'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const SECTIONS = [['org', 'Organization'], ['about', 'Mission and goals'], ['admins', 'Admins'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
   const lang = await translationProgress();
   const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
   const admins = await api('/api/admin/admins');
@@ -1456,10 +1478,22 @@ async function settingsPage() {
       <p class="small muted">Staff see these names on their screens, and letter drafts are written in the director's voice.</p>
       <label>Logo, shown on the staff and admin home pages</label>
       <div class="row">${orgLogo() || '<span class="small muted">No logo yet.</span>'}
-        <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto">
+        <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto;max-width:100%">
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
       <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
       <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+    </div></section>
+
+    <section id="about"><h2>Mission, vision, and goals</h2>
+    <div class="card">
+      <p style="margin-top:0">AI reads these alongside your values when it drafts letters, talk story prep, and the team and board reports, so it can notice where people's work carries your mission and goals forward. It never quotes them.${aiOn ? '' : ' AI is off right now, so nothing reads them until you turn it on.'}</p>
+      ${[
+        ['org_about', 'About your organization', 'A few sentences: where you work, who you serve, and what the work looks like week to week.'],
+        ['org_mission', 'Mission', ''],
+        ['org_vision', 'Vision', ''],
+        ['org_goals', 'Organization goals', 'This year\'s goals or strategic priorities, one per line.'],
+      ].map(([f, label, ph]) => `<label>${label} <textarea class="short" data-path="/api/admin/settings" data-f="${f}" placeholder="${esc(ph)}">${esc(settings[f] || '')}</textarea></label>`).join('')}
+      <p class="small muted" style="margin-bottom:0">Each saves when you click away. Each person's own job title and position description go in <a href="#/staff">People</a>.</p>
     </div></section>
 
     <section id="admins"><h2>Admins</h2>
@@ -1484,7 +1518,7 @@ async function settingsPage() {
     <section id="ai"><h2>AI</h2>
     <div class="card">
       <label class="check" style="font-size:1.1rem"><input type="checkbox" id="aitoggle" ${aiOn ? 'checked' : ''}> <strong>Use AI</strong></label>
-      <p class="small muted">The app works fully either way. AI only ever sees the words, the question, your values, and the name of the person a letter is for, never who wrote anything. ${aiOn ? `Right now it runs on ${engine}.` : ''}</p>
+      <p class="small muted">The app works fully either way. AI only ever sees the words, the question, your values, mission, and goals, and the name and position description of the person a letter is for. Never who wrote anything. ${aiOn ? `Right now it runs on ${engine}.` : ''}</p>
       <div class="cols2">
         <div class="card ${aiOn ? 'on' : ''}" style="margin:0"><h3 style="margin-top:0">With AI on</h3>${list(AI_ON)}</div>
         <div class="card ${aiOn ? '' : 'on'}" style="margin:0"><h3 style="margin-top:0">With AI off</h3>${list(AI_OFF_LIST)}</div>
@@ -1501,7 +1535,7 @@ async function settingsPage() {
           <p class="small" style="margin:0">Made by Anthropic. Warmer, more specific letters in your director's voice. Better at choosing the exact words people wrote, at keeping Hawaiian in Hawaiian, and at holding each letter to your values. Less to fix.</p></div>
       </div>
       <p class="small"><strong>What it costs.</strong> Under a cent per letter. A whole review for 20 people (every letter, talk story prep, the team and board reports, and early signals) comes to about 25 cents. Anthropic bills from prepaid credit, so $5 covers many years of reviews. You can set a monthly limit in Anthropic's console.</p>
-      <p class="small"><strong>Privacy is the same either way.</strong> Claude sees only what Llama sees: the words, the question, your values, and the name of the person a letter is for. Never who wrote anything. Anthropic does not train on it.</p>
+      <p class="small"><strong>Privacy is the same either way.</strong> Claude sees only what Llama sees: the words, the question, your values, mission, and goals, and the name and position description of the person a letter is for. Never who wrote anything. Anthropic does not train on it.</p>
       ${key?.source === 'secret'
         ? `<p class="banner info small" style="margin-bottom:0">A key ending in ${esc(key.last4)} was set up by whoever installed the app, as a Cloudflare secret. To change it, ask them.</p>`
         : key

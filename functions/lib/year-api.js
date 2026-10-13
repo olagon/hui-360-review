@@ -17,7 +17,7 @@ export async function people({ env, staff }) {
   return json({ people: await all(env, 'SELECT id, name, preferred_name, team FROM staff WHERE active = 1 AND id != ? ORDER BY name', staff.id) });
 }
 
-// ---------- goals (my huli) ----------
+// ---------- goals (pahuhopu) ----------
 
 export async function goals({ env, staff }) {
   return json({

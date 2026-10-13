@@ -6,6 +6,10 @@ Review cycle: {{cycle}}
 {{values}}
 </values>
 
+<organization>
+{{org}}
+</organization>
+
 <answers>
 {{responses}}
 </answers>

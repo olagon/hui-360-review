@@ -27,11 +27,12 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 - **I only have 5 minutes** opens just the quick questions.
 - Every peer review starts with **mahalo**. Only the mahalo can be signed, and only if the writer chooses to. Everything else is anonymous, and the screen says so.
 - After the review, they read the summary written for them and can write a reflection back.
-- All year, on **My page**: their two or three goals (my huli), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed the next letter.
+- All year, on **My page**: their two or three goals (pahuhopu), a timeline of past letters, mahalo they received, a way to send a mahalo, and a way to ask a coworker for feedback on something specific. Answers to those asks feed the next letter.
 - A **mahalo board** of public thanks. No likes and no comments.
 
 **For the director (admin)**
 - Add staff, set your values, create a cycle, and edit questions in both languages with drag to reorder.
+- Give AI the bigger picture: your organization's description, mission, vision, and goals (Settings, Mission and goals), and each person's job title and position description (People, paste or upload a PDF or Word file). Letters and reports read the answers against them, along with your values.
 - Assign reviewers on a simple grid, or press **Auto fill** to spread reviewers evenly and avoid repeating last review's pairs.
 - Open the cycle and email each person their link, or copy a ready-to-send message for anyone without email. The app never sends text messages.
 - Watch completion, and copy a gentle nudge for anyone behind. The admin home lists today's nudges.
@@ -53,7 +54,7 @@ This app exists because of [huiMAU](https://www.alaulili.com) (Hui Mālama i ke 
 
 An answer is stored with the person it is about, never with the person who wrote it. To track who has finished, the app stores a one way hash of the assignment and a secret key (`HASH_PEPPER`) that lives only in Cloudflare's secret store, never in the database. Anyone holding the database, or an export (which leaves the hash out entirely), cannot work back from an answer to its writer.
 
-On top of that: answer ids are random, dates have no times, raw answers open only after a cycle closes and are shuffled within each question, the completion screen shows status only, and the AI only ever sees the words, the question, your values, and the name of the person being reviewed. The test in `test/assign.test.js` checks that no table join can recover a writer.
+On top of that: answer ids are random, dates have no times, raw answers open only after a cycle closes and are shuffled within each question, the completion screen shows status only, and the AI only ever sees the words, the question, your values, mission, and goals, and the name and position description of the person being reviewed. The test in `test/assign.test.js` checks that no table join can recover a writer.
 
 The in app privacy page states the honest limits too: if only one coworker reviews someone, the director knows whose answers those are.
 

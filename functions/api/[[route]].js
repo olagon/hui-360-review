@@ -43,6 +43,7 @@ const routes = [
   ['PUT', '/api/admin/admins', a.putAdmins],
   ['POST', '/api/admin/as-staff', a.asStaff],
   ['GET', '/api/admin/staff', a.listStaff],
+  ['POST', '/api/admin/position-text', a.positionText],
   ['POST', '/api/admin/staff', a.createStaff],
   ['PUT', '/api/admin/staff/:id', a.updateStaff],
   ['POST', '/api/admin/staff/:id/link', a.staffLink],

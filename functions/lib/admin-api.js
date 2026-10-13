@@ -121,7 +121,8 @@ export async function asStaff({ env, admin }) {
 
 // ---------- staff ----------
 
-export const listStaff = async ({ env }) => json({ staff: await all(env, 'SELECT * FROM staff ORDER BY active DESC, name') });
+export const listStaff = async ({ env }) =>
+  json({ staff: await all(env, 'SELECT s.*, k.title AS position_title, k.responsibilities AS position FROM staff s LEFT JOIN kuleana k ON k.staff_id = s.id ORDER BY s.active DESC, s.name') });
 
 export async function createStaff({ env, request }) {
   const data = pick(await body(request), STAFF_FIELDS);
@@ -130,13 +131,48 @@ export async function createStaff({ env, request }) {
 }
 
 export async function updateStaff({ env, request, params }) {
-  const data = pick(await body(request), STAFF_FIELDS);
+  const raw = await body(request);
+  const data = pick(raw, STAFF_FIELDS);
   if ('reports_to' in data) {
     data.reports_to = data.reports_to ? Number(data.reports_to) : null;
     if (data.reports_to === Number(params.id)) throw new HttpError(400, 'Someone cannot be their own supervisor');
   }
   await update(env, 'staff', params.id, data);
+  // Title and position description live in the kuleana table, one row per person.
+  const pos = pick(raw, ['position_title', 'position']);
+  if ((pos.position || '').length > MAX_POSITION) throw new HttpError(400, 'That position description is very long. Keep the duties and responsibilities, and leave out the rest.');
+  for (const [f, col] of [['position_title', 'title'], ['position', 'responsibilities']]) {
+    if (f in pos) await env.DB.prepare(`INSERT INTO kuleana (staff_id, ${col}) VALUES (?, ?) ON CONFLICT (staff_id) DO UPDATE SET ${col} = excluded.${col}`).bind(Number(params.id), pos[f]).run();
+  }
   return json({ ok: true });
+}
+
+const MAX_POSITION = 20000;
+
+// A position description uploaded as a file, turned into text for the director to check before it is saved.
+// Cloudflare's document conversion handles PDF and Word without any AI model. Images are left out because they would need one.
+const POSITION_TYPES = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  odt: 'application/vnd.oasis.opendocument.text',
+};
+export async function positionText({ env, request, url }) {
+  const name = url.searchParams.get('name') || '';
+  const type = POSITION_TYPES[name.split('.').pop().toLowerCase()];
+  if (!type) throw new HttpError(415, 'Upload a PDF or Word (.docx) file, or paste the text instead. Older .doc files need saving as .docx first.');
+  const blob = await request.blob();
+  if (blob.size > 10 * 1024 * 1024) throw new HttpError(413, 'That file is over 10 MB. Paste the text instead.');
+  const [r] = [].concat(await env.AI.toMarkdown([{ name, blob: new Blob([blob], { type }) }]));
+  if (r.format === 'error' || !r.data?.trim()) throw new HttpError(422, 'Could not read text from that file. Paste the text instead.');
+  // Drop what the converter adds: the file name, PDF metadata, and page headings.
+  const text = r.data
+    .replace(/^# .*\n+/, '')
+    .replace(/^## Metadata\n(?:- .*\n)*/m, '')
+    .replace(/^## Contents\n|^### Page \d+\n/gm, '')
+    .replace(/^\\-/gm, '-')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return json({ text: text.slice(0, MAX_POSITION) });
 }
 
 // ---------- settings ----------
@@ -641,6 +677,10 @@ export async function getSummary({ env, params }) {
   return json({ summary: s, person, cycle, made: await madeBy(env, Number(params.id), Number(params.staff), ['letter', 'answers', 'prep']) });
 }
 
+// What AI reads a letter or report against, besides the values: Settings, About your organization, and the person's position.
+const orgOf = (s) => ({ about: s.org_about, mission: s.org_mission, vision: s.org_vision, goals: s.org_goals });
+const positionOf = (env, id) => one(env, 'SELECT title, responsibilities FROM kuleana WHERE staff_id = ?', id);
+
 export async function draft({ env, params, admin }) {
   const cycle = await getCycle(env, params.id);
   const person = await one(env, 'SELECT * FROM staff WHERE id = ?', Number(params.staff));
@@ -673,7 +713,7 @@ export async function draft({ env, params, admin }) {
   const names = await settings(env);
 
   const { markdown, notes } = await draftSummary({
-    input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear },
+    input: { name: person.preferred_name || person.name, cycle: cycle.name, lang: person.lang, huiName: names.hui_name, director: names.director_name, values, responses, signers, lastYear, org: orgOf(names), position: await positionOf(env, person.id) },
     templates: { system: systemPrompt, user: userPrompt, fix: fixPrompt },
     complete: completer(env, { kind: 'letter', cycle: cycle.id, staff: person.id, actor: admin }),
   });
@@ -747,6 +787,8 @@ export async function draftPrep({ env, params, admin }) {
       responses,
       signers: {},
       lastYear: goals.length ? `Goals:\n${goals.map((g) => `- ${g.body} (${g.status})`).join('\n')}` : '',
+      org: orgOf(n),
+      position: await positionOf(env, person.id),
     },
     templates: { system: prepSystem, user: prepUser, fix: prepFix },
     complete: completer(env, { kind: 'prep', cycle: cycle.id, staff: person.id, actor: admin }),
@@ -861,6 +903,7 @@ export async function draftTeam({ env, params, admin }) {
       responses,
       signers: {},
       forbid: names,
+      org: orgOf(n),
       facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished.`,
     },
     templates: { system: teamSystem, user: teamUser, fix: fixPrompt },
@@ -916,6 +959,7 @@ export async function draftBoard({ env, params, admin }) {
       responses: stripIdentity(rows).responses,
       signers: {},
       forbid: names,
+      org: orgOf(n),
       facts: `${st.people} people took part. ${st.done} of ${st.total} reviews were finished (${st.pct}%).`,
     },
     templates: { system: boardSystem, user: teamUser, fix: fixPrompt },
@@ -1320,7 +1364,7 @@ You listen before you plan. Two coworkers named it in their own words, including
 
 Two coworkers said the same thing in different words: you carry too much by yourself. You named it too: "Saying yes to everything. I was tired by October." The patience you give the keiki is the same patience you can give yourself. Let us plan the season together so you are not always catching up.
 
-## Questions for your huli
+## Questions for your pahuhopu
 
 - What would you hand off first if you had help?
 - What would your first 90 days leading the education program look like?

@@ -94,7 +94,7 @@ button.quiet { background: transparent; border-color: var(--line); color: var(--
 button.quiet:hover { background: var(--card); border-color: var(--muted); }
 button.danger { background: var(--warn); border-color: var(--warn); }
 button:disabled { opacity: 0.45; cursor: default; }
-button.small { padding: 0.3rem 0.75rem; min-height: 34px; font-size: 0.85rem; }
+button.small, .button.small { padding: 0.3rem 0.75rem; min-height: 34px; font-size: 0.85rem; }
 .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
 .row.spread { justify-content: space-between; }
 
@@ -210,6 +210,7 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; 
 .person .pedit { color: var(--kalo); font-weight: 600; }
 .person[open] .pedit { visibility: hidden; }
 .pform { padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.75rem 1rem; align-items: end; }
+.pform .pwide { grid-column: 1 / -1; display: grid; gap: 0.75rem; }
 .pform .plink { grid-column: 1 / -1; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--kalo-soft); color: var(--kalo); margin: 0.1rem 0.25rem 0.1rem 0; white-space: nowrap; }
 .badge.muted { background: var(--line); color: var(--muted); }
