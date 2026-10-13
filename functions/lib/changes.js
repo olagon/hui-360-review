@@ -30,7 +30,7 @@ export function readTracking(text = '') {
   return {
     error: /encountered an error/i.test(text),
     done: /Claude finished/i.test(text),
-    summary: text.match(/For the director:\s*([\s\S]*?)(?:\n\s*\n|\n---|$)/)?.[1]?.trim() || null,
+    summary: text.match(/For the director:[ \t]*([^\n]+)/)?.[1]?.trim() || null, // one paragraph, one line; links follow it
     branch: text.match(/\/tree\/(claude\/[^\s)"'`\]]+)/)?.[1] || null,
   };
 }
