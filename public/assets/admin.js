@@ -1446,6 +1446,29 @@ const aiRows = (rows) =>
         <td class="small">${r.ok ? 'Done' : `<span style="color:var(--warn)">Failed: ${esc(r.error || '')}</span>`}</td></tr>`,
     )
     .join('');
+// Settings, Ask for a change (temporary, see functions/lib/changes.js).
+const CHANGE_STATUS = {
+  asked: 'Claude is working on it',
+  working: 'Claude is working on it',
+  testing: 'Claude is done. Testing it now.',
+  ready: 'Ready for you. The tests passed.',
+  failed: 'Something went wrong. Nothing changed for staff.',
+  no_change: 'Claude did not change anything',
+  approved: 'Approved',
+  declined: 'Declined',
+};
+const changeCards = (list, repo, on) =>
+  list
+    .map((c) => `<div class="card change">
+      <p class="small muted" style="margin-top:0">${esc(whenAt(c.created_at))}, asked by ${esc(c.asked_by)}${c.issue ? ` · <a href="https://github.com/${esc(repo)}/issues/${c.issue}" target="_blank" rel="noopener">on GitHub</a>` : ''}</p>
+      <p style="white-space:pre-wrap"><strong>${esc(c.request)}</strong></p>
+      <p><span class="badge ${['approved', 'ready'].includes(c.status) ? '' : 'muted'}">${esc(CHANGE_STATUS[c.status] || c.status)}${c.status === 'approved' && c.version ? `, live in version ${esc(c.version)}` : ''}</span>${c.decided_at ? ` <span class="small muted">${esc(whenAt(c.decided_at))}</span>` : ''}</p>
+      ${c.summary ? `<p>${esc(c.summary)}</p>` : ''}
+      ${on && c.status === 'ready' ? `<p class="row" style="margin-bottom:0"><button data-approve="${c.id}">Approve</button><button class="secondary" data-decline="${c.id}">Decline</button></p>` : ''}
+      ${on && ['failed', 'no_change'].includes(c.status) ? `<p style="margin-bottom:0"><button class="secondary small" data-decline="${c.id}">Close this request</button></p>` : ''}
+    </div>`)
+    .join('') || '<p class="muted">No requests yet.</p>';
+
 const auditRows = (rows) => rows.map((a) => `<tr><td>${esc(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.target)}</td></tr>`).join('');
 
 async function settingsPage() {
@@ -1460,10 +1483,12 @@ async function settingsPage() {
   const engine = settings.engine === 'llama' ? "Llama 3.3, free and built into Cloudflare" : `${MODEL_NAMES[settings.engine] || settings.engine}, with your Anthropic key`;
   const key = settings.anthropic;
   const list = (items) => `<ul class="plain">${items.map(([k, v]) => `<li><strong>${esc(k)}.</strong> ${esc(v)}</li>`).join('')}</ul>`;
-  const SECTIONS = [['org', 'Organization'], ['about', 'Mission and goals'], ['admins', 'Admins'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['data', 'Your data']];
+  const SECTIONS = [['org', 'Organization'], ['about', 'Mission and goals'], ['admins', 'Admins'], ['lang', 'Language'], ['ai', 'AI'], ['ailog', 'AI log'], ['email', 'Automated Emails'], ['mahalo', 'Mahalo board'], ['sample', 'Sample review'], ['changes', 'Ask for a change'], ['data', 'Your data']];
   const lang = await translationProgress();
   const ailog = await api('/api/admin/ai-runs').catch(() => ({ runs: [], month: [] }));
   const admins = await api('/api/admin/admins');
+  const changes = await api('/api/admin/changes').catch(() => ({ on: false, changes: [] }));
+  const changeOpen = changes.changes.some((c) => !['approved', 'declined'].includes(c.status));
   const fromDomain = (ch.from || '').match(/@([^>\s]+)/)?.[1] || '';
   app.innerHTML = `
     <h1>Settings</h1>
@@ -1612,6 +1637,16 @@ async function settingsPage() {
       <div class="row">${sample ? `<a class="button" href="#/person/${sample.id}/${sample.person}/share">Open the sample letter</a><a class="button secondary" href="#/cycle/${sample.id}/letters">Open the sample review</a><button class="quiet" id="nosample">Remove the sample</button>` : '<button id="sample">Load the sample review</button>'}</div>
     </div></section>
 
+    <section id="changes"><h2>Ask for a change</h2>
+    ${changes.on ? `<div class="card">
+      <p style="margin-top:0">Describe a change to this app in plain words. Claude makes it on a separate copy, tests it, and writes you a short summary, usually within 15 minutes. Nothing changes for staff until you press Approve. It goes live a few minutes after that.</p>
+      <p class="small muted">Requests are posted on the app's public code page on GitHub, so leave out staff names and anything private. One at a time: approve or decline each change before asking for the next.</p>
+      <label>What should change? <textarea id="chreq" class="short" placeholder="Like: On My page, show Pahuhopu above Letters." ${changeOpen ? 'disabled' : ''}></textarea></label>
+      <p style="margin-bottom:0"><button id="chask" ${changeOpen ? 'disabled' : ''}>Ask Claude</button>${changeOpen ? ' <span class="small muted">Waiting on the change below.</span>' : ''}</p>
+    </div>` : '<p class="muted">Not set up on this app.</p>'}
+    <div id="changelog">${changeCards(changes.changes, changes.repo, changes.on)}</div>
+    </section>
+
     <section id="data"><h2>Your data</h2>
     <div class="card">
       <h3 style="margin-top:0">Export everything</h3>
@@ -1703,6 +1738,33 @@ async function settingsPage() {
     config.ai = on;
     route();
   };
+  const bindChanges = () => {
+    for (const b of $$('[data-approve]')) b.onclick = async () => {
+      if (!confirm('Approve this change? It goes live for everyone in a few minutes.')) return;
+      const r = await save(`/api/admin/changes/${b.dataset.approve}/approve`, {}, 'POST');
+      toast(`Approved${r.version ? ` as version ${r.version}` : ''}. Live in a few minutes.`, 5000);
+      route();
+    };
+    for (const b of $$('[data-decline]')) b.onclick = async () => confirm('Close this request without changing anything?') && (await save(`/api/admin/changes/${b.dataset.decline}/decline`, {}, 'POST'), route());
+  };
+  bindChanges();
+  $('#chask')?.addEventListener('click', async () => {
+    await save('/api/admin/changes', { request: $('#chreq').value }, 'POST');
+    toast('Sent to Claude. This page updates as it works.', 5000);
+    route();
+  });
+  // While Claude works, check every 30 seconds, until you leave this page.
+  if (changes.changes.some((c) => ['asked', 'working', 'testing'].includes(c.status))) {
+    const timer = setInterval(async () => {
+      const log = $('#changelog');
+      if (!log) return clearInterval(timer);
+      const next = await api('/api/admin/changes').catch(() => null);
+      if (!next) return;
+      log.innerHTML = changeCards(next.changes, next.repo, next.on);
+      bindChanges();
+      if (!next.changes.some((c) => ['asked', 'working', 'testing'].includes(c.status))) clearInterval(timer);
+    }, 30000);
+  }
   const putAdmins = async (list) => {
     await save('/api/admin/admins', { admins: list });
     route();

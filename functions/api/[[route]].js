@@ -3,6 +3,7 @@ import { requireStaff, requireAdmin } from '../lib/auth.js';
 import * as s from '../lib/staff-api.js';
 import * as a from '../lib/admin-api.js';
 import * as y from '../lib/year-api.js';
+import * as c from '../lib/changes.js';
 
 const PUBLIC = new Set(['/api/config', '/api/admin-status', '/api/i18n/:lang', '/api/logo', '/api/logout', '/api/voice/:token', '/api/request-link', '/api/cron/reminders']);
 
@@ -40,6 +41,10 @@ const routes = [
 
   ['GET', '/api/admin/me', a.whoami],
   ['GET', '/api/admin/admins', a.getAdmins],
+  ['GET', '/api/admin/changes', c.listChanges],
+  ['POST', '/api/admin/changes', c.askChange],
+  ['POST', '/api/admin/changes/:id/approve', c.approveChange],
+  ['POST', '/api/admin/changes/:id/decline', c.declineChange],
   ['PUT', '/api/admin/admins', a.putAdmins],
   ['POST', '/api/admin/as-staff', a.asStaff],
   ['GET', '/api/admin/staff', a.listStaff],

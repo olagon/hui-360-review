@@ -111,3 +111,20 @@ test('a From address on a domain the email service does not know gets plain word
   assert.match(fromTrouble('{"statusCode":403,"message":"The gmail.com domain is not verified."}', 'a@gmail.com'), /a@gmail\.com/);
   assert.equal(fromTrouble('E_RATE_LIMIT_EXCEEDED', 'a@b.org'), '');
 });
+
+test('reading Claude\'s progress comment on an app request', async () => {
+  const { readTracking } = await import('../functions/lib/changes.js');
+  assert.deepEqual(readTracking('Claude Code is working… <img src="spinner.gif">'), { error: false, done: false, summary: null, branch: null });
+  const done = readTracking(`**Claude finished @olagon's task in 6m 12s** | [View job](https://github.com/o/r/actions/runs/1) • [\`claude/issue-12-20261013-1830\`](https://github.com/o/r/tree/claude/issue-12-20261013-1830)
+
+---
+Moved Pahuhopu above Letters on My page.
+
+For Noʻeau: On everyone's page, Pahuhopu now comes before Letters, so goals are the first thing people see.
+
+[Create PR ➔](https://github.com/o/r/compare/main...claude/issue-12-20261013-1830)`);
+  assert.equal(done.done, true);
+  assert.equal(done.branch, 'claude/issue-12-20261013-1830');
+  assert.equal(done.summary, "On everyone's page, Pahuhopu now comes before Letters, so goals are the first thing people see.");
+  assert.equal(readTracking('Claude encountered an error after 2m').error, true);
+});

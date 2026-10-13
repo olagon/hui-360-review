@@ -1159,7 +1159,7 @@ export async function file({ env, url, admin }) {
 
 const EXPORT_TABLES = [
   'staff', 'value_sets', 'values', 'cycles', 'questions', 'assignments', 'responses', 'summaries',
-  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit', 'ai_runs', 'translations',
+  'cycle_people', 'team_reports', 'response_signals', 'employee_reflection', 'goals', 'mahalo', 'feedback_requests', 'kuleana', 'community_voices', 'settings', 'audit', 'ai_runs', 'translations', 'change_requests',
 ];
 
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'item';
