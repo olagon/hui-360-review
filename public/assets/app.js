@@ -3,7 +3,7 @@
 export const PRODUCT = 'Hui 360';
 export let APP_NAME = PRODUCT;
 // The build number, shown in every footer. Goes up by 0.1 with each release.
-export const VERSION = '0.7';
+export const VERSION = '0.8';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 
@@ -263,7 +263,7 @@ export function shell({ nav = '', langSwitch = true, onLang, signedIn = false, h
   footer.innerHTML = `<div>${ext(REPO_URL, t('footer.openSource'))} · ${ext(`${REPO_URL}/blob/main/LICENSE`, t('footer.license'))}</div>
     <div>${esc(t('footer.courtesy', { olin: '%OLIN%' })).replace('%OLIN%', ext(AUTHOR_URL, 'Olin Lagon'))}</div>
     <div><a href="/how/">${esc(t('footer.how'))}</a> · <a href="/privacy/">${esc(t('footer.privacy'))}</a></div>
-    <div class="small muted">${esc(t('footer.version', { v: VERSION }))}${APP_NAME !== PRODUCT ? ` · ${esc(t('footer.poweredBy', { product: PRODUCT }))}` : ''}</div>`;
+    <div class="small muted">${esc(t('footer.version', { v: VERSION }))} · ${esc(t('footer.poweredBy'))}</div>`;
   document.body.append(footer);
   $('#signout', header)?.addEventListener('click', (e) => {
     e.preventDefault();

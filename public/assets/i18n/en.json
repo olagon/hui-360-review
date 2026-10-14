@@ -183,6 +183,6 @@
   "review.placeholderType": "Type here",
   "review.requiredType": "This one needs an answer.",
   "footer.version": "Version {v}",
-  "footer.poweredBy": "made with {product}",
+  "footer.poweredBy": "made with Aloha",
   "myteam.people": "You supervise: {names}."
 }
