@@ -1,6 +1,7 @@
 // The app's mail room. Pages Functions cannot hold Cloudflare's send_email binding,
 // so the app reaches this Worker through a service binding (MAILER) and calls send().
-// It also wakes the app on Monday and Friday mornings, 7am Hawaiʻi time, for the optional reminders.
+// It also wakes each app on Monday and Friday mornings, 7am Hawaiʻi time, for the optional reminders.
+// One mailer can serve several copies of the app: list their addresses in APP_URLS.
 import { WorkerEntrypoint } from 'cloudflare:workers';
 
 export default class Mailer extends WorkerEntrypoint {
@@ -21,7 +22,15 @@ export default class Mailer extends WorkerEntrypoint {
 
   async scheduled(event, env, ctx) {
     if (!this.env.CRON_SECRET) return; // morning reminders are off until a CRON_SECRET is set here and on Pages
-    const r = await fetch(`${this.env.APP_URL}/api/cron/reminders`, { method: 'POST', headers: { 'x-cron-secret': this.env.CRON_SECRET } });
-    console.log('reminders', r.status, await r.text());
+    const urls = (this.env.APP_URLS || this.env.APP_URL || '').split(/[\s,]+/).filter(Boolean);
+    for (const url of urls) {
+      // One app being down never stops the others' reminders.
+      try {
+        const r = await fetch(`${url}/api/cron/reminders`, { method: 'POST', headers: { 'x-cron-secret': this.env.CRON_SECRET } });
+        console.log('reminders', url, r.status, await r.text());
+      } catch (e) {
+        console.log('reminders', url, 'failed', e.message);
+      }
+    }
   }
 }

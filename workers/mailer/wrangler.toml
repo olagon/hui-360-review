@@ -1,7 +1,7 @@
 # Sends the app's email with Cloudflare Email Sending (Workers Paid plan).
 #   npx wrangler deploy -c workers/mailer/wrangler.toml
 # Then onboard your sending domain in the dashboard: Compute, Email Service, Email Sending.
-# Optional reminders, Mondays and Fridays at 7am: set the same CRON_SECRET here and on the Pages project.
+# Optional reminders, Mondays and Fridays at 7am: set the same CRON_SECRET here and on each Pages project.
 #   npx wrangler secret put CRON_SECRET -c workers/mailer/wrangler.toml
 name = "hui360-mailer"
 main = "index.js"
@@ -12,7 +12,8 @@ workers_dev = false # only the app calls this, through its service binding
 name = "EMAIL"
 
 [vars]
-APP_URL = "https://huimau.actionsmatter.com"
+# Every copy of the app this mailer wakes for reminders, separated by spaces.
+APP_URLS = "https://huimau.actionsmatter.com https://olelo.actionsmatter.com"
 
 [triggers]
 crons = ["0 17 * * 1,5"] # Mondays and Fridays, 17:00 UTC is 7am in Hawaiʻi
