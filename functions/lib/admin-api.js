@@ -217,6 +217,7 @@ export async function putSettings({ env, request, admin }) {
   delete data.resend_key; // only through putEmailSetup, which seals it
   delete data.admins; // only through putAdmins, which keeps you on the list
   delete data.resend_last4;
+  if (data.reply_to && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.reply_to).trim())) throw new HttpError(400, 'Replies go to should be one email address, or empty.');
   if ('ai' in data) await audit(env, admin, data.ai === 'off' ? 'ai_off' : 'ai_on', 'settings');
   await env.DB.batch(
     Object.entries(data).map(([k, v]) =>

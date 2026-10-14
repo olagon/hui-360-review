@@ -1595,7 +1595,7 @@ async function settingsPage() {
         <ul style="margin:.25rem 0 .5rem; padding-left:1.2rem">
           <li><strong>The name</strong>, before the <code>&lt;</code>, can be anything, like <code>${esc(config.hui)}</code> or <code>${esc(config.director)} at ${esc(config.hui)}</code>.</li>
           <li><strong>The address</strong> can be any name you like before the <code>@</code>, but after the <code>@</code> it has to be a domain set up with the service you choose: onboarded in Cloudflare Email Sending, or verified in Resend.${fromDomain ? ` Right now that is <strong>${esc(fromDomain)}</strong>, so any address ending in <code>@${esc(fromDomain)}</code> works.` : ''} An address on any other domain, like a Gmail address, will not send.</li>
-          <li>It does not need to be a real inbox. Replies go to the person marked Director in People.</li>
+          <li>It does not need to be a real inbox. Replies go to the address under Replies go to, below.</li>
         </ul>
         <p style="margin:.25rem 0">After changing it, press Save and then Send me a test email.</p>
       </div>
@@ -1618,9 +1618,8 @@ async function settingsPage() {
         <p class="small muted">Encrypted before it is stored, never shown again (only its last four characters), and left out of every export.</p>`}
       </div>
       <p class="row"><button type="button" id="esave">Save email settings</button><button type="button" class="secondary" id="etest" ${ch.email ? '' : 'disabled'}>Send me a test email</button></p>
-      <p class="small">${ch.reply_to
-        ? `When someone replies to an email from the app, it goes to <strong>${esc(ch.reply_to)}</strong>, the person marked Director in <a href="#/staff">People</a>.`
-        : `Mark someone as Director in <a href="#/staff">People</a>, with an email, so replies to the app's emails reach them.`}</p>
+      <label>Replies go to <input type="email" data-path="/api/admin/settings" data-f="reply_to" value="${esc(settings.reply_to || '')}" placeholder="The Director's email"></label>
+      <p class="small muted">When someone replies to an email from the app, it goes here. Leave it empty to send replies to the person marked Director in <a href="#/staff">People</a>${!settings.reply_to && ch.reply_to ? `, now <strong>${esc(ch.reply_to)}</strong>` : ''}.</p>
       <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am Hawaiʻi time, to anyone still behind</label>
       <p class="small muted">${ch.email && ch.cron
         ? 'Off unless checked. Each person behind gets one short reminder with their link, twice a week, until they finish or the review closes. Only people with Send email checked.'

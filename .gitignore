@@ -11,3 +11,8 @@ scripts/huimau-logo.svg
 
 # Local copies of production secrets. Move them to a password manager, then delete.
 .secrets/
+
+# Other organizations' copies: their deploy config, seed, and logo stay local too.
+deploy/
+scripts/seed-olelo.sql
+scripts/olelo-logo.*

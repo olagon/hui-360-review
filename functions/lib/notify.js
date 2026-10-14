@@ -47,7 +47,10 @@ const resend = async (key, path, payload) => {
 };
 
 // Replies reach a person: whoever is marked Director in People.
+// Replies go to Settings' "Replies go to" address when set, otherwise to the Director in People.
 export async function directorEmail(env) {
+  const set = (await env.DB?.prepare("SELECT value FROM settings WHERE key = 'reply_to'").first())?.value?.trim();
+  if (set) return set;
   const row = await env.DB?.prepare("SELECT email FROM staff WHERE role = 'admin' AND active = 1 AND TRIM(COALESCE(email, '')) != '' ORDER BY id LIMIT 1").first();
   return row?.email || '';
 }

@@ -159,7 +159,7 @@ Your director picks how in **Settings, Automated Emails**: Off, Cloudflare, or R
 
 **Resend, free on any Cloudflare plan**, up to 3,000 emails a month. Nothing to deploy: Settings walks your director through it. They make a free Resend account, verify a subdomain like `mail.your-org.org`, create a sending key, and paste it in Settings, where it is encrypted and left out of exports. If you are not using the mailer Worker, delete the `[[services]]` block for `MAILER` from `wrangler.toml`.
 
-Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address.
+Either way, replies to the app's emails go to whoever is marked **Director** in People, so give your director that role and an email address. To send replies somewhere else, for example when a board chair runs a review of the director, fill in **Replies go to** in Settings, Automated Emails.
 
 **Twice weekly reminders are optional.** Pages cannot run on a schedule, so the mailer Worker also wakes the app on Mondays and Fridays at 7am Hawaiʻi time (change `crons` in its `wrangler.toml` for a different rhythm). Change `APP_URL` in `workers/mailer/wrangler.toml` to your address, deploy it (even on the free plan, where it only does this), make one more random string, and set it in both places:
 
