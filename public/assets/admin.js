@@ -228,7 +228,20 @@ function bindFields(root = app) {
 // ---------------- router ----------------
 
 const views = { '': home, staff, values, settings: settingsPage, data: settingsPage, translations, cycle, person };
+// A page with a Save button sets this, so leaving never drops what someone typed without asking.
+let unsaved = () => false;
+let here = location.hash;
+let stay = false;
+const LEAVE = 'You have changes you have not saved. Leave without saving them?';
+window.addEventListener('beforeunload', (e) => unsaved() && e.preventDefault());
 async function route() {
+  if (stay) return void (stay = false);
+  if (unsaved() && !confirm(LEAVE)) {
+    if (location.hash !== here) (stay = true), (location.hash = here);
+    return;
+  }
+  unsaved = () => false;
+  here = location.hash;
   const [name, ...args] = location.hash.replace(/^#\/?/, '').split('/');
   app.innerHTML = '<p class="muted">Loading...</p>';
   try {
@@ -1492,26 +1505,28 @@ async function settingsPage() {
   const fromDomain = (ch.from || '').match(/@([^>\s]+)/)?.[1] || '';
   app.innerHTML = `
     <h1>Settings</h1>
+    <p class="muted">Sections you type in have a Save button, and nothing in them changes until you press it. Switches and one step buttons, like Use AI, Upload, Add admin, and Export, take effect right away.</p>
     <nav class="chips">${SECTIONS.map(([id, label]) => `<a href="#/settings/${id}">${label}</a>`).join('')}</nav>
 
-    <section id="org"><h2>Organization</h2>
+    <section id="org" data-form><h2>Organization</h2>
     <div class="card">
-      <label>App name, at the top of every page <input data-path="/api/admin/settings" data-f="app_name" value="${esc(settings.app_name || '')}" placeholder="Hui 360"></label>
+      <label>App name, at the top of every page <input data-s="app_name" value="${esc(settings.app_name || '')}" placeholder="Hui 360"></label>
       <p class="small muted">Like ${esc(config.hui)} 360. Leave it empty for Hui 360. When you upload a logo below, it shows next to this name.</p>
-      <label>Name of your organization <input data-path="/api/admin/settings" data-f="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
-      <label>What staff call their goals <input data-path="/api/admin/settings" data-f="goals_name" value="${esc(settings.goals_name || '')}" placeholder="Goals"></label>
+      <label>Name of your organization <input data-s="hui_name" value="${esc(settings.hui_name || '')}" placeholder="the Hui"></label>
+      <label>What staff call their goals <input data-s="goals_name" value="${esc(settings.goals_name || '')}" placeholder="Goals"></label>
       <p class="small muted">Shown on My page and as a heading in each letter. Use your own word if you have one.</p>
-      <label>Director's name, as staff call them <input data-path="/api/admin/settings" data-f="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
+      <label>Director's name, as staff call them <input data-s="director_name" value="${esc(settings.director_name || '')}" placeholder="your director"></label>
       <p class="small muted">Staff see these names on their screens, and letter drafts are written in the director's voice.</p>
       <label>Logo, shown on the staff and admin home pages</label>
       <div class="row">${orgLogo() || '<span class="small muted">No logo yet.</span>'}
         <input type="file" id="logo" accept="image/svg+xml,image/png,image/jpeg,image/webp,image/gif" style="width:auto;max-width:100%">
         ${orgLogo() ? '<button class="quiet small" id="nologo">Remove logo</button>' : ''}</div>
-      <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB.</p>
-      <label class="check"><input type="checkbox" id="moon" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+      <p class="small muted">SVG (animated is fine), PNG, JPG, WebP, or GIF, under 2 MB. A new logo uploads right away.</p>
+      <label class="check"><input type="checkbox" data-s="moon_calendar" data-on="on" data-off="off" ${settings.moon_calendar !== 'off' ? 'checked' : ''}> Show the Hawaiian moon for today and next to review dates</label>
+      <p style="margin-bottom:0"><button type="button" data-save disabled>Save</button></p>
     </div></section>
 
-    <section id="about"><h2>Mission, vision, and goals</h2>
+    <section id="about" data-form><h2>Mission, vision, and goals</h2>
     <div class="card">
       <p style="margin-top:0">AI reads these alongside your values when it drafts letters, talk story prep, and the team and board reports, so it can notice where people's work carries your mission and goals forward. It never quotes them.${aiOn ? '' : ' AI is off right now, so nothing reads them until you turn it on.'}</p>
       ${[
@@ -1519,8 +1534,9 @@ async function settingsPage() {
         ['org_mission', 'Mission', ''],
         ['org_vision', 'Vision', ''],
         ['org_goals', 'Organization goals', 'This year\'s goals or strategic priorities, one per line.'],
-      ].map(([f, label, ph]) => `<label>${label} <textarea class="short" data-path="/api/admin/settings" data-f="${f}" placeholder="${esc(ph)}">${esc(settings[f] || '')}</textarea></label>`).join('')}
-      <p class="small muted" style="margin-bottom:0">Each saves when you click away. Each person's own job title and position description go in <a href="#/staff">People</a>.</p>
+      ].map(([f, label, ph]) => `<label>${label} <textarea class="short" data-s="${f}" placeholder="${esc(ph)}">${esc(settings[f] || '')}</textarea></label>`).join('')}
+      <p class="small muted">Each person's own job title and position description go in <a href="#/staff">People</a>.</p>
+      <p style="margin-bottom:0"><button type="button" data-save disabled>Save</button></p>
     </div></section>
 
     <section id="admins"><h2>Admins</h2>
@@ -1579,7 +1595,7 @@ async function settingsPage() {
     ${ailog.runs.length ? '' : '<p class="muted">Nothing yet.</p>'}
     </section>
 
-    <section id="email"><h2>Automated Emails</h2>
+    <section id="email" data-form><h2>Automated Emails</h2>
     <div class="card">
       <p style="margin-top:0">${ch.email
         ? `<strong>Email is on</strong>, sent by ${ch.provider === 'cloudflare' ? 'Cloudflare' : 'Resend'} from <strong>${esc(ch.from)}</strong>. Links, nudges, and letter messages go by email to everyone with Send email checked in <a href="#/staff">People</a>. Anyone else, you copy and send yourself.`
@@ -1597,7 +1613,7 @@ async function settingsPage() {
           <li><strong>The address</strong> can be any name you like before the <code>@</code>, but after the <code>@</code> it has to be a domain set up with the service you choose: onboarded in Cloudflare Email Sending, or verified in Resend.${fromDomain ? ` Right now that is <strong>${esc(fromDomain)}</strong>, so any address ending in <code>@${esc(fromDomain)}</code> works.` : ''} An address on any other domain, like a Gmail address, will not send.</li>
           <li>It does not need to be a real inbox. Replies go to the address under Replies go to, below.</li>
         </ul>
-        <p style="margin:.25rem 0">After changing it, press Save and then Send me a test email.</p>
+        <p style="margin:.25rem 0">After changing it, press Save at the bottom of this section, then Send me a test email.</p>
       </div>
       <div id="resendbox" ${ch.provider === 'resend' ? '' : 'hidden'}>
         ${ch.resend?.source === 'secret'
@@ -1617,13 +1633,13 @@ async function settingsPage() {
         <label style="margin-top:.5rem">${ch.resend ? 'Replace with a new Resend key' : 'Resend API key'} <input type="password" id="resendkey" autocomplete="off" spellcheck="false" placeholder="re_..."></label>
         <p class="small muted">Encrypted before it is stored, never shown again (only its last four characters), and left out of every export.</p>`}
       </div>
-      <p class="row"><button type="button" id="esave">Save email settings</button><button type="button" class="secondary" id="etest" ${ch.email ? '' : 'disabled'}>Send me a test email</button></p>
-      <label>Replies go to <input type="email" data-path="/api/admin/settings" data-f="reply_to" value="${esc(settings.reply_to || '')}" placeholder="The Director's email"></label>
+      <label>Replies go to <input type="email" data-s="reply_to" value="${esc(settings.reply_to || '')}" placeholder="The Director's email"></label>
       <p class="small muted">When someone replies to an email from the app, it goes here. Leave it empty to send replies to the person marked Director in <a href="#/staff">People</a>${!settings.reply_to && ch.reply_to ? `, now <strong>${esc(ch.reply_to)}</strong>` : ''}.</p>
-      <label class="check"><input type="checkbox" data-path="/api/admin/settings" data-f="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am Hawaiʻi time, to anyone still behind</label>
+      <label class="check"><input type="checkbox" data-s="auto_remind" ${settings.auto_remind === '1' ? 'checked' : ''} ${ch.email && ch.cron ? '' : 'disabled'}> Email a gentle reminder on Monday and Friday mornings, at 7am Hawaiʻi time, to anyone still behind</label>
       <p class="small muted">${ch.email && ch.cron
         ? 'Off unless checked. Each person behind gets one short reminder with their link, twice a week, until they finish or the review closes. Only people with Send email checked.'
         : 'Not set up for this app yet, so use Today\'s nudges on the Cycles page instead.'}</p>
+      <p class="row" style="margin-bottom:0"><button type="button" id="esave">Save</button><button type="button" class="secondary" id="etest" ${ch.email ? '' : 'disabled'}>Send me a test email</button></p>
     </div></section>
 
     <section id="mahalo"><h2>Mahalo board</h2>
@@ -1699,6 +1715,8 @@ async function settingsPage() {
   $('#esave').onclick = async () => {
     try {
       await api('/api/admin/email-setup', { method: 'PUT', json: { provider: $('[name=eprov]:checked')?.value || 'off', from: $('#efrom').value, resend_key: $('#resendkey')?.value || '' } });
+      await api('/api/admin/settings', { method: 'PUT', json: fields($('#email')) });
+      dirty.delete('email');
       await refreshChannels();
       toast(`Email settings saved.${$('#efrom').value.trim() !== (ch.from || '') ? ' Press Send me a test email to check the new From address works.' : ''}`, 6000);
       route();
@@ -1775,8 +1793,38 @@ async function settingsPage() {
     putAdmins([...admins.admins, e.target.email.value]);
   };
   for (const b of $$('[data-unadmin]')) b.onclick = () => confirm(`Remove ${b.dataset.unadmin} as an admin?`) && putAdmins(admins.admins.filter((e) => e !== b.dataset.unadmin));
-  bindFields();
-  $('#moon').onchange = (e) => save('/api/admin/settings', { moon_calendar: e.target.checked ? 'on' : 'off' });
+  // Sections you type in save with their own button. Switches and one step buttons act right away.
+  const dirty = new Set();
+  const fields = (sec) => Object.fromEntries($$('[data-s]', sec).map((el) => [el.dataset.s, el.type === 'checkbox' ? (el.checked ? el.dataset.on ?? '1' : el.dataset.off ?? '0') : el.value.trim()]));
+  for (const sec of $$('[data-form]')) {
+    const mark = (e) => {
+      if (!e.target.closest('[data-s], [name=eprov], #efrom, #resendkey')) return;
+      dirty.add(sec.id);
+      const b = $('[data-save]', sec);
+      if (b) b.disabled = false;
+    };
+    sec.addEventListener('input', mark);
+    sec.addEventListener('change', mark);
+  }
+  unsaved = () => dirty.size > 0;
+  for (const b of $$('[data-save]')) {
+    const sec = b.closest('[data-form]');
+    b.onclick = async () => {
+      await save('/api/admin/settings', fields(sec));
+      dirty.delete(sec.id);
+      b.disabled = true;
+      if (sec.id === 'org') location.reload(); // names and the moon show across every page
+    };
+  }
+  // The section links scroll in place, so they never reload the page and drop what you typed.
+  for (const a of $$('nav.chips a', app)) {
+    a.onclick = (e) => {
+      e.preventDefault();
+      history.replaceState(null, '', a.getAttribute('href'));
+      here = location.hash;
+      document.getElementById(a.getAttribute('href').split('/')[2])?.scrollIntoView({ behavior: 'smooth' });
+    };
+  }
   for (const b of $$('[data-unmahalo]')) b.onclick = async () => confirm('Remove this mahalo from the board?') && (await save(`/api/admin/mahalo/${b.dataset.unmahalo}`, {}, 'DELETE'), route());
   $('#logo').onchange = async (e) => {
     const f = e.target.files[0];
