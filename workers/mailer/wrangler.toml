@@ -13,7 +13,7 @@ name = "EMAIL"
 
 [vars]
 # Every copy of the app this mailer wakes for reminders, separated by spaces.
-APP_URLS = "https://huimau.actionsmatter.com https://olelo.actionsmatter.com"
+APP_URLS = "https://huimau.actionsmatter.com https://olelo.actionsmatter.com https://mino.actionsmatter.com"
 
 [triggers]
 crons = ["0 17 * * 1,5"] # Mondays and Fridays, 17:00 UTC is 7am in Hawaiʻi

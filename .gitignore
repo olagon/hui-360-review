@@ -16,3 +16,5 @@ scripts/huimau-logo.svg
 deploy/
 scripts/seed-olelo.sql
 scripts/olelo-logo.*
+scripts/seed-mino.sql
+scripts/mino-logo.*
