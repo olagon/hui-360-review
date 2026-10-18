@@ -326,6 +326,8 @@
       <div class="controls">
         <button type="button" class="small secondary" id="play">Pause</button>
         <button type="button" class="small quiet" id="replay">Replay</button>
+        <button type="button" class="small quiet" id="sound" aria-pressed="false">Sound on</button>
+        <audio id="music" src="/tour/intro-music.mp3" preload="none"></audio>
         <div class="progress-line" aria-hidden="true"><span></span></div>
       </div>
 
@@ -365,6 +367,7 @@
     const setPlaying = (on) => {
       for (const a of anims()) on ? a.play() : a.pause();
       btn.textContent = on ? 'Pause' : 'Play';
+      syncMusic(on);
     };
     const seek = (ms) => anims().forEach((a) => { a.pause(); a.currentTime = ms; });
     window.seek = seek; // used to render the video frame by frame
@@ -373,6 +376,30 @@
     // Loop, and start paused for anyone who prefers less motion.
     const master = document.querySelector('.progress-line span').getAnimations()[0];
     master.onfinish = () => { seek(0); setPlaying(true); };
+
+    // Music: an original ukulele and marimba piece, CC0. Browsers only play sound after a tap,
+    // so it starts off and downloads only when someone turns it on. It follows the tour's clock.
+    const music = document.getElementById('music');
+    const sound = document.getElementById('sound');
+    music.volume = 0.6;
+    music.loop = TOTAL > 80000; // the 72 second piece plays once in the short tour and twice in the long one
+    function syncMusic(playing) {
+      if (sound.getAttribute('aria-pressed') !== 'true') return;
+      if (!playing) return music.pause();
+      const jump = () => {
+        const t = (master.currentTime || 0) / 1000;
+        music.currentTime = music.loop ? t % music.duration : t;
+      };
+      // The first time, the file has not loaded yet, so jump once it knows its length.
+      music.readyState ? jump() : music.addEventListener('loadedmetadata', jump, { once: true });
+      music.play().catch(() => {});
+    }
+    sound.onclick = () => {
+      const on = sound.getAttribute('aria-pressed') !== 'true';
+      sound.setAttribute('aria-pressed', String(on));
+      sound.textContent = on ? 'Sound off' : 'Sound on';
+      on ? syncMusic(btn.textContent === 'Pause') : music.pause();
+    };
     if (record || matchMedia('(prefers-reduced-motion: reduce)').matches) setPlaying(false);
   </script>
 </body>

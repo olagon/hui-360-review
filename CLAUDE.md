@@ -309,6 +309,7 @@ All three phases are built, except the Hawaiian i18n review pass, which needs a 
 - App name is a setting (`app_name`, huiMAU sets "huiMAU 360"), and an uploaded logo replaces the niho mark in the header. `APP_NAME` in app.js is a live binding. The footer shows `VERSION` from app.js (0.1 and up, one step per release, with a git tag), plus "made with Aloha" (Olin, v0.8).
 - The scheduler keeps the director's free blocks in the browser (localStorage) and builds .ics files client side.
 - The board report lives under the Reports tab (renamed from Team report, Olin 2026-10-12) and prints on its own. Both reports have Copy for a doc or email, which puts HTML and plain text on the clipboard.
+- Tour music (Olin, v0.10): `public/tour/intro-music.mp3`, the same CC0 ukulele and marimba piece as hana local and Receipt Beat. Both tours have a Sound on button (browsers block sound until a tap), load it only then (`preload="none"`), and keep it on the tour's clock. It plays once in the 77 second tour and loops in the 93 second one. The docs MP4s have it mixed in.
 - Settings save rule (Olin, v0.9): sections you type in (Organization, Mission and goals, Automated Emails) have one Save button, and nothing in them changes until it is pressed. Switches with a confirm (Use AI, Offer ʻŌlelo Hawaiʻi) and one step buttons (Upload logo, Add admin, Export) act right away. Settings fields use `data-s` instead of the autosaving `data-path`. The router asks before leaving a page with unsaved changes (`unsaved` in admin.js), and the section links scroll in place instead of re-rendering.
 - Data is now Settings (Olin, 2026-10-12), in sections: Organization, AI, Automated Emails, Mahalo board, Sample review, Your data (export and audit log).
 - AI is optional (Olin, 2026-10-12): `settings.ai = 'off'` turns it off. `completer()` checks it before every model call, and audio is kept but not transcribed, so the server enforces it. In the UI with AI off: the mic is hidden, letters use "Start from the answers" (`answersDraft()` in summarize.js, every answer word for word), team and board reports start from an outline, and prep, signals, and tone are hidden. "Start from the answers" is also offered with AI on.
@@ -335,7 +336,7 @@ Read this when you run in GitHub Actions on an issue labeled app-request. The is
 - A new table or column needs a new numbered migration in `/migrations`. CI applies it when the change deploys. Never drop or rewrite existing data.
 - Keep the copy plain, warm, and short. Use the ʻokina and kahakō correctly. No em dashes or en dashes.
 - Run `npm test` and fix anything that fails before you finish.
-- When you change anything, bump `VERSION` in `public/assets/app.js` and the cache name in `public/sw.js` by 0.1, and add a one line as-built note under Phases if the change alters how something works.
+- When you change anything, bump `VERSION` in `public/assets/app.js` and the cache name in `public/sw.js` to the next minor number (0.9, 0.10, 0.11), and add a one line as-built note under Phases if the change alters how something works.
 - End your final comment with one paragraph that starts "For the director:" and says in plain words what changed and where he will see it, or why you changed nothing. No code words and no file names. He decides from that paragraph alone.
 
 ## Setup walkthrough for Olin
