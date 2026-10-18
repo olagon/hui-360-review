@@ -227,7 +227,7 @@ Workers AI always runs remotely, even in local dev, so voice and Llama drafts ne
 
 ## Built with
 
-Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph. Inter is licensed under the SIL Open Font License (`public/assets/fonts/OFL.txt`). The music in the tours and videos is the original ukulele piece from the Receipt Beat intro, released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), so you can keep it, swap it, or drop it.
+Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph. Inter is licensed under the SIL Open Font License (`public/assets/fonts/OFL.txt`). Music in the tours and videos: ["Life of Riley"](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400054) by Kevin MacLeod (incompetech.com), licensed under [Creative Commons: By Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), shortened with a fade out. Keep this credit if you keep the music, or swap the files in `public/tour/` for your own.
 
 ## Contributing
 

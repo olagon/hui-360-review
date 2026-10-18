@@ -19,5 +19,5 @@ scripts/olelo-logo.*
 scripts/seed-mino.sql
 scripts/mino-logo.*
 
-# Source media dropped in for reference (only its music is used, as public/tour/intro-music.mp3).
+# Source media dropped in for reference. Not used: the tours use the original Life of Riley (see README).
 receipt_beat_intro.mp4

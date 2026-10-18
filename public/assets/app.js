@@ -3,7 +3,7 @@
 export const PRODUCT = 'Hui 360';
 export let APP_NAME = PRODUCT;
 // The build number, shown in every footer. Goes up by 0.1 with each release.
-export const VERSION = '0.11';
+export const VERSION = '0.12';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 
@@ -228,6 +228,9 @@ export async function signOut() {
 let adminP;
 export const adminStatus = () => (adminP ||= fetch('/api/admin-status', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({ admin: false })));
 
+// The intro videos and tours use this song. CC BY requires the credit wherever it plays.
+export const MUSIC_CREDIT = 'Music: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400054" target="_blank" rel="noopener">"Life of Riley"</a> by Kevin MacLeod (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Shortened, with a fade out.';
+
 // A person's first visit on this device opens the intro video once. Sound is on when the browser
 // allows it. Most block sound until a tap, so then it plays muted with a big Tap for sound button.
 export function introOnce(key, src, title) {
@@ -241,6 +244,7 @@ export function introOnce(key, src, title) {
   d.className = 'intro';
   d.innerHTML = `<div class="intro-head"><strong>${esc(title)}</strong><button type="button" class="quiet small" data-close>${esc(t('intro.close'))}</button></div>
     <video src="${src}" controls playsinline preload="auto"></video>
+    <p class="small muted intro-credit">${MUSIC_CREDIT}</p>
     <button type="button" class="intro-sound" hidden>${esc(t('intro.sound'))}</button>`;
   document.body.append(d);
   const v = $('video', d);
