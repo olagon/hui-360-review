@@ -16,6 +16,8 @@
     .stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; font-size: 28px; color: var(--ink); }
     .scene { position: absolute; inset: 0; padding: 72px 96px; display: flex; flex-direction: column; justify-content: center; animation: scene var(--d) linear var(--s) both; }
     .scene.last { animation-name: scene-last; }
+    /* The music credit, quiet along the bottom of the last card (CC BY needs it in the video). */
+    .credit { position: absolute; left: 0; right: 0; bottom: 26px; margin: 0; text-align: center; font-size: 15px; color: var(--muted); opacity: .85; }
     .scene::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 10px; opacity: .28;
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 0h20L10 10z' fill='%233d6b4f'/%3E%3C/svg%3E") repeat-x; }
     @keyframes scene { 0% { opacity: 0 } 5% { opacity: 1 } 95% { opacity: 1 } 100% { opacity: 0 } }
@@ -274,6 +276,7 @@
             <p class="lead in" style="--t:1.1s; margin-top:12px">Free and open source, for every hui.</p>
             <p class="in" style="--t:1.7s; margin-top:34px; font-size:30px; font-weight:600; color:var(--ocean)">github.com/olagon/hui-360-review</p>
             <p class="in" style="--t:2.4s; margin-top:26px; font-size:22px; color:var(--muted)">Mahalo, huiMAU · Stewarded by Olin Lagon</p>
+            <p class="credit in" style="--t:2.8s">Music: "Life of Riley" by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0. Shortened, with a fade out.</p>
           </section>
 
         </div>
@@ -285,7 +288,6 @@
         <audio id="music" src="/tour/intro-music.mp3" preload="none"></audio>
         <div class="progress-line" aria-hidden="true"><span></span></div>
       </div>
-      <p class="small muted">Music: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400054" target="_blank" rel="noopener">"Life of Riley"</a> by Kevin MacLeod (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Shortened, with a fade out.</p>
 
       <section class="after" style="max-width:44rem">
         <h2>The same thing, in words</h2>
@@ -335,7 +337,7 @@
     const master = document.querySelector('.progress-line span').getAnimations()[0];
     master.onfinish = () => setPlaying(false);
 
-    // Music: "Life of Riley" by Kevin MacLeod, CC BY 4.0, cut to this tour's length (credited under the controls).
+    // Music: "Life of Riley" by Kevin MacLeod, CC BY 4.0, cut to this tour's length (credited on the last card).
     // Browsers only play sound after a tap,
     // so it starts off and downloads only when someone turns it on. It follows the tour's clock.
     const music = document.getElementById('music');

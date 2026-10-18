@@ -225,5 +225,4 @@ dialog.intro { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 3
 dialog.intro::backdrop { background: rgba(20, 30, 28, 0.6); }
 .intro-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0.6rem 0.6rem 1rem; }
 dialog.intro video { display: block; width: 100%; max-height: calc(100vh - 110px); background: #000; }
-.intro-credit { margin: 0; padding: 0.5rem 1rem 0.7rem; }
 .intro-sound { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); font-size: 1.1rem; padding: 0.8rem 1.4rem; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); }
