@@ -1,4 +1,4 @@
-import { api, t, initI18n, shell, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config, pressing, adminStatus, openMyReviews, $ } from './app.js';
+import { api, t, initI18n, shell, introOnce, esc, fmtDate, registerSW, APP_NAME, getLang, setLang, orgLogo, config, pressing, adminStatus, openMyReviews, $ } from './app.js';
 import { startSync, on } from './idb.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 
@@ -21,6 +21,7 @@ if (me && config.hawaiian && !localStorage.getItem('hui360_lang') && me.staff.la
   await initI18n();
 }
 shell({ signedIn: !!me, onLang: me ? (lang) => api('/api/me/lang', { method: 'PUT', json: { lang } }).catch(() => {}) : null });
+introOnce('hui360.intro', '/tour/hui-360-overview.mp4', t('intro.title', { app: APP_NAME }));
 
 if (me) {
   // Answers saved on the phone may reach the server after this page loads. Redraw when they do.

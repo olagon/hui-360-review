@@ -219,3 +219,10 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; 
 .tr textarea { min-height: 0; }
 .trtools { position: sticky; top: 0.5rem; z-index: 2; }
 .mark-org { width: auto; max-width: 7.5rem; object-fit: contain; }
+
+/* The one time intro video (introOnce in app.js) */
+dialog.intro { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: 14px; background: var(--card); color: inherit; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25); }
+dialog.intro::backdrop { background: rgba(20, 30, 28, 0.6); }
+.intro-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0.6rem 0.6rem 1rem; }
+dialog.intro video { display: block; width: 100%; max-height: calc(100vh - 110px); background: #000; }
+.intro-sound { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); font-size: 1.1rem; padding: 0.8rem 1.4rem; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); }

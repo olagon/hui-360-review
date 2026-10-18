@@ -1,4 +1,4 @@
-import { api as rawApi, esc, md, copy, copyRich, toast, openMyReviews, pressing, fmtDate, shell, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
+import { api as rawApi, esc, md, copy, copyRich, toast, openMyReviews, pressing, fmtDate, shell, introOnce, initI18n, APP_NAME, orgLogo, config, $, $$ } from './app.js';
 import { moonFor, moonIcon, hawaiiToday } from './moon.js';
 import { layoutMeetings, buildICS } from './ics.js';
 
@@ -42,6 +42,7 @@ const api = (path, opts = {}) => {
 await initI18n();
 shell({ langSwitch: false, home: '/admin/', nav: '<a href="#/">Cycles</a><a href="#/staff">People</a><a href="#/values">Values</a><a href="#/settings">Settings</a><a href="/guide/">Guide</a><span id="mine"></span><span id="who" class="muted small"></span><a href="/cdn-cgi/access/logout" id="adminout">Sign out</a>' });
 document.title = `${APP_NAME} admin`;
+introOnce('hui360.intro.admin', '/tour/hui-360-admin-walkthrough.mp4', 'Running a review, in 90 seconds');
 const app = $('#app');
 // Who is signed in, and whether they are also on the People list with reviews of their own to write.
 const meP = api('/api/admin/me').catch(() => ({}));

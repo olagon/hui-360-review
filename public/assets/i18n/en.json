@@ -184,5 +184,8 @@
   "review.requiredType": "This one needs an answer.",
   "footer.version": "Version {v}",
   "footer.poweredBy": "made with Aloha",
+  "intro.title": "Welcome to {app}. Here it is in about a minute.",
+  "intro.close": "Close",
+  "intro.sound": "Tap for sound",
   "myteam.people": "You supervise: {names}."
 }

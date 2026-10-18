@@ -325,25 +325,24 @@
     };
     const seek = (ms) => anims().forEach((a) => { a.pause(); a.currentTime = ms; });
     window.seek = seek; // used to render the video frame by frame
-    btn.onclick = () => setPlaying(btn.textContent === 'Play');
+    btn.onclick = () => {
+      if (btn.textContent === 'Play' && master.currentTime >= TOTAL) seek(0); // at the end, Play starts over
+      setPlaying(btn.textContent === 'Play');
+    };
     document.getElementById('replay').onclick = () => { seek(0); setPlaying(true); };
-    // Loop, and start paused for anyone who prefers less motion.
+    // Play once and stop on the last frame (Olin: never loop). Start paused for anyone who prefers less motion.
     const master = document.querySelector('.progress-line span').getAnimations()[0];
-    master.onfinish = () => { seek(0); setPlaying(true); };
+    master.onfinish = () => setPlaying(false);
 
-    // Music: an original ukulele and marimba piece, CC0. Browsers only play sound after a tap,
+    // Music: the original ukulele piece from the Receipt Beat intro, CC0. Browsers only play sound after a tap,
     // so it starts off and downloads only when someone turns it on. It follows the tour's clock.
     const music = document.getElementById('music');
     const sound = document.getElementById('sound');
     music.volume = 0.6;
-    music.loop = TOTAL > 80000; // the 72 second piece plays once in the short tour and twice in the long one
     function syncMusic(playing) {
       if (sound.getAttribute('aria-pressed') !== 'true') return;
       if (!playing) return music.pause();
-      const jump = () => {
-        const t = (master.currentTime || 0) / 1000;
-        music.currentTime = music.loop ? t % music.duration : t;
-      };
+      const jump = () => (music.currentTime = (master.currentTime || 0) / 1000); // plays once, then quiet to the end
       // The first time, the file has not loaded yet, so jump once it knows its length.
       music.readyState ? jump() : music.addEventListener('loadedmetadata', jump, { once: true });
       music.play().catch(() => {});

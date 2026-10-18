@@ -3,7 +3,7 @@
 export const PRODUCT = 'Hui 360';
 export let APP_NAME = PRODUCT;
 // The build number, shown in every footer. Goes up by 0.1 with each release.
-export const VERSION = '0.10';
+export const VERSION = '0.11';
 export const REPO_URL = 'https://github.com/olagon/hui-360-review';
 export const AUTHOR_URL = 'https://www.linkedin.com/in/olinlagon';
 
@@ -227,6 +227,37 @@ export async function signOut() {
 // Is this person signed in as an admin? Asked once per page, so staff pages can link back to admin.
 let adminP;
 export const adminStatus = () => (adminP ||= fetch('/api/admin-status', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({ admin: false })));
+
+// A person's first visit on this device opens the intro video once. Sound is on when the browser
+// allows it. Most block sound until a tap, so then it plays muted with a big Tap for sound button.
+export function introOnce(key, src, title) {
+  try {
+    if (navigator.webdriver || localStorage.getItem(key)) return; // tests and link previews skip it
+    localStorage.setItem(key, '1');
+  } catch {
+    return; // without storage it would open on every visit, so it never does
+  }
+  const d = document.createElement('dialog');
+  d.className = 'intro';
+  d.innerHTML = `<div class="intro-head"><strong>${esc(title)}</strong><button type="button" class="quiet small" data-close>${esc(t('intro.close'))}</button></div>
+    <video src="${src}" controls playsinline preload="auto"></video>
+    <button type="button" class="intro-sound" hidden>${esc(t('intro.sound'))}</button>`;
+  document.body.append(d);
+  const v = $('video', d);
+  const tap = $('.intro-sound', d);
+  d.addEventListener('close', () => (v.pause(), d.remove()));
+  d.addEventListener('click', (e) => e.target === d && d.close()); // a tap outside the video closes it
+  $('[data-close]', d).onclick = () => d.close();
+  tap.onclick = () => ((v.muted = false), v.play(), (tap.hidden = true));
+  v.addEventListener('volumechange', () => v.muted || (tap.hidden = true));
+  d.showModal();
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; // they press play themselves
+  v.play().catch(() => {
+    v.muted = true;
+    tap.hidden = false;
+    v.play().catch(() => {});
+  });
+}
 
 export function shell({ nav = '', langSwitch = true, onLang, signedIn = false, home = '/' } = {}) {
   const lang = getLang();

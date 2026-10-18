@@ -2,9 +2,9 @@
 
 # Hui 360
 
-[![Hui 360 in about a minute: open source, free, inspired by huiMAU](docs/hui-360-overview.gif)](docs/hui-360-overview.mp4)
+[![Hui 360 in about a minute: open source, free, inspired by huiMAU](docs/hui-360-overview.gif)](public/tour/hui-360-overview.mp4)
 
-*Hui 360 in about a minute. Click for the [full quality video](docs/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`. For directors, a 90 second walkthrough of running a review start to finish: [video](docs/hui-360-admin-walkthrough.mp4), or `/tour/admin/` in the app.*
+*Hui 360 in about a minute. Click for the [full quality video](public/tour/hui-360-overview.mp4). Every copy of the app also plays it at `/tour/`. For directors, a 90 second walkthrough of running a review start to finish: [video](public/tour/hui-360-admin-walkthrough.mp4), or `/tour/admin/` in the app.*
 
 **An open source 360 review app for nonprofits and small teams.** Staff answer on their phones, by voice or by typing, with or without a signal. Answers stay anonymous. At the end, the director gets a first draft of a letter for each person, written from exact quotes and measured against the organization's own values. AI is optional: turn it off and each letter starts from the answers, word for word.
 
@@ -227,7 +227,7 @@ Workers AI always runs remotely, even in local dev, so voice and Llama drafts ne
 
 ## Built with
 
-Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph. Inter is licensed under the SIL Open Font License (`public/assets/fonts/OFL.txt`). The music in the tours and videos is an original ukulele and marimba piece made for hana local, released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), so you can keep it, swap it, or drop it.
+Plain HTML, CSS, and JavaScript, no framework and no build step. Cloudflare Pages, Pages Functions, D1, R2, KV, Workers AI, AI Gateway, and Access. Claude by Anthropic for summaries. Inter for type, chosen because its ʻokina is a real, spaced glyph. Inter is licensed under the SIL Open Font License (`public/assets/fonts/OFL.txt`). The music in the tours and videos is the original ukulele piece from the Receipt Beat intro, released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), so you can keep it, swap it, or drop it.
 
 ## Contributing
 
